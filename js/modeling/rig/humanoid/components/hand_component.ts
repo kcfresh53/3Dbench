@@ -1,7 +1,7 @@
 import { BoneSpec, BuildContext, ComponentOutput, HumanoidComponent, MeshSpec, Side } from '../humanoid_types';
 import { buildChainLoft, LoftSettings, Station } from '../chain_loft';
 import { ChainBone } from '../loft';
-import { Vec3, add, normalize, scale } from '../vec';
+import { Vec3, add, normalize, scale, cross } from '../vec';
 import { loftSettingsFor } from './component_utils';
 
 interface FingerSpec {
@@ -48,7 +48,7 @@ export class HandComponent implements HumanoidComponent {
 		];
 		const meshes: MeshSpec[] = [];
 		const settings: LoftSettings = loftSettingsFor(context);
-		const palm_half_width: number = 0.2 * hand_length;
+		const palm_half_width: number = (full ? 0.2 : 0.29) * hand_length;
 
 		if (L.mesh_enabled) {
 			const stations: Station[] = full
@@ -58,31 +58,52 @@ export class HandComponent implements HumanoidComponent {
 					{ t: 1.0, ru: 0.07 * hand_length, rv: palm_half_width * 0.95 },
 				]
 				: [
-					{ t: -0.05, ru: 0.065 * hand_length, rv: 0.11 * hand_length },
-					{ t: 0.35, ru: 0.085 * hand_length, rv: palm_half_width },
-					{ t: 0.8, ru: 0.07 * hand_length, rv: palm_half_width * 0.9 },
-					{ t: 1.0, ru: 0.045 * hand_length, rv: palm_half_width * 0.65 },
+					{ t: -0.05, ru: 0.16 * hand_length, rv: 0.17 * hand_length },
+					{ t: 0.35, ru: 0.22 * hand_length, rv: palm_half_width },
+					{ t: 0.8, ru: 0.2 * hand_length, rv: palm_half_width * 0.9 },
+					{ t: 1.0, ru: 0.14 * hand_length, rv: palm_half_width * 0.65 },
 				];
+			if (full && !settings.rigid) {
+				// Four open knuckle sockets share the palm surface; each finger is bridged later.
+				const mesh: MeshSpec = { name: 'hand' + suffix, vertices: [], vertex_weights: [], faces: [] };
+				const normal = normalize(cross([0, 0, 1], d));
+				const rows = [{ t: -0.08, width: 0.11, depth: 0.1 }, { t: 0.45, width: 0.2, depth: 0.085 }, { t: 1, width: 0.2, depth: 0.07 }];
+				for (const row of rows) {
+					const center = add(this.wrist, scale(d, palm_length * row.t));
+					for (let i = 0; i < 10; i++) {
+						const column = i < 5 ? i : 9 - i;
+						mesh.vertices.push(add(center, add(scale(normal, (i < 5 ? 1 : -1) * row.depth * hand_length), [0, 0, (column / 2 - 1) * row.width * hand_length])));
+						mesh.vertex_weights.push({ ['hand' + suffix]: 1 });
+					}
+				}
+				for (let row = 0; row < 2; row++) for (let i = 0; i < 10; i++) mesh.faces.push([row * 10 + i, row * 10 + (i + 1) % 10, (row + 1) * 10 + (i + 1) % 10, (row + 1) * 10 + i]);
+				mesh.vertices.push(add(this.wrist, scale(d, -0.08 * palm_length)), palm_end);
+				mesh.vertex_weights.push({ ['hand' + suffix]: 1 }, { ['hand' + suffix]: 1 });
+				for (let i = 0; i < 10; i++) mesh.faces.push([i, (i + 1) % 10, 30]);
+				for (let i = 0; i < 4; i++) mesh.faces.push([20 + i, 21 + i, 28 - i, 29 - i]);
+				meshes.push(mesh);
+			} else {
 			meshes.push(buildChainLoft({
 				name: 'hand' + suffix,
 				bones: [{ id: 'hand' + suffix, head: this.wrist, tail: palm_end }],
 				stations,
 				up_hint: [0, 0, 1],
 			}, settings));
+			}
 		}
 
-		if (full) {
+		{
 			const finger_settings: LoftSettings = { ...settings, sides: settings.sides == 4 ? 4 : 6 };
 			const lateral_axis: Vec3 = [0, 0, 1];
 
-			for (const finger of FINGERS) {
+			for (const finger of full ? FINGERS : []) {
 				const base: Vec3 = add(palm_end, scale(lateral_axis, finger.lateral * palm_half_width));
 				this.addFingerChain(bones, meshes, context, finger_settings, finger.name, suffix, base, d, finger.length * hand_length, finger.segments, finger.radius * hand_length, 'hand' + suffix);
 			}
 			// thumb: starts near the wrist on the front side of the palm, angled forward
-			const thumb_base: Vec3 = add(add(this.wrist, scale(d, palm_length * 0.18)), scale(lateral_axis, -palm_half_width * 0.85));
+			const thumb_base: Vec3 = add(add(this.wrist, scale(d, palm_length * (full ? 0.18 : 0.25))), scale(lateral_axis, -palm_half_width * 0.85));
 			const thumb_direction: Vec3 = normalize(add(scale(d, 0.65), scale(lateral_axis, -0.75)));
-			this.addFingerChain(bones, meshes, context, finger_settings, 'thumb', suffix, thumb_base, thumb_direction, hand_length * 0.5, [0.4, 0.33, 0.27], 0.05 * hand_length, 'hand' + suffix);
+			this.addFingerChain(bones, meshes, context, finger_settings, 'thumb', suffix, thumb_base, thumb_direction, hand_length * (full ? 0.5 : 0.48), [0.4, 0.33, 0.27], (full ? 0.05 : 0.1) * hand_length, 'hand' + suffix);
 		}
 		return { bones, meshes };
 	}

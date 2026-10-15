@@ -4,7 +4,7 @@ const SIDE_SUFFIX: RegExp = /\.(L|R)$/;
 
 const GODOT_NAMES: Record<string, string> = {
 	root: 'Root', hips: 'Hips', spine: 'Spine', chest: 'Chest', upper_chest: 'UpperChest', neck: 'Neck', head: 'Head',
-	shoulder: 'Shoulder', upper_arm: 'UpperArm', lower_arm: 'LowerArm', hand: 'Hand',
+	shoulder: 'Shoulder', upper_arm: 'UpperArm', lower_arm: 'LowerArm', hand: 'Hand', fingers: 'Fingers',
 	upper_leg: 'UpperLeg', lower_leg: 'LowerLeg', foot: 'Foot', toes: 'Toes',
 	thumb_1: 'ThumbMetacarpal', thumb_2: 'ThumbProximal', thumb_3: 'ThumbDistal',
 };
@@ -15,7 +15,7 @@ const UNITY_NAMES: Record<string, string> = {
 };
 const MIXAMO_NAMES: Record<string, string> = {
 	root: 'Root', hips: 'Hips', spine: 'Spine', chest: 'Spine1', upper_chest: 'Spine2', neck: 'Neck', head: 'Head',
-	shoulder: 'Shoulder', upper_arm: 'Arm', lower_arm: 'ForeArm', hand: 'Hand',
+	shoulder: 'Shoulder', upper_arm: 'Arm', lower_arm: 'ForeArm', hand: 'Hand', fingers: 'Fingers',
 	upper_leg: 'UpLeg', lower_leg: 'Leg', foot: 'Foot', toes: 'ToeBase',
 };
 const FINGER_NAMES: Record<string, string> = { index: 'Index', middle: 'Middle', ring: 'Ring', pinky: 'Pinky', thumb: 'Thumb' };

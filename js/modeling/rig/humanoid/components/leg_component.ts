@@ -1,6 +1,6 @@
 import { BoneSpec, BuildContext, ComponentOutput, HumanoidComponent, MeshSpec, Side } from '../humanoid_types';
 import { buildChainLoft, Station } from '../chain_loft';
-import { ChainBone } from '../loft';
+import { ChainBone, loftRings } from '../loft';
 import { Vec3, distance } from '../vec';
 import { loftSettingsFor } from './component_utils';
 
@@ -41,9 +41,9 @@ export class LegComponent implements HumanoidComponent {
 		if (L.mesh_enabled) {
 			const settings = loftSettingsFor(context);
 			const thick: number = params.limb_thickness;
-			const thigh: number = 0.058 * H * thick;
-			const knee_r: number = 0.04 * H * thick;
-			const ankle_r: number = 0.026 * H * thick;
+			const thigh: number = 0.044 * H * thick;
+			const knee_r: number = 0.027 * H * thick;
+			const ankle_r: number = 0.021 * H * thick;
 			const leg_chain: ChainBone[] = [
 				{ id: 'upper_leg' + suffix, head: hip, tail: knee },
 				{ id: 'lower_leg' + suffix, head: knee, tail: ankle },
@@ -55,10 +55,10 @@ export class LegComponent implements HumanoidComponent {
 					{ t: 1, ru: ankle_r * 1.15, rv: ankle_r * 1.15 },
 				]
 				: [
-					{ t: -0.05, ru: thigh * 1.05, rv: thigh * 1.05 },
-					{ t: 0.15, ru: thigh, rv: thigh },
+					{ t: 0.16, ru: thigh * 1.02, rv: thigh * 1.05 },
+					{ t: 0.25, ru: thigh * 0.98, rv: thigh * 1.08 },
 					{ t: 0.5, ru: knee_r, rv: knee_r },
-					{ t: 0.66, ru: knee_r * 1.04, rv: knee_r * 1.04 },
+					{ t: 0.69, ru: knee_r * 1.32, rv: knee_r * 1.32 },
 					{ t: 1, ru: ankle_r, rv: ankle_r },
 				];
 			meshes.push(buildChainLoft({ name: 'leg' + suffix, bones: leg_chain, stations, up_hint: [1, 0, 0] }, settings));
@@ -84,7 +84,22 @@ export class LegComponent implements HumanoidComponent {
 				{ t: ball_t, ru: center_y(ball_t) * 0.92, rv: fw },
 				{ t: 1.0, ru: center_y(1.0) * 0.9, rv: fw * 0.75 },
 			];
-			meshes.push(buildChainLoft({ name: 'foot' + suffix, bones: foot_chain, stations: foot_stations, up_hint: [1, 0, 0] }, settings));
+			const foot = settings.rigid
+				? buildChainLoft({ name: 'foot' + suffix, bones: foot_chain, stations: foot_stations, up_hint: [1, 0, 0] }, settings)
+				: loftRings('foot' + suffix, [
+					{ z: 0.24, h: 0.023, w: 0.76 },
+					{ z: 0.03, h: 0.034, w: 0.9 },
+					{ z: -0.3, h: 0.025, w: 1.06 },
+					{ z: -0.58, h: 0.016, w: 1.02 },
+					{ z: -0.7, h: 0.012, w: 0.87 },
+				].map(s => ({
+					center: [x, s.h * H, s.z * L.foot_length] as Vec3,
+					axis_u: [0, 1, 0] as Vec3, axis_v: [1, 0, 0] as Vec3,
+					radius_u: s.h * H, radius_v: fw * s.w,
+					weights: params.toes && s.z < -0.4 ? { ['foot' + suffix]: 0.3, ['toes' + suffix]: 0.7 } : { ['foot' + suffix]: 1 },
+				})), L.sides);
+			for (const vertex of foot.vertices) vertex[1] = Math.max(0, vertex[1]);
+			meshes.push(foot);
 		}
 		return { bones, meshes };
 	}

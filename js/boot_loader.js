@@ -44,7 +44,7 @@ if (isApp === false) {
 	if (navigator.appVersion.indexOf("Mac") != -1) 	 Blockbench.operating_system = 'MacOS';
 	if (navigator.appVersion.indexOf("Linux") != -1) Blockbench.operating_system = 'Linux';
 	if (['proprietary_edge', 'internet_explorer'].includes(Blockbench.browser)) {
-		alert(capitalizeFirstLetter(Blockbench.browser)+' does not support Blockbench')
+		alert(capitalizeFirstLetter(Blockbench.browser)+' does not support 3D Bench')
 	}
 	$('.local_only').remove()
 } else {
@@ -64,7 +64,7 @@ initReferenceImages()
 animate()
 
 console.log(`Three.js r${THREE.REVISION}`)
-console.log('%cBlockbench ' + Blockbench.version + (isApp
+console.log('%c3D Bench ' + Blockbench.version + (isApp
 	? (' Desktop (' + Blockbench.operating_system + ', ' + SystemInfo.arch +')')
 	: (' Web ('+capitalizeFirstLetter(Blockbench.browser) + (Blockbench.isPWA ? ', PWA)' : ')'))),
 	'border: 2px solid #3e90ff; padding: 4px 8px; font-size: 1.2em;'

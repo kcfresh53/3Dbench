@@ -1,5 +1,5 @@
 name: Suggestion
-description: Use this form to suggest features or improvements for Blockbench
+description: Use this form to suggest features or improvements for 3D Bench
 title: "Suggestion Summary"
 body:
 - type: markdown

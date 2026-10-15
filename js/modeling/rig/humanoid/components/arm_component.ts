@@ -45,8 +45,8 @@ export class ArmComponent implements HumanoidComponent {
 			const settings = loftSettingsFor(context);
 			const thick: number = params.limb_thickness;
 			const r_shoulder: number = 0.034 * H * thick;
-			const r_elbow: number = 0.027 * H * thick;
-			const r_wrist: number = 0.02 * H * thick;
+			const r_elbow: number = 0.022 * H * thick;
+			const r_wrist: number = 0.017 * H * thick;
 			const elbow_t: number = upper_length / (upper_length + lower_length);
 			const chain: ChainBone[] = [
 				{ id: 'upper_arm' + suffix, head: shoulder, tail: elbow },
@@ -59,10 +59,10 @@ export class ArmComponent implements HumanoidComponent {
 					{ t: 1, ru: r_wrist * 1.1, rv: r_wrist * 1.1 },
 				]
 				: [
-					{ t: -0.04, ru: r_shoulder * 0.95, rv: r_shoulder * 0.95 },
-					{ t: elbow_t * 0.25, ru: r_shoulder, rv: r_shoulder },
+					{ t: -0.04, ru: r_shoulder * 0.9, rv: r_shoulder * 0.9 },
+					{ t: elbow_t * 0.2, ru: r_shoulder, rv: r_shoulder },
 					{ t: elbow_t, ru: r_elbow, rv: r_elbow },
-					{ t: elbow_t + (1 - elbow_t) * 0.3, ru: r_elbow * 1.08, rv: r_elbow * 1.08 },
+					{ t: elbow_t + (1 - elbow_t) * 0.3, ru: r_elbow * 1.3, rv: r_elbow * 1.3 },
 					{ t: 1, ru: r_wrist, rv: r_wrist },
 				];
 			meshes.push(buildChainLoft({ name: 'arm' + suffix, bones: chain, stations, up_hint: [0, 0, 1] }, settings));

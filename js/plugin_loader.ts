@@ -1829,7 +1829,7 @@ BARS.defineActions(function() {
 							<div class="no_plugin_message tl" v-if="plugin_search.length < 1 && tab === 'available'">
 								{{ tl(online ? 'dialog.plugins.none_available' : 'dialog.plugins.offline') }}
 								<p v-if="online && network_error">Error {{ network_error }}</p>
-								<p v-if="online && network_error">This is not an issue with Blockbench itself, it is most likely caused by network issues or internet restrictions.</p>
+								<p v-if="online && network_error">This is not an issue with 3D Bench itself, it is most likely caused by network issues or internet restrictions.</p>
 							</div>
 						</ul>
 						<ol class="pagination_numbers" v-if="pages.length > 1">
@@ -2068,7 +2068,7 @@ BARS.defineActions(function() {
 					<div id="plugin_browser_start_page" v-if="!selected_plugin && !isMobile">
 						<h1>Blockbench Plugins</h1>
 						<img src="./assets/plugins.png" />
-						<p>Plugins allow you to configure Blockbench beyond the default capabilities. Select from a catalog of community created plugins.</p>
+						<p>Plugins allow you to configure 3D Bench beyond the default capabilities. Select from a catalog of community created plugins.</p>
 						<p>Want to write your own plugin? Check out the <a href="https://www.blockbench.net/wiki/docs/plugin" target="_blank">Plugin Documentation</a>.</p>
 
 						<div v-for="row in suggested_rows" class="plugins_suggested_row">
@@ -2127,7 +2127,7 @@ BARS.defineActions(function() {
 			Blockbench.import({
 				resource_id: 'dev_plugin',
 				extensions: ['js'],
-				type: 'Blockbench Plugin',
+				type: '3D Bench Plugin',
 			}, function(files) {
 				new Plugin().loadFromFile(files[0], true)
 			})

@@ -1,22 +1,23 @@
 {
-	"name": "blockbench-types",
+	"name": "3dbench-types",
 	"version": "5.2.1",
-	"description": "Blockbench typescript types",
+	"description": "3D Bench TypeScript types (Blockbench-compatible API)",
 	"main": "",
 	"types": "./index.d.ts",
 	"typeScriptVersion": "5.8",
 	"keywords": [
+		"3dbench",
 		"blockbench"
 	],
 	"author": "JannisX11",
 	"bugs": {
-		"url": "https://github.com/JannisX11/blockbench/issues"
+		"url": "https://github.com/kcfresh53/3Dbench/issues"
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/JannisX11/blockbench.git"
+		"url": "git+https://github.com/kcfresh53/3Dbench.git"
 	},
-	"homepage": "https://blockbench.net",
+	"homepage": "https://github.com/kcfresh53/3Dbench",
 	"dependencies": {
 		"@babel/types": "^7.20.7",
 		"@types/dompurify": "^3.0.5",

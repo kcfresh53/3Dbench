@@ -32,8 +32,8 @@ var codec = new Codec('collada', {
 						{
 							name: 'contributor',
 							content: [
-								{type: 'author', content: settings.username.value || 'Blockbench user'},
-								{type: 'authoring_tool', content: 'Blockbench'},
+								{type: 'author', content: settings.username.value || '3D Bench user'},
+								{type: 'authoring_tool', content: '3D Bench'},
 							]
 						},
 						{name: 'created', content: new Date().toISOString()},

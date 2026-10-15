@@ -42,7 +42,7 @@ BARS.defineActions(() => {
 			Blockbench.import({
 				resource_id: 'config',
 				extensions: ['bbsettings'],
-				type: 'Blockbench Settings'
+				type: '3D Bench Settings'
 			}, function(files) {
 				Settings.import(files[0]);
 			})
@@ -80,7 +80,7 @@ BARS.defineActions(() => {
 			// @ts-ignore for now
 			Blockbench.export({
 				resource_id: 'config',
-				type: 'Blockbench Settings',
+				type: '3D Bench Settings',
 				extensions: ['bbsettings'],
 				content: compileJSON({settings: settings_copy})
 			})

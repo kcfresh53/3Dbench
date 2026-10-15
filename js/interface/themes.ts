@@ -905,7 +905,7 @@ BARS.defineActions(function() {
 			Blockbench.import({
 				resource_id: 'config',
 				extensions: ['bbtheme'],
-				type: 'Blockbench Theme'
+				type: '3D Bench Theme'
 			}, function(files) {
 				CustomTheme.import(files[0]);
 			})
@@ -919,7 +919,7 @@ BARS.defineActions(function() {
 			let content = CustomTheme.selected.compileBBTheme();
 			Blockbench.export({
 				resource_id: 'config',
-				type: 'Blockbench Theme',
+				type: '3D Bench Theme',
 				extensions: ['bbtheme'],
 				name: id,
 				content

@@ -97,7 +97,7 @@ function processCompatibility(model) {
 }
 
 var codec = new Codec('project', {
-	name: '3DBench Project',
+	name: '3D Bench Project',
 	extension: 'bbmodel',
 	remember: true,
 	support_partial_export: true,

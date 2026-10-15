@@ -9,3 +9,9 @@ node_modules/
 workbox-*.js
 service_worker.js
 .scratch/
+
+# Purchased character templates are local assets, never source-controlled.
+.local-assets/
+
+# Python importer bytecode
+__pycache__/

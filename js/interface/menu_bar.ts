@@ -575,7 +575,7 @@ export const MenuBar = {
 			{name: 'menu.help.search_action', description: BarItems.action_control.description, keybind: BarItems.action_control.keybind, id: 'search_action', icon: 'search', click: ActionControl.select},
 			new MenuSeparator('links'),
 			{name: 'menu.help.quickstart', id: 'quickstart', icon: 'fas.fa-directions', click: () => {
-				Blockbench.openLink('https://blockbench.net/quickstart/');
+				Blockbench.openLink('https://github.com/kcfresh53/3Dbench#getting-started');
 			}},
 			{name: 'menu.help.discord', id: 'discord', icon: 'fab.fa-discord', condition: () => (!settings.classroom_mode.value), click: () => {
 				Blockbench.openLink('http://discord.blockbench.net');
@@ -584,7 +584,7 @@ export const MenuBar = {
 				Blockbench.openLink('https://blockbench.net/wiki/');
 			}},
 			{name: 'menu.help.report_issue', id: 'report_issue', icon: 'bug_report', click: () => {
-				Blockbench.openLink('https://github.com/JannisX11/blockbench/issues');
+				Blockbench.openLink('https://github.com/kcfresh53/3Dbench/issues');
 			}},
 			new MenuSeparator('backups'),
 			'view_backups',

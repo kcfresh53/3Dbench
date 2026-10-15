@@ -411,7 +411,7 @@ export function resizeWindow(event) {
 }
 
 export function setProjectTitle(title) {
-	let window_title = '3DBench';
+	let window_title = '3D Bench';
 	if (title == undefined && Project.name) {
 		title = Project.name
 	}
@@ -425,7 +425,7 @@ export function setProjectTitle(title) {
 				title = title.replace(/^geometry\./,'').replace(/:[a-z0-9.]+/, '')
 			}
 		}
-		window_title = title+' - 3DBench';
+		window_title = title+' - 3D Bench';
 	} else {
 		Prop.file_name = Prop.file_name_alt = ''
 	}

@@ -31,7 +31,7 @@ export function computeLandmarks(params: HumanoidParams): Landmarks {
 		hip_x: 0.055 * H * params.hip_width,
 		knee_y: (hip_y + ankle_y) / 2 + 0.01 * H,
 		ankle_y,
-		foot_length: 0.15 * H * params.foot_scale,
+		foot_length: 0.12 * H * params.foot_scale,
 		foot_width: 0.034 * H * params.foot_scale,
 		torso_depth: 0.062 * H * params.body_depth,
 		spine_ids: SPINE_IDS.slice(0, spine_count + 1),

@@ -313,7 +313,7 @@ function setupSettings() {
 	new Setting('animation_sample_rate',{category: 'export', value: 24, type: 'number', min: 1, max: 640});
 	new Setting('model_export_scale',	{category: 'export', value: 16, type: 'number', min: 0.0001, max: 4096});
 	new Setting('sketchfab_token', 		{category: 'export', value: '', type: 'password'});
-	new Setting('credit', 				{category: 'export', value: 'Made with 3DBench', type: 'text'});
+	new Setting('credit', 				{category: 'export', value: 'Made with 3D Bench', type: 'text'});
 
 	Blockbench.onUpdateTo('5.0.0', () => {
 		settings.antialiasing_bleed_fix.set(true);

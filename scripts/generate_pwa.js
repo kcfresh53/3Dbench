@@ -1,7 +1,7 @@
 import workbox from 'workbox-build';
 
 workbox.generateSW({
-	cacheId: 'blockbench',
+	cacheId: '3dbench',
 	globDirectory: './',
 	globPatterns: [
 		'./index.html',

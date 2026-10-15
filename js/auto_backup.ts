@@ -22,7 +22,7 @@ export const AutoBackup = {
 			console.error('Failed to load backup database', e);
 		}
 		request.onblocked = function(e) {
-			console.error('Another instance of Blockbench is opened, the backup database cannot be upgraded at the moment');
+			console.error('Another instance of 3D Bench is opened, the backup database cannot be upgraded at the moment');
 		}
 		request.onupgradeneeded = function() {
 			let db = request.result;

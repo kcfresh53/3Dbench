@@ -9,6 +9,11 @@ export type Side = 'L' | 'R';
 export interface HumanoidParams {
 	/** Total height in model units */
 	height: number
+	/** Silhouette controls, independent of rig naming. */
+	waist_width: number
+	chest_shape: number
+	head_width: number
+	jaw_width: number
 	head_scale: number
 	neck_length: number
 	torso_length: number
@@ -49,6 +54,9 @@ export interface MeshSpec {
 	vertices: Vec3[]
 	vertex_weights: Record<string, number>[]
 	faces: number[][]
+	/** Preserved per-corner UVs in normalized texture coordinates. */
+	face_uvs?: [number, number][][]
+	face_materials?: number[]
 }
 
 export interface ComponentOutput {
@@ -91,11 +99,17 @@ export interface HumanoidComponent {
 
 export interface HumanoidPreset {
 	label: string
+	/** Exact, user-installed local template. */
+	template?: string
 	values: Partial<HumanoidParams>
 }
 
 export const DEFAULT_HUMANOID: HumanoidParams = {
 	height: 32,
+	waist_width: 1,
+	chest_shape: 0,
+	head_width: 1,
+	jaw_width: 1,
 	head_scale: 1,
 	neck_length: 1,
 	torso_length: 1,
@@ -115,30 +129,23 @@ export const DEFAULT_HUMANOID: HumanoidParams = {
 	root_bone: true,
 	naming: 'godot',
 	generate_mesh: true,
-	single_mesh: false,
+	single_mesh: true,
 	auto_uv: true,
 };
 
+/** Every preset stays low-poly; proportions can still be edited independently. */
 export const HUMANOID_PRESETS: Record<string, HumanoidPreset> = {
-	average: { label: 'Average', values: {} },
-	stylized: {
-		label: 'Stylized',
-		values: { head_scale: 1.5, leg_length: 0.8, torso_length: 0.95, arm_length: 0.9, hand_scale: 1.2, foot_scale: 1.2, limb_thickness: 1.1 },
+	male: { label: 'Male base', values: {} },
+	female: {
+		label: 'Female base',
+		values: { shoulder_width: 0.86, hip_width: 1.16, waist_width: 0.78, chest_shape: 0.65, limb_thickness: 0.85, hand_scale: 0.9, foot_scale: 0.88, jaw_width: 0.78, head_width: 0.96 },
 	},
-	chibi: {
-		label: 'Chibi',
-		values: { head_scale: 2.4, leg_length: 0.55, torso_length: 0.8, arm_length: 0.65, neck_length: 0.3, limb_thickness: 1.3, hand_scale: 1.2, foot_scale: 1.3, body_depth: 1.2 },
+	chibi_male: {
+		label: 'Male Chibi base', template: 'chibi_male',
+		values: { auto_uv: false, style: 'low_poly' },
 	},
-	heroic: {
-		label: 'Heroic',
-		values: { head_scale: 0.9, leg_length: 1.05, shoulder_width: 1.3, hip_width: 0.95, limb_thickness: 1.25, torso_length: 1.05, arm_length: 1.05 },
-	},
-	child: {
-		label: 'Child',
-		values: { head_scale: 1.4, leg_length: 0.8, arm_length: 0.85, torso_length: 0.9, neck_length: 0.7, shoulder_width: 0.8, limb_thickness: 0.9 },
-	},
-	blocky: {
-		label: 'Blocky',
-		values: { style: 'blocky', head_scale: 1.15, limb_thickness: 1.3, fingers: 'none', toes: false, spine_bones: 2, body_depth: 1.2 },
+	chibi_female: {
+		label: 'Female Chibi base', template: 'chibi_female',
+		values: { auto_uv: false, style: 'low_poly' },
 	},
 };

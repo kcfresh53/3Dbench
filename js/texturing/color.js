@@ -959,7 +959,7 @@ BARS.defineActions(function() {
 			Blockbench.import({
 				resource_id: 'palette',
 				extensions: ['gpl', 'css', 'txt', 'hex', 'png', 'aco', 'act', 'ase', 'bbpalette'],
-				type: 'Blockbench Palette',
+				type: '3D Bench Palette',
 				readtype: (path) => {
 					switch (pathToExtension(path)) {
 						case 'png': return 'image'; break;
@@ -979,7 +979,7 @@ BARS.defineActions(function() {
 		icon: 'fas.fa-dice-four',
 		category: 'color',
 		click: function () {
-			let content = 'GIMP Palette\nName: Blockbench palette\nColumns: 10\n';
+			let content = 'GIMP Palette\nName: 3D Bench palette\nColumns: 10\n';
 			ColorPanel.palette.forEach(color => {
 				let t = new tinycolor(color);
 				content += `${t._r}\t${t._g}\t${t._b}\t${color}\n`;

@@ -56,7 +56,7 @@ var codec = new Codec('fbx', {
 		let armature_scale_const = new THREE.Vector3(1, 1, 1);
 		model.push([
 			'; FBX 7.3.0 project file',
-			'; Created by the Blockbench FBX Exporter',
+			'; Created by the 3D Bench FBX Exporter',
 			'; ----------------------------------------------------',
 			'; ',
 			'',
@@ -119,7 +119,7 @@ var codec = new Codec('fbx', {
 					Second: date.getSeconds(),
 					Millisecond: date.getMilliseconds()
 				},
-				Creator: 'Blockbench ' + Blockbench.version,
+				Creator: '3D Bench ' + Blockbench.version,
 				SceneInfo: {
 					_values: ['SceneInfo::GlobalInfo', "UserData"],
 					Type: "UserData",
@@ -137,14 +137,14 @@ var codec = new Codec('fbx', {
 						P01: {_key: 'P', _values: ["DocumentUrl", "KString", "Url", "", model_url]},
 						P02: {_key: 'P', _values: ["SrcDocumentUrl", "KString", "Url", "", model_url]},
 						P03: {_key: 'P', _values: ["Original", "Compound", "", ""]},
-						P04: {_key: 'P', _values: ["Original|ApplicationVendor", "KString", "", "", "Blockbench"]},
-						P05: {_key: 'P', _values: ["Original|ApplicationName", "KString", "", "", "Blockbench FBX Exporter"]},
+						P04: {_key: 'P', _values: ["Original|ApplicationVendor", "KString", "", "", "3D Bench"]},
+						P05: {_key: 'P', _values: ["Original|ApplicationName", "KString", "", "", "3D Bench FBX Exporter"]},
 						P06: {_key: 'P', _values: ["Original|ApplicationVersion", "KString", "", "", Blockbench.version]},
 						P07: {_key: 'P', _values: ["Original|DateTime_GMT", "DateTime", "", "", "01/01/1970 00:00:00.000"]},
 						P08: {_key: 'P', _values: ["Original|FileName", "KString", "", "", "/foobar.fbx"]},
 						P09: {_key: 'P', _values: ["LastSaved", "Compound", "", ""]},
-						P10: {_key: 'P', _values: ["LastSaved|ApplicationVendor", "KString", "", "", "Blockbench"]},
-						P11: {_key: 'P', _values: ["LastSaved|ApplicationName", "KString", "", "", "Blockbench FBX Exporter"]},
+						P10: {_key: 'P', _values: ["LastSaved|ApplicationVendor", "KString", "", "", "3D Bench"]},
+						P11: {_key: 'P', _values: ["LastSaved|ApplicationName", "KString", "", "", "3D Bench FBX Exporter"]},
 						P12: {_key: 'P', _values: ["LastSaved|ApplicationVersion", "KString", "", "", Blockbench.version]},
 						P13: {_key: 'P', _values: ["LastSaved|DateTime_GMT", "DateTime", "", "", "01/01/1970 00:00:00.000"]},
 						P14: {_key: 'P', _values: ["Original|ApplicationNativeFile", "KString", "", "", ""]},

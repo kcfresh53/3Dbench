@@ -21,7 +21,7 @@
 	"readme": "types/documentation.md",
 	"excludeExternals": true,
 	"internalModule": "Internal Types",
-	"name": "Blockbench Reference Docs",
+	"name": "3D Bench Reference Docs",
 	"defaultCategory": "custom",
 	"tsconfig": "types/tsconfig.json",
 	"favicon": "./favicon.png",

@@ -9,6 +9,7 @@ package_file = package_file.replace('favicon.png', 'icons/favicon_beta.png');
 
 fs.writeFileSync(index_path, package_file, {encoding: 'utf-8'});
 
-fs.writeFileSync(cname_path, 'beta.blockbench.net', {encoding: 'utf-8'});
+// A custom domain can be configured by the fork's deployment environment.
+if (process.env.BETA_DOMAIN) fs.writeFileSync(cname_path, process.env.BETA_DOMAIN, {encoding: 'utf-8'});
 
 console.log('Changed index.html and manifest file to beta');

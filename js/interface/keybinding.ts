@@ -39,7 +39,7 @@ BARS.defineActions(() => {
 			Blockbench.import({
 				resource_id: 'config',
 				extensions: ['bbkeymap'],
-				type: 'Blockbench Keymap'
+				type: '3D Bench Keymap'
 			}, function(files) {
 				let {keys} = JSON.parse(files[0].content as string);
 
@@ -91,7 +91,7 @@ BARS.defineActions(() => {
 			})
 			Blockbench.export({
 				resource_id: 'config',
-				type: 'Blockbench Keymap',
+				type: '3D Bench Keymap',
 				extensions: ['bbkeymap'],
 				content: compileJSON({keys})
 			})

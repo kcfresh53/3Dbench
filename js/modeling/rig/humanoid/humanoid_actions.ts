@@ -2,6 +2,7 @@ import { Armature } from '../../../outliner/types/armature';
 import { ArmatureBone } from '../../../outliner/types/armature_bone';
 import { BoneSpec, DEFAULT_HUMANOID, HUMANOID_PRESETS, HumanoidParams, MeshSpec } from './humanoid_types';
 import { buildHumanoid } from './humanoid_builder';
+import { buildFromTemplate, HumanoidTemplate, loadHumanoidTemplate } from './template';
 import { boneName } from './bone_names';
 import { distance, Vec3 } from './vec';
 import { THREE } from '../../../lib/libs';
@@ -17,6 +18,10 @@ for (const key in HUMANOID_PRESETS) PRESET_OPTIONS[key] = HUMANOID_PRESETS[key].
 /** Proportion sliders: key and the allowed range */
 const PROPORTION_FIELDS: [keyof HumanoidParams, number, number][] = [
 	['head_scale', 0.5, 3],
+	['head_width', 0.7, 1.4],
+	['jaw_width', 0.6, 1.3],
+	['waist_width', 0.6, 1.4],
+	['chest_shape', 0, 1],
 	['neck_length', 0.2, 2],
 	['torso_length', 0.5, 1.5],
 	['leg_length', 0.4, 1.5],
@@ -42,13 +47,13 @@ function boneWorldQuaternion(head: Vec3, tail: Vec3): THREE.Quaternion {
 }
 
 /** Creates the armature, bones and meshes for a humanoid in the current project. Returns the armature. */
-export function createHumanoidInScene(params: HumanoidParams): Armature {
-	const output = buildHumanoid(params);
+export function createHumanoidInScene(params: HumanoidParams, template?: HumanoidTemplate): Armature {
+	const output = template ? buildFromTemplate(template, params.height, params.generate_mesh) : buildHumanoid(params);
 	const elements: OutlinerElement[] = [];
 	Undo.initEdit({ outliner: true, elements: [], selection: true });
 	unselectAllElements();
 
-	const armature: Armature = new Armature({ name: 'humanoid' });
+	const armature: Armature = new Armature({ name: template?.name ?? 'humanoid' });
 	armature.addTo(Outliner.ROOT);
 	armature.isOpen = true;
 	armature.createUniqueName();
@@ -72,7 +77,7 @@ export function createHumanoidInScene(params: HumanoidParams): Armature {
 			spec.head[2] - (parent_spec ? parent_spec.head[2] : 0),
 		).applyQuaternion(parent_inverse);
 		const euler: THREE.Euler = new THREE.Euler().setFromQuaternion(parent_inverse.clone().multiply(own_rotation), Format.euler_order);
-		const bone_length: number = Math.max(0.5, distance(spec.head, spec.tail));
+		const bone_length: number = Math.max(0.001, distance(spec.head, spec.tail));
 		const bone: ArmatureBone = new ArmatureBone({
 			name: boneName(spec.id, params.naming),
 			origin: offset.toArray() as ArrayVector3,
@@ -92,13 +97,21 @@ export function createHumanoidInScene(params: HumanoidParams): Armature {
 	const meshes: Mesh[] = [];
 	output.meshes.forEach((spec: MeshSpec) => {
 		if (!spec.faces.length) return;
-		const mesh: Mesh = new Mesh({ name: spec.name, vertices: {} });
+		const mesh: Mesh = new Mesh({ name: spec.name, vertices: {}, shading: !template && params.style === 'blocky' ? 'flat' : 'smooth' });
 		mesh.addTo(armature);
 		const keys: string[] = [];
 		for (const vertex of spec.vertices) keys.push(...mesh.addVertices(vertex));
-		for (const face of spec.faces) {
-			mesh.addFaces(new MeshFace(mesh, { vertices: face.map((i: number) => keys[i]) }));
-		}
+		spec.faces.forEach((face, fi) => {
+			const uv: Record<string, [number, number]> = {};
+			if (spec.face_uvs) face.forEach((v, corner) => {
+				const [u, vCoord] = spec.face_uvs![fi][corner];
+				uv[keys[v]] = [u * Project.texture_width, (1 - vCoord) * Project.texture_height];
+			});
+			mesh.addFaces(new MeshFace(mesh, {
+				vertices: face.map(i => keys[i]), uv,
+				texture: false,
+			}));
+		});
 		mesh.init();
 		spec.vertex_weights.forEach((weights: Record<string, number>, i: number) => {
 			for (const id in weights) {
@@ -109,7 +122,7 @@ export function createHumanoidInScene(params: HumanoidParams): Armature {
 		elements.push(mesh);
 	});
 
-	if (params.auto_uv && meshes.length) {
+	if (!template && params.auto_uv && meshes.length) {
 		const options: UnwrapOptions = {
 			...DEFAULT_UNWRAP_OPTIONS,
 			uv_width: Project.texture_width,
@@ -128,7 +141,7 @@ export function createHumanoidInScene(params: HumanoidParams): Armature {
 
 BARS.defineActions(function() {
 	const form: Record<string, any> = {
-		preset: { label: 'dialog.create_humanoid.preset', type: 'select', value: 'average', options: PRESET_OPTIONS },
+		preset: { label: 'dialog.create_humanoid.preset', type: 'select', value: 'male', options: PRESET_OPTIONS },
 		height: { label: 'dialog.create_humanoid.height', type: 'number', value: DEFAULT_HUMANOID.height, min: 1, step: 1 },
 		style: {
 			label: 'dialog.create_humanoid.style', type: 'select', value: DEFAULT_HUMANOID.style,
@@ -158,7 +171,14 @@ BARS.defineActions(function() {
 		form[key] = { label: 'dialog.create_humanoid.' + key, type: 'num_slider', value: DEFAULT_HUMANOID[key], min, max, step: 0.05 };
 	}
 
-	let last_preset: string = 'average';
+	// Exact templates retain their source proportions, pose, topology and UVs.
+	// Hide controls that would suggest they can be changed without losing that exact match.
+	for (const key of ['style', 'arm_pose', 'fingers', 'toes', 'spine_bones', 'root_bone', 'single_mesh', 'auto_uv', ...PROPORTION_FIELDS.map(([key]) => key)]) {
+		const previous = form[key].condition;
+		form[key].condition = (f: HumanoidForm) => !HUMANOID_PRESETS[f.preset]?.template && (!previous || previous(f));
+	}
+	form._template_note = { type: 'info', text: 'Original geometry, UVs, skin weights and A-pose, without textures. Height scales the entire model uniformly.', condition: (f: HumanoidForm) => !!HUMANOID_PRESETS[f.preset]?.template };
+	let last_preset: string = 'male';
 	const dialog: Dialog = new Dialog({
 		id: 'create_humanoid',
 		title: 'action.create_humanoid',
@@ -178,8 +198,17 @@ BARS.defineActions(function() {
 			dialog.setFormValues(update, false);
 		},
 		onConfirm(result: HumanoidForm) {
-			const params: HumanoidParams = { ...DEFAULT_HUMANOID, ...result };
-			createHumanoidInScene(params);
+			void (async () => {
+				const params: HumanoidParams = { ...DEFAULT_HUMANOID, ...result };
+				const templateId = HUMANOID_PRESETS[result.preset]?.template;
+				try {
+					const template = templateId ? await loadHumanoidTemplate(templateId) : undefined;
+					createHumanoidInScene(params, template);
+				} catch (error) {
+					console.error(error);
+					Blockbench.showMessageBox({ title: 'Create Humanoid', message: error instanceof Error ? error.message : 'Could not load the local character template.' });
+				}
+			})();
 		},
 	});
 

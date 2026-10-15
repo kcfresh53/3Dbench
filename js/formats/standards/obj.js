@@ -24,7 +24,7 @@ var codec = new Codec('obj', {
 		*/
 
 		let materials = {};
-		let output = ['# Made in Blockbench '+appVersion];
+		let output = ['# Made in 3D Bench '+appVersion];
 		let indexVertex = 0;
 		let indexVertexUvs = 0;
 		let indexNormals = 0;
@@ -384,7 +384,7 @@ var codec = new Codec('obj', {
 	  		
 		// mtl output
 		  
-		var mtlOutput = '# Made in Blockbench '+appVersion+'\n';
+		var mtlOutput = '# Made in 3D Bench '+appVersion+'\n';
 		
 		for (let key in materials) {
 			if (materials.hasOwnProperty(key) && materials[key]) {

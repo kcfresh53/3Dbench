@@ -3,7 +3,7 @@ import VersionUtil from '../util/version_util'
 BARS.defineActions(() => {
 	new Action('about_window', {
 		name: tl('dialog.settings.about') + '...',
-		description: `Blockbench ${Blockbench.version}`,
+		description: `3D Bench ${Blockbench.version}`,
 		icon: 'info',
 		category: 'blockbench',
 		click: function () {
@@ -12,7 +12,7 @@ BARS.defineActions(() => {
 				version_label: Blockbench.version
 			};
 			jQuery.ajax({
-				url: 'https://api.github.com/repos/JannisX11/blockbench/releases/latest',
+				url: 'https://api.github.com/repos/kcfresh53/3Dbench/releases/latest',
 				cache: false,
 				type: 'GET',
 				success(release) {
@@ -49,7 +49,7 @@ BARS.defineActions(() => {
 					template: `
 						<div>
 							<div class="blockbench_logo" id="about_page_title">
-								<img src="assets/logo_text_white.svg" alt="3DBench" width="340px">
+								<img src="assets/logo_text_white.svg" alt="3D Bench" width="340px">
 							</div>
 							<p>Version <span>{{ version_label }}</span></p>
 
@@ -112,7 +112,7 @@ BARS.defineActions(() => {
 							</ul>
 
 							<p style="margin-top: 20px">Released under the <a class="open-in-browser" href="https://github.com/JannisX11/blockbench/blob/master/LICENSE.MD">GPL 3.0 license</a></p>
-							<p><a class="open-in-browser" href="https://www.blockbench.net/privacy-policy">Privacy Policy</a></p>
+							<p><a class="open-in-browser" href="https://github.com/kcfresh53/3Dbench">3D Bench source &amp; releases</a></p>
 
 						</div>`
 				}

@@ -8,6 +8,11 @@ import fs from 'node:fs'
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+// Keep the visible name independent of npm's lowercase package identifier.
+app.setName('3D Bench');
+// Preserve the existing fork's settings while displaying the spaced product name.
+app.setPath('userData', path.join(app.getPath('appData'), '3DBench'));
+
 const { autoUpdater } = require('electron-updater');
 const remote = require('@electron/remote/main')
 remote.initialize();
@@ -96,7 +101,7 @@ function createWindow(second_instance, options = {}) {
 
 		let template = [
 			{
-				"label": "Blockbench",
+				"label": "3D Bench",
 				"submenu": [
 					{
 						"role": "hide"
@@ -285,14 +290,14 @@ app.on('ready', () => {
 		}
 
 		if (app_was_loaded) {
-			console.log('[Blockbench] App reloaded or new window opened')
+			console.log('[3D Bench] App reloaded or new window opened')
 			return;
 		}
 
 		app_was_loaded = true;
 		if (dev_mode) {
 
-			console.log('[Blockbench] App launched in development mode')
+			console.log('[3D Bench] App launched in development mode')
 	
 		} else {
 	

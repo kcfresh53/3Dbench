@@ -1,12 +1,12 @@
 name: Bug / Issue
-description: Use this form to report an issue that occurs when using Blockbench
+description: Use this form to report an issue that occurs when using 3D Bench
 title: "Issue Summary"
 body:
 - type: markdown
   attributes:
     value: |
       - Before you report an issue, check if it has already been reported.
-      - Also check if you are using the latest version of Blockbench.
+      - Also check if you are using the latest version of 3D Bench.
       - Please only report one issue per issue.
       - If applicable, go to Help > Developer > Open Dev Tools. Switch to the Console tab. If there are any (red) error messages, please attach a screenshot of them.
 - type: markdown
@@ -35,7 +35,7 @@ body:
 - type: dropdown
   id: variant
   attributes:
-    label: Blockbench variant
+    label: 3D Bench variant
     multiple: true
     options:
       - Website
@@ -46,7 +46,7 @@ body:
 - type: input
   id: version
   attributes:
-    label: Blockbench version
+    label: 3D Bench version
     description: Write the version number, not just "Latest". You can find it in Help > About.
   validations:
     required: true
@@ -60,7 +60,7 @@ body:
 - type: input
   id: plugins
   attributes:
-    label: Installed Blockbench plugins
+    label: Installed 3D Bench plugins
 - type: textarea
   id: log
   attributes:

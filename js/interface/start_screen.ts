@@ -495,13 +495,13 @@ onVueSetup(async function() {
 								<li class="format_category">
 									<label>${tl('mode.start.info')}</label>
 									<ul>
-										<li class="format_entry start_screen_link" @click="openLink('https://blockbench.net/quickstart')">
+										<li class="format_entry start_screen_link" @click="openLink('https://github.com/kcfresh53/3Dbench#getting-started')">
 											<span class="icon_wrapper f_left"><i class="material-icons">help</i></span>
 											<label>${tl('menu.help.quickstart')}</label>
 										</li>
 										<li class="format_entry start_screen_link" @click="openLink('https://blockbench.net/wiki')">
 											<span class="icon_wrapper f_left"><i class="material-icons">menu_book</i></span>
-											<label>Blockbench Wiki</label>
+											<label>Upstream documentation</label>
 										</li>
 									</ul>
 								</li>
@@ -631,7 +631,7 @@ if (isApp && location.href.endsWith('/blockbench/index.html')) {
 
 var news_call = $.ajax({
 	cache: false,
-	url: 'https://web.blockbench.net/content/news.json',
+	url: './content/3dbench-news.json',
 	dataType: 'json'
 });
 documentReady.then(() => {
@@ -738,13 +738,6 @@ Promise.all([news_call, documentReady]).then((results) => {
 	if (Blockbench.hasFlag('after_update') && data.new_version) {
 		data.new_version.insert_after = 'splash_screen'
 		addStartScreenSection('new_version', data.new_version);
-		jQuery.ajax({
-			url: 'https://blckbn.ch/api/event/successful_update',
-			type: 'POST',
-			data: {
-				version: Blockbench.version
-			}
-		})
 	}
 	if (data.psa) {
 		(function() {

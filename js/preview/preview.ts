@@ -423,7 +423,7 @@ export class Preview {
 				new BrowserWindow({
 					icon:'icon.ico',
 					backgroundColor: '#ffffff',
-					title: 'Blockbench GPU Information',
+					title: '3D Bench GPU Information',
 					webPreferences: {
 						webgl: true,
 						webSecurity: true,
