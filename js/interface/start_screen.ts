@@ -650,7 +650,7 @@ documentReady.then(() => {
 				languages: Language.options,
 				keymap: 'default',
 				keymap_changed: false,
-				theme: 'default',
+				theme: 'blockmorphism',
 				keymap_options: {
 					default: tl('action.load_keymap.default'),
 					mouse: tl('action.load_keymap.mouse'),
@@ -716,6 +716,7 @@ documentReady.then(() => {
 					</div>
 					<div style="width: 640px;">
 						<label>${tl('dialog.settings.theme')}:</label>
+						<div class="quick_setup_theme" :class="{selected: theme == 'blockmorphism'}" @click="loadTheme('blockmorphism')"><div :style="getThemeThumbnailStyle('blockmorphism')"></div>Blockmorphism</div>
 						<div class="quick_setup_theme" :class="{selected: theme == 'default'}" @click="loadTheme('default')"><div :style="getThemeThumbnailStyle('default')"></div>Dark</div>
 						<div class="quick_setup_theme" :class="{selected: theme == 'default_light'}" @click="loadTheme('default_light')"><div :style="getThemeThumbnailStyle('default_light')"></div>Light</div>
 						<div class="quick_setup_theme" :class="{selected: theme == 'contrast'}" @click="loadTheme('contrast')"><div :style="getThemeThumbnailStyle('contrast')"></div>Contrast</div>

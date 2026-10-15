@@ -1,3 +1,4 @@
+import BlockmorphismTheme from '../../themes/blockmorphism.bbtheme'
 import DarkTheme from '../../themes/dark.bbtheme'
 import LightTheme from '../../themes/light.bbtheme'
 import ContrastTheme from '../../themes/contrast.bbtheme'
@@ -36,6 +37,8 @@ type ThemeData = {
 	}
 	option_values: Record<string, string>
 }
+
+const DEFAULT_THEME_ID: string = 'blockmorphism';
 
 const DEFAULT_COLORS = {
 	ui: '#1e2127',
@@ -154,12 +157,13 @@ export class CustomTheme {
 		}).show();
 	}
 
-	static selected: CustomTheme = new CustomTheme({id: 'dark'})
+	static selected: CustomTheme = new CustomTheme({id: DEFAULT_THEME_ID})
 	static get data(): CustomTheme {
 		return CustomTheme.selected
 	}
 	static backup_data: string | null = null
 	static themes: CustomTheme[] = [
+		BlockmorphismTheme,
 		DarkTheme,
 		LightTheme,
 		ContrastTheme
@@ -856,6 +860,12 @@ export function loadThemes() {
 			stored_theme_data = JSON.parse(localStorage.getItem('theme'))
 		}
 	} catch (err) {}
+
+	if (!stored_theme_data) {
+		// No saved choice: use the default built-in theme
+		let default_theme: CustomTheme | undefined = CustomTheme.themes.find((t: CustomTheme) => t.id == DEFAULT_THEME_ID);
+		if (default_theme) default_theme.load();
+	}
 
 	if (stored_theme_data) {
 		let stored_theme = new CustomTheme(stored_theme_data);
