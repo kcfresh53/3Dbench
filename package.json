@@ -152,7 +152,8 @@
 		"generate-types": "tsc --project tsconfig.json && node ./scripts/convert_types.js",
 		"publish-types": "npm publish ./types",
 		"generate-docs": "npm run generate-types && npx typedoc --options typedoc.json",
-		"test:humanoid": "node --test tests/humanoid.test.mjs"
+		"test:humanoid": "node --test tests/humanoid.test.mjs",
+		"test:ik_rig": "node --test tests/ik_rig.test.mjs"
 	},
 	"overrides": {
 		"three": "$three"

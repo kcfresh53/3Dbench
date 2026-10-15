@@ -319,6 +319,9 @@ export const Animator = {
 			})
 		})
 
+		// IK rig pass: sees the final animated pose, so it can adapt goals (ground, foot lock, handles)
+		Blockbench.dispatchEvent('animation_ik_pass', {animations, in_loop});
+
 		Canvas.scene.updateMatrixWorld();
 
 		Animator.resetLastValues();
