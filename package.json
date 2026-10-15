@@ -153,7 +153,9 @@
 		"publish-types": "npm publish ./types",
 		"generate-docs": "npm run generate-types && npx typedoc --options typedoc.json",
 		"test:humanoid": "node --test tests/humanoid.test.mjs",
-		"test:ik_rig": "node --test tests/ik_rig.test.mjs"
+		"test:ik_rig": "node --test tests/ik_rig.test.mjs",
+		"build:buildings": "node scripts/build_procedural_buildings.mjs",
+		"test:buildings": "node --test tests/procedural_buildings.test.mjs tests/flexibuilding.test.mjs tests/building-layout.test.mjs"
 	},
 	"overrides": {
 		"three": "$three"

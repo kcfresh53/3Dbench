@@ -177,7 +177,8 @@ BARS.defineActions(function() {
 		const previous = form[key].condition;
 		form[key].condition = (f: HumanoidForm) => !HUMANOID_PRESETS[f.preset]?.template && (!previous || previous(f));
 	}
-	form._template_note = { type: 'info', text: 'Original geometry, UVs, skin weights and A-pose, without textures. Height scales the entire model uniformly.', condition: (f: HumanoidForm) => !!HUMANOID_PRESETS[f.preset]?.template };
+	form._male_note = { type: 'info', text: 'Adapted low-poly male mesh with a fitted rig, skin weights and preserved UVs. A-pose, without textures. Height scales the entire model uniformly.', condition: (f: HumanoidForm) => f.preset === 'male' };
+	form._template_note = { type: 'info', text: 'Original geometry, UVs, skin weights and A-pose, without textures. Height scales the entire model uniformly.', condition: (f: HumanoidForm) => !!HUMANOID_PRESETS[f.preset]?.template && f.preset !== 'male' };
 	let last_preset: string = 'male';
 	const dialog: Dialog = new Dialog({
 		id: 'create_humanoid',

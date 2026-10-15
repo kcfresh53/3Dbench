@@ -129,3 +129,42 @@ for (const [sex, vertices, triangles] of [['male',637,1270],['female',673,1342]]
   assert.throws(()=>validateTemplate(unsafe));
  });
 }
+
+test('adapted Male base: bundled source mesh, fitted rig, UVs and scalable skin weights', async () => {
+ const template = JSON.parse(await readFile('assets/humanoid/male_base.json', 'utf8'));
+ assert.equal(HUMANOID_PRESETS.male.template, 'male_base');
+ validateTemplate(template);
+ assert.equal(template.name, 'Male base');
+ assert.equal(template.bones.length, 28);
+ assert.equal(template.textures.length, 0);
+ const output = buildFromTemplate(template, 32);
+ const mesh = output.meshes[0];
+ assert.equal(mesh.vertices.length, 484);
+ assert.equal(mesh.faces.reduce((n, f) => n + f.length - 2, 0), 964);
+ assert(mesh.face_materials.every(i => i === -1));
+ validate(output, { style: 'low_poly' });
+ assert(Math.abs(Math.min(...mesh.vertices.map(v => v[1]))) < 1e-5);
+ assert(Math.abs(Math.max(...mesh.vertices.map(v => v[1])) - 32) < 1e-5);
+ for (const bone of output.bones.filter(b => b.id !== 'root')) {
+  const influenced = mesh.vertex_weights.flatMap((w, i) => w[bone.id] ? [i] : []);
+  assert(influenced.length >= 4, `${bone.id} must deform the mesh`);
+  if (/^(lower_leg|foot|toes|upper_arm|lower_arm|hand|fingers|thumb_[12])\.[LR]$/.test(bone.id)) {
+   const sign = bone.id.endsWith('.L') ? 1 : -1;
+   assert(influenced.every(i => mesh.vertices[i][0] * sign >= -1e-5), `${bone.id} has opposite-side weights`);
+  }
+ }
+ const scaled = buildFromTemplate(template, 64);
+ scaled.meshes[0].vertices.forEach((v, i) => assert.deepEqual(v, mesh.vertices[i].map(n => n * 2)));
+ scaled.bones.forEach((b, i) => {
+  assert.deepEqual(b.head, output.bones[i].head.map(n => n * 2));
+  assert.deepEqual(b.tail, output.bones[i].tail.map(n => n * 2));
+ });
+ assert.deepEqual(scaled.meshes[0].face_uvs, mesh.face_uvs);
+ assert.deepEqual(scaled.meshes[0].vertex_weights, mesh.vertex_weights);
+ assert.equal(buildFromTemplate(template, 32, false).meshes.length, 0);
+ const invalid = structuredClone(template);
+ invalid.meshes[0].face_materials[0] = -2;
+ assert.throws(() => validateTemplate(invalid));
+ mesh.vertices[0][0] = 999;
+ assert.notEqual(template.meshes[0].vertices[0][0], 999);
+});

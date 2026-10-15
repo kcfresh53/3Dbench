@@ -373,3 +373,15 @@ test('motion rules are ordered, serializable and independent of scrubbing histor
 	const restored = new ik.IKRig(new ik.RigBinding(ual.skeleton, JSON.parse(JSON.stringify(rig.binding.config)), mapping.joints));
 	assert.deepEqual(restored.evaluate(fk, { time: 0.25, providers }).pose.local, expected.pose.local);
 });
+
+test('bundled Male base maps its body rig in every naming convention', () => {
+ const template = JSON.parse(readFileSync(new URL('../assets/humanoid/male_base.json', import.meta.url)));
+ const ids = template.bones.map(b => b.id);
+ const parents = template.bones.map(b => b.parent ? ids.indexOf(b.parent) : -1);
+ for (const convention of ['simple', 'unity', 'godot', 'mixamo']) {
+  const result = ik.mapHumanoidJoints(ids.map(id => names.boneName(id, convention)), parents);
+  for (const key of ['root', 'pelvis', 'spine_1', 'spine_2', 'neck', 'head', ...['l','r'].flatMap(side => ['upper_leg','lower_leg','foot','toes','clavicle','upper_arm','lower_arm','hand'].map(id => `${id}_${side}`))]) {
+   assert.notEqual(result.joints[key], undefined, `${convention}: ${key} must map`);
+  }
+ }
+});

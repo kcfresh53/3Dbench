@@ -41,6 +41,16 @@ The `Blockbench` scripting API and `.bbmodel` file identifiers remain compatible
 
 Run `npm run test:humanoid` to check generated geometry, closed surfaces, winding, skin weights, symmetry, rig names and the triangle budget. Locally installed chibi templates also have geometry, UV, material and weight preservation checks.
 
+## Male base mesh
+
+The Male base preset uses the supplied low-poly male FBX, adapted to model coordinates and a height of 32 with a fitted 28-bone rig and normalized heat weights (at most four influences per vertex). Its 484 vertices, silhouette and source UVs are retained; polygons larger than quads are triangulated for editor compatibility, producing 964 triangles. Hands use a finger-group control and two thumb controls. It starts in the source A-pose, untextured. Height scales the mesh and skeleton together; procedural shape and pose controls are hidden for this preset. The adapted asset is bundled in `assets/humanoid/male_base.json`.
+
+To regenerate it from the supplied archive:
+
+```sh
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --disable-autoexec --python scripts/import_male_base.py -- "/path/to/low-poly-male-base-mesh.zip"
+```
+
 ## Local character templates
 
 Male Chibi base and Female Chibi base use the purchased SD Characters Models Base Pack meshes directly. Install your local copy using Blender (scripts in the source files are disabled):

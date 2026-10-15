@@ -1,7 +1,7 @@
 import { BoneSpec, ComponentOutput, MeshSpec } from './humanoid_types';
 import { Vec3 } from './vec';
 
-/** User-owned assets stay outside the source tree and are loaded only on request. */
+/** Character geometry and rig data, loaded only on request. */
 export interface HumanoidTemplate extends ComponentOutput {
 	schema_version: 1
 	name: string
@@ -26,7 +26,7 @@ export function validateTemplate(value: unknown): asserts value is HumanoidTempl
 			if ((f.length !== 3 && f.length !== 4) || f.some(v => !Number.isInteger(v) || v < 0 || v >= m.vertices.length)) throw new Error('Invalid template face');
 			if (m.face_uvs![i].length !== f.length || m.face_uvs![i].some(uv => uv.length !== 2 || !uv.every(Number.isFinite))) throw new Error('Invalid template UVs');
 			const material = m.face_materials![i];
-			if (!Number.isInteger(material) || material < 0 || material >= t.textures.length) throw new Error('Invalid template material');
+			if (!Number.isInteger(material) || (material !== -1 && (material < 0 || material >= t.textures.length))) throw new Error('Invalid template material');
 		});
 	}
 	if (t.textures.some(texture => !/^[a-zA-Z0-9_-]+\.png$/.test(texture.file))) throw new Error('Invalid template texture path');
@@ -49,21 +49,22 @@ export function buildFromTemplate(template: HumanoidTemplate, height: number, ge
 }
 
 export async function loadHumanoidTemplate(id: string): Promise<HumanoidTemplate> {
-	if (!/^chibi_(male|female)$/.test(id)) throw new Error('Unknown local preset');
-	const base = new URL('./.local-assets/humanoid/', location.href);
+	if (id !== 'male_base' && !/^chibi_(male|female)$/.test(id)) throw new Error('Unknown character preset');
+	const base = new URL(id === 'male_base' ? './assets/humanoid/' : './.local-assets/humanoid/', location.href);
+	const missing = id === 'male_base' ? 'The bundled Male base mesh could not be loaded.' : 'The purchased template has not been installed locally. See README → Local character templates.';
 	if (base.protocol === 'file:') {
 		const { fs } = await import('../../../native_apis');
 		let template: HumanoidTemplate;
 		try {
 			template = JSON.parse(fs.readFileSync(new URL(id + '.json', base), 'utf8'));
 		} catch {
-			throw new Error('The purchased template has not been installed locally. See README → Local character templates.');
+			throw new Error(missing);
 		}
 		validateTemplate(template);
 		return template;
 	}
 	const response = await fetch(new URL(id + '.json', base));
-	if (!response.ok) throw new Error('The purchased template has not been installed locally. See README → Local character templates.');
+	if (!response.ok) throw new Error(missing);
 	const template = await response.json();
 	validateTemplate(template);
 	return template;
