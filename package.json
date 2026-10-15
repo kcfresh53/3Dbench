@@ -152,6 +152,7 @@
 		"generate-types": "tsc --project tsconfig.json && node ./scripts/convert_types.js",
 		"publish-types": "npm publish ./types",
 		"generate-docs": "npm run generate-types && npx typedoc --options typedoc.json",
+		"test:builtins": "npm run build-electron && electron tests/built_in_plugins.cjs",
 		"test:humanoid": "node --test tests/humanoid.test.mjs",
 		"test:ik_rig": "node --test tests/ik_rig.test.mjs",
 		"build:buildings": "node scripts/build_procedural_buildings.mjs",

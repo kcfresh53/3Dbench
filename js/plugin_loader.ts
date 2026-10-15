@@ -1,3 +1,4 @@
+import { builtInPluginIds } from './built_in_plugins/ids';
 import { Blockbench } from "./api";
 import StateMemory from "./util/state_memory";
 import { Dialog } from "./interface/dialog";
@@ -115,7 +116,7 @@ let session_plugin_installations = 0;
 
 
 type PluginVariant = 'desktop'|'web'|'both';
-type PluginSource = 'store'|'file'|'url';
+type PluginSource = 'store'|'file'|'url'|'builtin';
 type PluginDetails = {
 	version: string,
 	last_modified: string,
@@ -352,6 +353,7 @@ export class Plugin {
 		return this.title;
 	}
 	async install() {
+		if (this.source === 'builtin') return this;
 		if (this.tags.includes('Deprecated') || this.deprecation_note) {
 			let message = tl('message.plugin_deprecated.message');
 			if (this.deprecation_note) {
@@ -476,6 +478,7 @@ export class Plugin {
 		return true;
 	}
 	async download(first = false) {
+		if (this.source === 'builtin') return this;
 		let response = await this.installDependencies(first);
 		if (response == false) return;
 
@@ -674,6 +677,7 @@ export class Plugin {
 		return this;
 	}
 	uninstall() {
+		if (this.source === 'builtin') return this;
 		try {
 			this.unload();
 			this.onuninstall?.();
@@ -710,6 +714,7 @@ export class Plugin {
 		return this;
 	}
 	unload() {
+		if (this.source === 'builtin') return this;
 		if (this.onunload) {
 			this.onunload()
 		}
@@ -717,6 +722,7 @@ export class Plugin {
 		return this;
 	}
 	reload() {
+		if (this.source === 'builtin') return this;
 		if (!isApp && this.source == 'file') return this;
 
 		this.cache_version++;
@@ -744,6 +750,7 @@ export class Plugin {
 		return this;
 	}
 	installUpdate() {
+		if (this.source === 'builtin') return this;
 		this.cache_version++;
 		this.unload()
 		this.tags.empty();
@@ -814,6 +821,7 @@ export class Plugin {
 		}
 	}
 	toggleDisabled() {
+		if (this.source === 'builtin') return this;
 		if (!this.disabled) {
 			this.disabled = true;
 			try {
@@ -828,6 +836,7 @@ export class Plugin {
 		this.#remember();
 	}
 	showContextMenu(event: MouseEvent) {
+		if (this.source === 'builtin') return;
 		Plugin.menu.open(event, this);
 	}
 	isReloadable() {
@@ -868,6 +877,7 @@ export class Plugin {
 		return this.icon;
 	}
 	async fetchAbout(force: boolean = false) {
+		if (this.source === 'builtin') return;
 		if (((!this.about_fetched && !this.about) || force) && this.new_repository_format) {
 			if (isApp && this.installed) {
 				try {
@@ -896,6 +906,7 @@ export class Plugin {
 		}
 	}
 	async fetchChangelog(force = false) {
+		if (this.source === 'builtin') return;
 		if ((!this.changelog_fetched && !this.changelog) || force) {
 			function reverseOrder(input) {
 				let output = {};
@@ -1081,6 +1092,7 @@ export class Plugin {
 			return;
 		}
 		var plugin = Plugins.registered[id];
+		if (plugin?.source === 'builtin') return plugin;
 		if (!plugin) {
 			plugin = Plugins.registered.unknown;
 			if (plugin) {
@@ -1196,7 +1208,7 @@ export async function loadInstalledPlugins() {
 	// Setup offers from store
 	if (online_access) {
 		for (let id in Plugins.json) {
-			new Plugin(id, Plugins.json[id]);
+			if (!builtInPluginIds.has(id)) new Plugin(id, Plugins.json[id]);
 		}
 		Plugins.sort();
 	}
@@ -1237,6 +1249,8 @@ export async function loadInstalledPlugins() {
 		// Install plugins
 		var load_counter = 0;
 		function loadPlugin(installation: PluginInstallation) {
+			// Bundled implementations supersede saved store, URL, and file copies.
+			if (builtInPluginIds.has(installation.id)) return;
 			if (installation.source == 'file') {
 				// Dev Plugins
 				if (isApp && fs.existsSync(installation.path)) {
@@ -1820,7 +1834,8 @@ BARS.defineActions(function() {
 									<div v-if="plugin.installed && search_term" class="plugin_installed_tag">✓ ${tl('dialog.plugins.is_installed')}</div>
 								</div>
 								<div class="description">{{ plugin.description }}</div>
-								<ul class="plugin_tag_list">
+								<p v-if="plugin.source === 'builtin'" class="plugin_installed_tag">Built into 3D Bench</p>
+							<ul class="plugin_tag_list">
 									<li v-for="tag in plugin.tags" :class="getTagClass(tag)" :key="tag" @click="search_term = tag;">{{tag}}</li>
 									<li v-if="plugin.update_available" class="plugin_tag_update" :key="'update_available'" @click="search_term = 'update_available';">${tl('dialog.plugins.update_available')}</li>
 								</ul>
@@ -1860,7 +1875,7 @@ BARS.defineActions(function() {
 								</div>
 							</div>
 
-							<div class="button_bar" v-if="selected_plugin.installed || selected_plugin.isInstallable() == true">
+							<div class="button_bar" v-if="selected_plugin.source !== 'builtin' && (selected_plugin.installed || selected_plugin.isInstallable() == true)">
 								<button type="button" @click="selected_plugin.installUpdate()"
 									v-if="selected_plugin.installed && selected_plugin.update_available"
 									style="color: var(--color-update);"
@@ -1887,6 +1902,7 @@ BARS.defineActions(function() {
 								</button>
 							</div>
 
+							<p v-if="selected_plugin.source === 'builtin'" class="plugin_installed_tag">Built into 3D Bench</p>
 							<ul class="plugin_tag_list">
 								<li v-for="tag in selected_plugin.tags" :class="getTagClass(tag)" :key="tag" @click="search_term = tag;">{{tag}}</li>
 								<li v-if="selected_plugin.update_available" class="plugin_tag_update" :key="'update_available'" @click="search_term = 'update_available';">${tl('dialog.plugins.update_available')}</li>

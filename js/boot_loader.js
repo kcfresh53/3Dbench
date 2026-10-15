@@ -3,6 +3,7 @@ import { updateStreamerModeNotification } from "./interface/setup_settings";
 import { loadThemes } from "./interface/themes";
 import { translateUI } from "./languages";
 import { loadInstalledPlugins } from "./plugin_loader";
+import { loadBuiltInPlugins } from "./built_in_plugins";
 import { animate, setupPreviews } from "./preview/preview";
 import { ipcRenderer, SystemInfo } from "./native_apis";
 import { initializeDesktopApp, loadOpenWithBlockbenchFile } from "./desktop";
@@ -170,7 +171,11 @@ localStorage.setItem('last_version', Blockbench.version);
 		}
 		proceeded = true;
 	}
-	loadInstalledPlugins().then(proceed);
+	// Let the remaining API aliases initialize before bundled features use them.
+	Promise.resolve().then(() => {
+		loadBuiltInPlugins();
+		return loadInstalledPlugins();
+	}).then(proceed);
 	let timeout = ExperimentalSettings.get('plugin_await_loading_timeout') ?? 2;
 	setTimeout(proceed, timeout * 1000);
 })()
