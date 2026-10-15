@@ -41,13 +41,19 @@ declare class TextureGroup {
 
 interface TextureGroupMaterialConfigData {
 	color_value?: [number, number, number, number]
+	roughness_value?: number
+	metalness_value?: number
+	emissive_value?: number
+	/** Legacy packed value, migrated on load */
 	mer_value?: [number, number, number]
 	saved?: boolean
 }
 declare class TextureGroupMaterialConfig {
 	constructor(texture_group: TextureGroup, data: TextureGroupMaterialConfigData)
 	color_value: [number, number, number, number]
-	mer_value: [number, number, number]
+	roughness_value: number
+	metalness_value: number
+	emissive_value: number
 	saved: boolean
 	menu: Menu
 	texture_group: TextureGroup
@@ -55,9 +61,9 @@ declare class TextureGroupMaterialConfig {
 	extend(data: TextureGroupMaterialConfigData): this
 	getUndoCopy(): {}
 	getSaveCopy(): {}
-	compileForBedrock(): {
+	compileMaterialFile(): {
 		format_version: string
-		'minecraft:texture_set': {}
+		material: {}
 	}
 	getFilePath(): string
 	getFileName(extension?: boolean): string

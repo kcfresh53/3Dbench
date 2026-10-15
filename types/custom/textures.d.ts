@@ -32,7 +32,7 @@ declare global {
 		render_mode?: 'default' | 'emissive' | 'additive' | 'layered' | string
 		render_sides?: 'auto' | 'front' | 'double' | string
 		wrap_mode?: 'limited' | 'repeat' | 'clamp'
-		pbr_channel?: 'color' | 'normal' | 'height' | 'mer'
+		pbr_channel?: import('../../js/texturing/pbr_channels').PBRChannel
 		/**
 		 * UUID of the texture group that the texture is in
 		 */
@@ -118,7 +118,7 @@ declare global {
 		render_mode: 'default' | 'emissive' | 'additive' | 'layered' | string
 		render_sides: 'auto' | 'front' | 'double' | string
 		wrap_mode: 'limited' | 'repeat' | 'clamp'
-		pbr_channel: 'color' | 'normal' | 'height' | 'mer'
+		pbr_channel: import('../../js/texturing/pbr_channels').PBRChannel
 		force_translucent: boolean
 		use_as_default: boolean
 		/** UUID of the TextureGroup that this texture is in, if set */

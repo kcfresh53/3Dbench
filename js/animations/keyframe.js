@@ -24,14 +24,6 @@ export class KeyframeDataPoint {
 		if (isApp && data.file && !file_value_before) {
 			if (this.keyframe.channel == 'sound' && !Timeline.waveforms[this.file]) {
 				Timeline.visualizeAudioFile(this.file);
-			} else if (this.keyframe.channel == 'particle') {
-				try {
-					Blockbench.read([this.file], {}, (files) => {
-						Animator.loadParticleEmitter(this.file, files[0].content);
-					})
-				} catch (err) {
-					console.log('Could not load particle effect for', this.file)
-				}
 			}
 		}
 	}
@@ -46,11 +38,11 @@ export class KeyframeDataPoint {
 new Property(KeyframeDataPoint, 'molang', 'x', { label: 'X', condition: point => point.keyframe.transform, default: point => (point && point.keyframe.channel == 'scale' ? '1' : '0') });
 new Property(KeyframeDataPoint, 'molang', 'y', { label: 'Y', condition: point => point.keyframe.transform, default: point => (point && point.keyframe.channel == 'scale' ? '1' : '0') });
 new Property(KeyframeDataPoint, 'molang', 'z', { label: 'Z', condition: point => point.keyframe.transform, default: point => (point && point.keyframe.channel == 'scale' ? '1' : '0') });
-new Property(KeyframeDataPoint, 'string', 'effect', {label: tl('data.effect'), condition: point => ['particle', 'sound'].includes(point.keyframe.channel)});
-new Property(KeyframeDataPoint, 'string', 'locator',{label: tl('data.locator'), condition: point => ['particle', 'sound'].includes(point.keyframe.channel)});
-new Property(KeyframeDataPoint, 'molang', 'script', {label: tl('timeline.pre_effect_script'), condition: point => ['particle', 'timeline'].includes(point.keyframe.channel), default: ''});
-new Property(KeyframeDataPoint, 'string', 'file', 	{exposed: false, condition: point => ['particle', 'sound'].includes(point.keyframe.channel)});
-new Property(KeyframeDataPoint, 'boolean', 'bind_to_actor', {exposed: false, default: true, condition: point => ['particle'].includes(point.keyframe.channel)});
+new Property(KeyframeDataPoint, 'string', 'effect', {label: tl('data.effect'), condition: point => ['sound'].includes(point.keyframe.channel)});
+new Property(KeyframeDataPoint, 'string', 'locator',{label: tl('data.locator'), condition: point => ['sound'].includes(point.keyframe.channel)});
+new Property(KeyframeDataPoint, 'molang', 'script', {label: tl('timeline.pre_effect_script'), condition: point => ['timeline'].includes(point.keyframe.channel), default: ''});
+new Property(KeyframeDataPoint, 'string', 'file', 	{exposed: false, condition: point => ['sound'].includes(point.keyframe.channel)});
+new Property(KeyframeDataPoint, 'boolean', 'bind_to_actor', {exposed: false, default: true, condition: point => ['__none__'].includes(point.keyframe.channel)});
 
 export class Keyframe {
 	constructor(data, uuid, animator) {
@@ -341,7 +333,7 @@ export class Keyframe {
 		keyframes.sort((a, b) => b.time - a.time);
 		return keyframes[0];
 	}
-	compileBedrockKeyframe() {
+	compilePresetKeyframe() {
 		if (this.transform) {
 			let flipArray = array => {
 				if (this.channel == 'position') {
@@ -1295,7 +1287,7 @@ Interface.definePanels(function() {
 	
 	new Panel('keyframe', {
 		icon: 'icon-keyframe',
-		condition: {modes: ['animate'], method: () => !AnimationController.selected},
+		condition: {modes: ['animate']},
 		default_position: {
 			slot: 'left_bar',
 			float_position: [0, 0],
@@ -1439,75 +1431,23 @@ Interface.definePanels(function() {
 					addEventListeners(document, 'mousemove touchmove', move);
 				},
 				changeKeyframeFile(data_point, keyframe) {
-					if (keyframe.channel == 'particle') {
-						Blockbench.import({
-							resource_id: 'animation_particle',
-							extensions: ['json'],
-							type: 'Bedrock Particle',
-							startpath: keyframe.data_points[0].file
-						}, function(files) {
+					Blockbench.import({
+						resource_id: 'animation_audio',
+						extensions: ['ogg', 'wav', 'mp3'],
+						type: 'Audio File',
+						startpath: keyframe.data_points[0].file
+					}, function(files) {
 
-							let {path} = files[0];
-							Undo.initEdit({keyframes: [keyframe]})
-							data_point.file = path;
-							let effect = Animator.loadParticleEmitter(path, files[0].content);
-							if (!data_point.effect) data_point.effect = files[0].name.toLowerCase().split('.')[0].replace(/[^a-z0-9._]+/g, '');
-							delete effect.config.preview_texture;
-							Undo.finishEdit('Change keyframe particle file');
+						let path = isApp
+							? files[0].path
+							: URL.createObjectURL(files[0].browser_file);
 
-							if (!isApp) {
-								Blockbench.showMessageBox({
-									title: 'message.import_particle_texture.import',
-									message: 'message.import_particle_texture.message',
-									buttons: ['dialog.cancel'],
-									commands: {
-										import: 'message.import_particle_texture.import'
-									}
-								}, result => {
-									if (result != 'import') return;
-
-									Blockbench.import({
-										extensions: ['png'],
-										type: 'Particle Texture',
-										readtype: 'image',
-										startpath: effect.config.preview_texture || path
-									}, function(files) {
-										effect.config.preview_texture = isApp ? files[0].path : files[0].content;
-										effect.config.updateTexture();
-									})
-								})
-
-							} else if (effect.config.texture.image.src.startsWith('data:')) {
-								Blockbench.import({
-									extensions: ['png'],
-									type: 'Particle Texture',
-									readtype: 'image',
-									startpath: effect.config.preview_texture || path
-								}, function(files) {
-									effect.config.preview_texture = isApp ? files[0].path : files[0].content;
-									effect.config.updateTexture();
-								})
-							}
-						})
-					} else {
-						Blockbench.import({
-							resource_id: 'animation_audio',
-							extensions: ['ogg', 'wav', 'mp3'],
-							type: 'Audio File',
-							startpath: keyframe.data_points[0].file
-						}, function(files) {
-
-							let path = isApp
-								? files[0].path
-								: URL.createObjectURL(files[0].browser_file);
-
-							Undo.initEdit({keyframes: [keyframe]})
-							data_point.file = path;
-							if (!data_point.effect) data_point.effect = files[0].name.toLowerCase().replace(/\.[a-z]+$/, '').replace(/[^a-z0-9._]+/g, '');
-							Timeline.visualizeAudioFile(path);
-							Undo.finishEdit('Change keyframe audio file')
-						})
-					}
+						Undo.initEdit({keyframes: [keyframe]})
+						data_point.file = path;
+						if (!data_point.effect) data_point.effect = files[0].name.toLowerCase().replace(/\.[a-z]+$/, '').replace(/[^a-z0-9._]+/g, '');
+						Timeline.visualizeAudioFile(path);
+						Undo.finishEdit('Change keyframe audio file')
+					})
 				},
 				openMolangContextMenu(axis, event, value, data_point_i) {
 					new Menu([
@@ -1654,7 +1594,7 @@ Interface.definePanels(function() {
 											@input="updateInput(key, $event.target.value, data_point_i)"
 										/>
 										<input type="checkbox" v-if="key == 'locator'" :checked="data_point.bind_to_actor" title="${tl('timeline.bind_to_actor')}" @input="changeBindToActor($event, data_point_i)">
-										<div class="tool" v-if="key == 'effect'" :title="tl(channel == 'sound' ? 'timeline.select_sound_file' : 'timeline.select_particle_file')" @click="changeKeyframeFile(data_point, firstKeyframe)">
+										<div class="tool" v-if="key == 'effect'" :title="tl('timeline.select_sound_file')" @click="changeKeyframeFile(data_point, firstKeyframe)">
 											<i class="material-icons">upload_file</i>
 										</div>
 									</div>

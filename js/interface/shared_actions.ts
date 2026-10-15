@@ -197,7 +197,6 @@ BARS.defineActions(() => {
 	new Action('select_all', {
 		icon: 'select_all',
 		category: 'select',
-		condition: () => !Modes.display,
 		keybind: new Keybind({key: 'a', ctrl: true}),
 		click(event) {
 			SharedActions.run('select_all', event);
@@ -207,7 +206,6 @@ BARS.defineActions(() => {
 	new Action('unselect_all', {
 		icon: 'border_clear',
 		category: 'select',
-		condition: () => !Modes.display,
 		click(event) {
 			SharedActions.run('unselect_all', event);
 			Blockbench.dispatchEvent('unselect_all', {});

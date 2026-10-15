@@ -5,7 +5,7 @@ interface GroupOptions {
 	origin: ArrayVector3
 	/**Array of the group rotation */
 	rotation: ArrayVector3
-	/**If a bone, whether to reset the informations of inherited bones in bedrock edition. */
+	/**If a bone, whether to reset the informations of inherited bones . */
 	reset: boolean
 	/**Whether to shade the contents of the group */
 	shade: boolean
@@ -61,7 +61,6 @@ declare class Group extends OutlinerNode {
 	ik_chain_length: number
 	texture?: string
 	skin_original_origin?: ArrayVector3
-	bedrock_binding?: string
 	cem_animations?: any[]
 	cem_attach?: boolean
 	cem_model?: string

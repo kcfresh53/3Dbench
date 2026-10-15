@@ -1,4 +1,3 @@
-import Wintersky from 'wintersky';
 import { THREE } from '../lib/libs';
 import { fabrikIter } from './fabrik';
 
@@ -1051,58 +1050,6 @@ export class EffectAnimator extends GeneralAnimator {
 			})
 		}
 
-		if (!this.muted.particle) {
-			this.particle.forEach(kf => {
-				// Using the timeline time instead of animation to not stop after animation end in some loop modes.
-				// To be changed when implementing separate play times for animations
-				// let diff = this.animation.time - kf.time;
-				let diff = Timeline.time - kf.time;
-				let i = 0;
-				for (let data_point of kf.data_points) {
-					let particle_effect = data_point.file && Animator.particle_effects[data_point.file]
-					if (particle_effect) {
-						let emitter = particle_effect.emitters[kf.uuid + i];
-						if (diff >= 0) {
-							if (!emitter) {
-								let i_here = i;
-								let anim_uuid = this.animation.uuid;
-								emitter = particle_effect.emitters[kf.uuid + i] = new Wintersky.Emitter(WinterskyScene, particle_effect.config);
-
-								let old_variable_handler = emitter.Molang.variableHandler;
-								emitter.Molang.variableHandler = (key, params) => {
-									let curve_result = old_variable_handler.call(emitter, key, params);
-									if (curve_result !== undefined) return curve_result;
-									return Animator.MolangParser.variableHandler(key);
-								}
-								emitter.on('start', ({ params }) => {
-									let animation = Animation.all.find(a => a.uuid === anim_uuid);
-									let kf_now = animation?.animators.effects?.particle.find(kf2 => kf2.uuid == kf.uuid);
-									let data_point_now = kf_now && kf_now.data_points[i_here];
-									if (data_point_now) {
-										emitter.Molang.parse(data_point_now.script, Animator.MolangParser.global_variables);
-									}
-								})
-							}
-
-							let locator = data_point.locator && Locator.all.find(l => l.name == data_point.locator)
-							if (locator) {
-								locator.mesh.add(emitter.local_space);
-								emitter.parent_mode = 'locator';
-							} else {
-								emitter.parent_mode = 'entity';
-							}
-							Canvas.scene.add(emitter.global_space);
-							emitter.jumpTo(diff);
-
-						} else if (emitter && emitter.enabled) {
-							emitter.stop(true);
-						}
-					}
-					i++;
-				}
-			})
-		}
-
 		if (!this.muted.timeline) {
 			this.timeline.forEach(kf => {
 				if ((kf.time > this.last_displayed_time && kf.time <= this.animation.time) || Math.epsilon(kf.time, this.animation.time, 0.01)) {
@@ -1144,7 +1091,6 @@ export class EffectAnimator extends GeneralAnimator {
 }
 EffectAnimator.prototype.type = 'effect';
 EffectAnimator.prototype.channels = {
-	particle: { name: tl('timeline.particle'), mutable: true, max_data_points: 1000 },
 	sound: { name: tl('timeline.sound'), mutable: true, max_data_points: 1000 },
 	timeline: { name: tl('timeline.timeline'), mutable: true, max_data_points: 1 },
 }
@@ -1224,7 +1170,7 @@ BARS.defineActions(() => {
 					for (let kf of keyframes) {
 						if (!kf.transform) continue;
 						if (!preset[kf.channel]) preset[kf.channel] = {};
-						let data = kf.compileBedrockKeyframe();
+						let data = kf.compilePresetKeyframe();
 						let timecode = trimFloatNumber(Timeline.snapTime(kf.time - start_time)).toString();
 						preset[kf.channel][timecode] = data;
 					}

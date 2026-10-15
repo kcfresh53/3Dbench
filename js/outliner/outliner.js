@@ -5,7 +5,6 @@ import { OutlinerElement } from "./abstract/outliner_element"
 import { radToDeg } from "three/src/math/MathUtils"
 import { PointerTarget } from "../interface/pointer_target"
 import { markerColors } from "../marker_colors"
-import { ScopeColors } from "../multi_file_editing"
 
 export const Outliner = {
 	ROOT: 'root',
@@ -53,14 +52,6 @@ export const Outliner = {
 			visibilityException(node) {
 				return !node.export;
 			}
-		},
-		shade: {
-			id: 'shade',
-			condition: {modes: ['edit'], features: ['java_cube_shading_properties'], method: () => !Format.java_cube_shade_direction_override},
-			title: tl('switches.shade'),
-			icon: 'fa-star',
-			icon_off: 'far.fa-star',
-			advanced_option: true,
 		},
 		mirror_uv: {
 			id: 'mirror_uv',
@@ -607,8 +598,6 @@ export function canAddOutlinerSelectionTo(target, clicked_on) {
 
 //Misc
 export function renameOutliner(element) {
-	if (Format.id == 'skin') return;
-
 	stopRenameOutliner()
 
 	if (Group.selected.length == 1 && !Project.EditSession) {
@@ -705,7 +694,7 @@ StateMemory.init('advanced_outliner_toggles', 'boolean')
 
 SharedActions.add('rename', {
 	subject: 'outliner',
-	condition: {modes: ['edit', 'paint'], method: () => Format.id != 'skin'},
+	condition: {modes: ['edit', 'paint']},
 	priority: -1,
 	run() {
 		renameOutliner();
@@ -936,6 +925,7 @@ BARS.defineActions(function() {
 			'add_billboard',
 			'add_armature',
 			'add_armature_bone',
+			'create_humanoid',
 			'add_locator',
 			'add_null_object',
 			'add_bounding_box',
@@ -1243,7 +1233,6 @@ Interface.definePanels(function() {
 				:element_type="node.type"
 				@contextmenu.prevent.stop="node.showContextMenu($event)"
 				@click="node.clickSelect($event, true)"
-				:style="{'--color-scope': getScopeColor(node)}"
 				:title="node.title"
 				@dblclick.stop.self="!node.locked && renameOutliner(node)"
 			>` +
@@ -1348,10 +1337,6 @@ Interface.definePanels(function() {
 					return text + value;
 				}
 			},
-			getScopeColor(node) {
-				if (!node.scope) return '';
-				return ScopeColors[(node.scope-1) % ScopeColors.length];
-			},
 			doubleClickIcon(node) {
 				if (node.children && node.children.length) {
 					node.isOpen = !node.isOpen;
@@ -1393,7 +1378,7 @@ Interface.definePanels(function() {
 
 	new Panel('outliner', {
 		icon: 'list_alt',
-		condition: {modes: ['edit', 'paint', 'animate', 'pose'], method: () => (!Format.image_editor && !(Modes.animate && AnimationController.selected))},
+		condition: {modes: ['edit', 'paint', 'animate', 'pose'], method: () => !Format.image_editor},
 		default_position: {
 			slot: 'right_bar',
 			float_position: [0, 0],
@@ -1407,8 +1392,6 @@ Interface.definePanels(function() {
 					'add_element',
 					'add_group',
 					'outliner_toggle',
-					'toggle_skin_layer',
-					'explode_skin_model',
 					'+',
 					'search_outliner',
 					'cube_counter'

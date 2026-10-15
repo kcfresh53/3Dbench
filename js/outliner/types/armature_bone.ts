@@ -313,6 +313,8 @@ export class ArmatureBone extends OutlinerElement {
 	];
 	public menu = new Menu([
 		'add_armature_bone',
+		'create_bone_chain',
+		'mirror_bones',
 		...Outliner.control_menu_group,
 		new MenuSeparator('settings'),
 		'allow_element_mirror_modeling',

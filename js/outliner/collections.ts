@@ -20,7 +20,6 @@ import { Filesystem } from "../file_system";
 import { loadModelFile } from "../io/io";
 import { OutlinerElement } from "./abstract/outliner_element";
 import { OutlinerNode } from "./abstract/outliner_node";
-import { ScopeColors } from "../multi_file_editing";
 
 export interface CollectionOptions {
 	children?: string[]
@@ -30,7 +29,6 @@ export interface CollectionOptions {
 	offset?: ArrayVector3
 	model_identifier?: string
 	visibility?: boolean
-	scope?: number
 }
 
 /**
@@ -47,7 +45,6 @@ export class Collection {
 	export_path: string
 	export_codec: string
 	visibility: boolean
-	scope: number
 	saved: boolean
 
 	static properties: Record<string, Property<any>>
@@ -119,11 +116,6 @@ export class Collection {
 	 * Get all direct children
 	 */
 	getChildren(): OutlinerNode[] {
-		if (this.scope) {
-			return Outliner.nodes.filter(node => {
-				return node.scope == this.scope && !(node.parent instanceof OutlinerNode && node.parent.scope == this.scope);
-		});
-		}
 		return this.children.map(uuid => OutlinerNode.uuids[uuid]).filter(node => node != undefined);
 	}
 	add(): this {
@@ -168,11 +160,6 @@ export class Collection {
 				child.forEachChild(subchild => nodes.safePush(subchild));
 			}
 		}
-		if (this.scope) {
-			for (let node of Outliner.nodes) {
-				if (node.scope == this.scope) nodes.safePush(node);
-			}
-		}
 		return nodes;
 	}
 	/**
@@ -180,7 +167,6 @@ export class Collection {
 	 * @returns {true} if the collection contains the node
 	 */
 	contains(node: OutlinerNode): boolean {
-		if (this.scope && this.scope == node.scope) return true;
 		if (this.children.length == 0) return false;
 		let node_match: OutlinerNode | typeof Outliner.ROOT = node;
 		while (node_match instanceof OutlinerNode) {
@@ -503,7 +489,6 @@ new Property(Collection, 'string', 'model_identifier', {
 		}
 	}
 });
-new Property(Collection, 'number', 'scope');
 new Property(Collection, 'boolean', 'saved', {default: true});
 new Property(Collection, 'string', 'export_codec');
 new Property(Collection, 'string', 'export_path', {
@@ -834,10 +819,6 @@ Interface.definePanels(function() {
 					}
 					return list;
 				},
-				getScopeColor(collection: Collection) {
-					if (!collection.scope) return '';
-					return ScopeColors[(collection.scope-1) % ScopeColors.length];
-				},
 			},
 			template: `
 				<ul
@@ -854,7 +835,6 @@ Interface.definePanels(function() {
 						:key="collection.uuid"
 						:uuid="collection.uuid"
 						class="collection"
-						:style="{'--color-scope': getScopeColor(collection)}"
 						@click.stop="collection.clickSelect($event)"
 						@dblclick.stop="collection.propertiesDialog()"
 						@contextmenu.prevent.stop="collection.showContextMenu($event)"

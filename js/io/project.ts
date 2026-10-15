@@ -2,7 +2,6 @@ import { AutoBackup } from "../auto_backup";
 import { FormElementOptions } from "../interface/form";
 import { setProjectTitle } from "../interface/interface";
 import { Vue } from "../lib/libs";
-import { MultiFileRuleset } from "../multi_file_editing";
 import { currentwindow, ipcRenderer, shell } from "../native_apis";
 import { ReferenceImage, ReferenceImageMode } from "../preview/reference_images";
 import { Property } from "../util/property";
@@ -42,11 +41,9 @@ export class ModelProject {
 	 */
 	export_path: string
 	added_models: number
-	BedrockEntityManager?: any
 	format: ModelFormat
 	mode: string
 	view_mode: string
-	multi_file_ruleset: string
 	previews: {
 		[key: string]: any
 	}
@@ -59,7 +56,7 @@ export class ModelProject {
 	mesh_selection: {
 		[element_key: string]: {
 			vertices: string[]
-			edges: string[]
+			edges: [string, string][]
 			faces: string[]
 		}
 	}
@@ -69,17 +66,7 @@ export class ModelProject {
 	outliner: OutlinerNode[]
 	animations: BBAnimation[]
 	timeline_animators: []
-	display_settings: {
-		[slot: string]: {
-			translation: [number, number, number]
-			rotation: [number, number, number]
-			scale: [number, number, number]
-			mirror: [boolean, boolean, boolean]
-			export?(...args: any[]): any
-		}
-	}
 	overrides?: any
-	exploded_view: boolean
 	tool: string
 	uv_viewport: {
 		zoom: number
@@ -91,7 +78,6 @@ export class ModelProject {
 	}
 	unhandled_root_fields: any
 	ambientocclusion: boolean
-	front_gui_light: boolean
 
 	[key: string]: any
 	_static: any
@@ -109,7 +95,6 @@ export class ModelProject {
 	spline_selection: any
 	texture_groups: any
 	collections: Collection[]
-	animation_controllers: any
 
 	constructor(options: ModelProjectOptions = {}, uuid?: UUID) {
 		for (var key in ModelProject.properties) {
@@ -143,8 +128,6 @@ export class ModelProject {
 		this.mode = 'edit';
 		this.tool = '';
 		this.view_mode = 'textured';
-		this.multi_file_ruleset = '';
-		this.exploded_view = false;
 		this.mirror_modeling_enabled = false;
 		this.mirror_animating_enabled = false;
 		this.previews = {};
@@ -178,9 +161,7 @@ export class ModelProject {
 		this.outliner = [];
 		this.collections = [];
 		this.animations = [];
-		this.animation_controllers = [];
 		this.timeline_animators = [];
-		this.display_settings = {};
 
 		ModelProject.all.push(this);
 
@@ -267,9 +248,6 @@ export class ModelProject {
 		let data = recent_projects.find(p => p.path == path);
 		return data;
 	}
-	getMultiFileRuleset(): MultiFileRuleset | undefined {
-		return MultiFileRuleset.rulesets[this.multi_file_ruleset];
-	}
 	getUVWidth(texture?: Texture) {
 		return (texture && Format.per_texture_uv_size) ? texture.uv_width : this.texture_width;
 	}
@@ -331,12 +309,10 @@ export class ModelProject {
 		Canvas.scene.add(this.model_3d);
 
 		Panels.animations.inside_vue.animations = this.animations;
-		Panels.animations.inside_vue.animation_controllers = this.animation_controllers;
 		// @ts-expect-error
 		Timeline.animators = Timeline.vue.animators = [];
 		// @ts-expect-error
 		Animation.selected = null;
-		AnimationController.selected = null;
 		let selected_anim = this.animations.find(anim => anim.selected);
 		if (selected_anim) selected_anim.select();
 		// @ts-expect-error
@@ -344,8 +320,6 @@ export class ModelProject {
 
 		Panels.variable_placeholders.inside_vue.text = this.variable_placeholders.toString();
 		Panels.variable_placeholders.inside_vue.buttons.replace(this.variable_placeholder_buttons);
-
-		Panels.skin_pose.inside_vue.pose = this.skin_pose;
 
 		UVEditor.loadViewportOffset();
 
@@ -583,61 +557,18 @@ export class ModelProject {
 new Property(ModelProject, 'string', 'name', {
 	label: 'dialog.project.name'
 });
-new Property(ModelProject, 'string', 'parent', {
-	label: 'dialog.project.parent',
-	condition: {features: ['parent_model_id']}
-});
 new Property(ModelProject, 'string', 'model_identifier', {
 	label: 'dialog.project.geoname',
 	condition: () => Format.model_identifier
-});
-new Property(ModelProject, 'string', 'modded_entity_entity_class', {
-	label: 'dialog.project.modded_entity_entity_class',
-	placeholder: 'Entity',
-	condition: {formats: ['modded_entity']},
-});
-new Property(ModelProject, 'string', 'modded_entity_version', {
-	label: 'dialog.project.modded_entity_version',
-	default: '1.17',
-	condition: {formats: ['modded_entity']},
-	options() {
-		let options = {}
-		for (var key in Codecs.modded_entity.templates) {
-			if (Codecs.modded_entity.templates[key] instanceof Function == false) {
-				options[key] = Codecs.modded_entity.templates[key].name;
-			}
-		}
-		return options;
-	}
-});
-new Property(ModelProject, 'string', 'java_block_version', {
-	label: 'dialog.project.java_block_version',
-	default: () => settings.default_java_block_version.value == 'latest' ? '26.3' : settings.default_java_block_version.value,
-	condition: {formats: ['java_block']},
-	options: {
-		'1.9.0': '1.9 - 1.21.5',
-		'1.21.6': '1.21.6 - 1.21.10',
-		'1.21.11': '1.21.11 - 26.2',
-		'26.3': '26.3+',
-	}
 });
 new Property(ModelProject, 'string', 'credit', {
 	label: 'dialog.project.credit',
 	condition: () => Project.credit && Project.credit !== settings.credit.value
 });
-new Property(ModelProject, 'boolean', 'modded_entity_flip_y', {
-	label: 'dialog.project.modded_entity_flip_y',
-	default: true,
-	condition: {formats: ['modded_entity']}
-});
 new Property(ModelProject, 'boolean', 'ambientocclusion', {
 	label: 'dialog.project.ao',
 	default: true,
 	condition: {features: ['vertex_color_ambient_occlusion']}
-});
-new Property(ModelProject, 'boolean', 'front_gui_light', {
-	exposed: false,
-	condition: () => Format.display_mode
 });
 new Property(ModelProject, 'vector', 'visible_box', {
 	exposed: false,
@@ -646,32 +577,8 @@ new Property(ModelProject, 'vector', 'visible_box', {
 new Property(ModelProject, 'string', 'variable_placeholders', {
 	exposed: false,
 });
-new Property(ModelProject, 'string', 'multi_file_ruleset', {
-	exposed: false,
-});
 new Property(ModelProject, 'array', 'variable_placeholder_buttons', {
 	exposed: false,
-});
-new Property(ModelProject, 'number', 'shadow_size', {
-	label: 'dialog.project.shadow_size',
-	condition: {formats: ['optifine_entity']},
-	default: 1
-});
-new Property(ModelProject, 'string', 'skin_model', {
-	exposed: false,
-	condition: {formats: ['skin']},
-	default: 'steve'
-});
-new Property(ModelProject, 'string', 'skin_pose', {
-	exposed: false,
-	condition: {formats: ['skin']},
-	default: 'none'
-});
-new Property(ModelProject, 'enum', 'bedrock_animation_mode', {
-	exposed: false,
-	values: ['entity', 'attachable_first'],
-	condition: {formats: ['bedrock']},
-	default: 'entity'
 });
 new Property(ModelProject, 'array', 'timeline_setups', {
 	exposed: false,
@@ -770,19 +677,15 @@ export function selectNoProject() {
 	Panels.textures.inside_vue.texture_groups = [];
 
 	Panels.animations.inside_vue.animations = [];
-	Panels.animations.inside_vue.animation_controllers = [];
 	// @ts-expect-error
 	Timeline.animators = Timeline.vue.animators = [];
 	// @ts-expect-error
 	Animation.selected = null;
-	AnimationController.selected = null;
 	// @ts-expect-error
 	Timeline.animators = Timeline.vue.animators = [];
 
 	Panels.variable_placeholders.inside_vue.text = '';
 	Panels.variable_placeholders.inside_vue.buttons.empty();
-
-	Panels.skin_pose.inside_vue.pose = '';
 
 	Blockbench.dispatchEvent('select_no_project', {});
 }

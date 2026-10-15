@@ -24,10 +24,6 @@ export const Condition = function(condition, context) {
 		if (condition.selected) {
 			if (condition.selected.animation === true && !Animation.selected) return false;
 			if (condition.selected.animation === false && Animation.selected) return false;
-			if (condition.selected.animation_controller === true && !AnimationController.selected) return false;
-			if (condition.selected.animation_controller === false && AnimationController.selected) return false;
-			if (condition.selected.animation_controller_state === true && !(AnimationController.selected?.selected_state)) return false;
-			if (condition.selected.animation_controller_state === false && (AnimationController.selected?.selected_state)) return false;
 			if (condition.selected.keyframe === true && !(Keyframe.selected.length)) return false;
 			if (condition.selected.keyframe === false && (Keyframe.selected.length)) return false;
 			if (condition.selected.group === true && !Group.first_selected) return false;

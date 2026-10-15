@@ -49,48 +49,23 @@ BARS.defineActions(() => {
 					template: `
 						<div>
 							<div class="blockbench_logo" id="about_page_title">
-								<img src="assets/logo_text_white.svg" alt="Blockbench" width="340px">
+								<img src="assets/logo_text_white.svg" alt="3DBench" width="340px">
 							</div>
 							<p>Version <span>{{ version_label }}</span></p>
 
 							<div class="socials">
-								<a class="open-in-browser" href="https://blockbench.net">
-									<i class="icon icon-blockbench_inverted" style="transform: scale(1.3);"></i>
-									<label>Website</label>
-								</a>
-								<a class="open-in-browser" href="https://bsky.app/profile/blockbench.net">
-									<i class="icon fab fa-bluesky"></i>
-									<label>Bluesky</label>
-								</a>
-								<a class="open-in-browser" href="https://twitter.com/blockbench">
-									<i class="icon fab fa-twitter"></i>
-									<label>Twitter</label>
-								</a>
-								<a class="open-in-browser" href="http://discord.blockbench.net">
-									<i class="icon fab fa-discord"></i>
-									<label>Discord</label>
-								</a>
-								<a class="open-in-browser" href="https://youtube.com/Blockbench3D">
-									<i class="icon fab fa-youtube"></i>
-									<label>YouTube</label>
-								</a>
 								<a class="open-in-browser" href="https://github.com/JannisX11/blockbench">
 									<i class="icon fab fa-github"></i>
-									<label>GitHub</label>
-								</a>
-								<a class="open-in-browser" href="https://blockbench.net/wiki">
-								<i class="icon material-icons">menu_book</i>
-									<label>Wiki</label>
+									<label>Blockbench (upstream)</label>
 								</a>
 							</div>
 
-							<p>Created by Jannis Petersen</p>
-							<p style="color: var(--color-subtle_text);">A free and open-source low-poly model editor. To make 3D art easy and accessible for everyone.
-								For all who enjoy stylized 3D art. For game developers, students, content creators, and for the Minecraft community.</p>
+							<p>Based on Blockbench by Jannis Petersen, licensed under GPL-3.0</p>
+							<p style="color: var(--color-subtle_text);">A modern 3D modelling, texturing and animation platform, forked from Blockbench. Simple to use, with fast auto-UV, rigging and character tools.</p>
 
 							<h4>SPECIAL THANKS TO</h4>
 							<ul class="multi_column_list special_thanks_mentions">
-								<li>Mojang Studios</li>
+								<li>The Blockbench project and its contributors</li>
 								<li>All contributors</li>
 								<li>The community moderators</li>
 								<li>All donators</li>

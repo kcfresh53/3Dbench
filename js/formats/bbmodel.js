@@ -27,12 +27,10 @@ function processHeader(model) {
 }
 function processCompatibility(model) {
 
-	if (!model.meta.model_format) {
-		if (model.meta.bone_rig) {
-			model.meta.model_format = 'bedrock_old';
-		} else {
-			model.meta.model_format = 'java_block';
-		}
+	// Projects from removed game-specific pipelines open as generic models
+	const LEGACY_FORMATS = ['java_block', 'bedrock', 'bedrock_old', 'bedrock_block', 'modded_entity', 'optifine_entity', 'optifine_part', 'skin'];
+	if (!model.meta.model_format || LEGACY_FORMATS.includes(model.meta.model_format)) {
+		model.meta.model_format = 'free';
 	}
 
 	if (model.cubes && !model.elements) {
@@ -99,7 +97,7 @@ function processCompatibility(model) {
 }
 
 var codec = new Codec('project', {
-	name: 'Blockbench Project',
+	name: '3DBench Project',
 	extension: 'bbmodel',
 	remember: true,
 	support_partial_export: true,
@@ -206,9 +204,6 @@ var codec = new Codec('project', {
 			model.model_identifier = options.collection_only.model_identifier;
 		}
 
-		if (Project.overrides) {
-			model.overrides = Project.overrides;
-		}
 		model.resolution = {
 			width: Project.texture_width || 16,
 			height: Project.texture_height || 16,
@@ -226,7 +221,6 @@ var codec = new Codec('project', {
 				added_models: Project.added_models,
 				mode: Project.mode,
 				tool: Project.tool,
-				exploded_view: Project.exploded_view,
 				uv_viewport: Project.uv_viewport,
 				previews: JSON.parse(JSON.stringify(Project.previews)),
 
@@ -237,7 +231,7 @@ var codec = new Codec('project', {
 			};
 		}
 
-		if (!(Format.id == 'skin' && model.skin_model)) {
+		{
 			if (options.collection_only) {
 				var all_collection_children = options.collection_only.getAllChildren();
 			}
@@ -277,8 +271,6 @@ var codec = new Codec('project', {
 				}
 				filterList(model.outliner);
 			}
-		} else {
-			model.skin_pose_data = Codecs.skin_model.getPoseData();
 		}
 
 		function handleAssetPath(object, key, relative_key) {
@@ -332,32 +324,10 @@ var codec = new Codec('project', {
 				}
 			})
 		}
-		if (AnimationController.all.length) {
-			model.animation_controllers = [];
-			AnimationController.all.forEach(cont => {
-				let a = cont.getUndoCopy();
-				handleAssetPath(a, 'path');
-				model.animation_controllers.push(a);
-			})
-		}
 		if (Interface.Panels.variable_placeholders.inside_vue._data.text) {
 			model.animation_variable_placeholders = Interface.Panels.variable_placeholders.inside_vue._data.text;
 		}
 
-		if (Format.display_mode && Object.keys(Project.display_settings).length >= 1) {
-			var new_display = {}
-			var entries = 0;
-			for (var i in DisplayMode.slots) {
-				var key = DisplayMode.slots[i]
-				if (DisplayMode.slots.hasOwnProperty(i) && Project.display_settings[key] && Project.display_settings[key].export) {
-					new_display[key] = Project.display_settings[key].export()
-					entries++;
-				}
-			}
-			if (entries) {
-				model.display = new_display
-			}
-		}
 
 		if (!options.backup && options.reference_images != false) {
 			// Reference Images
@@ -488,9 +458,6 @@ var codec = new Codec('project', {
 			})
 		}
 
-		if (model.skin_model) {
-			Codecs.skin_model.rebuild(model.skin_model, model.skin_pose, model.skin_pose_data);
-		}
 		if (model.elements) {
 			let default_texture = Texture.getDefault();
 			model.elements.forEach((template) => {
@@ -533,21 +500,8 @@ var codec = new Codec('project', {
 				}
 			})
 		}
-		if (model.animation_controllers) {
-			model.animation_controllers.forEach(ani => {
-				var base_ani = new AnimationController()
-				base_ani.uuid = ani.uuid;
-				base_ani.extend(ani).add();
-				if (isApp && Format.animation_files) {
-					base_ani.saved_name = base_ani.name;
-				}
-			})
-		}
 		if (model.animation_variable_placeholders) {
 			Interface.Panels.variable_placeholders.inside_vue._data.text = model.animation_variable_placeholders;
-		}
-		if (model.display !== undefined) {
-			DisplayMode.loadJSON(model.display)
 		}
 		if (model.backgrounds) {
 			for (let key in model.backgrounds) {
@@ -607,7 +561,6 @@ var codec = new Codec('project', {
 			Merge.number(Project, state, 'added_models')
 			Merge.string(Project, state, 'mode')
 			Merge.string(Project, state, 'tool')
-			Merge.boolean(Project, state, 'exploded_view')
 			if (state.uv_viewport) {
 				Merge.number(Project.uv_viewport, state.uv_viewport, 'zoom')
 				Merge.arrayVector2(Project.uv_viewport = state.uv_viewport, 'offset');
@@ -651,8 +604,7 @@ var codec = new Codec('project', {
 			textures: new_textures,
 			animations: Format.animation_mode && new_animations,
 			outliner: true,
-			selection: true,
-			display_slots: Format.display_mode && displayReferenceObjects.slots
+			selection: true
 		})
 
 		if (model.overrides instanceof Array && Project.overrides instanceof Array) {
@@ -702,13 +654,6 @@ var codec = new Codec('project', {
 			new_textures.replace(model.textures.map(loadTexture))
 		}
 
-		if (model.skin_model) {
-			let elements_before = Outliner.elements.slice();
-			Codecs.skin_model.rebuild(model.skin_model);
-			for (let element of Outliner.elements) {
-				if (!elements_before.includes(element)) new_elements.push(element);
-			}
-		}
 		let adjust_uv = !Format.per_texture_uv_size || !imported_format?.per_texture_uv_size;
 		if (model.elements) {
 			let default_texture = new_textures[0] || Texture.getDefault();
@@ -832,19 +777,6 @@ var codec = new Codec('project', {
 				new_animations.push(base_ani);
 			})
 		}
-		if (model.animation_controllers) {
-			model.animation_controllers.forEach(ani => {
-				var base_ani = new AnimationController()
-				if (AnimationController.all.find(a => a.uuid == ani.uuid)) {
-					ani.uuid = guid();
-				}
-				base_ani.uuid = ani.uuid;
-				base_ani.extend(ani).add();
-				if (isApp && Format.animation_files) {
-					base_ani.saved_name = base_ani.name;
-				}
-			})
-		}
 		if (Format.bone_rig) {
 			Group.all.forEachReverse(group => group.createUniqueName());
 		}
@@ -855,9 +787,6 @@ var codec = new Codec('project', {
 			} else {
 				vue._data.text = model.animation_variable_placeholders;
 			}
-		}
-		if (model.display !== undefined) {
-			DisplayMode.loadJSON(model.display)
 		}
 		Undo.finishEdit('Merge project')
 		Canvas.updateAllBones()

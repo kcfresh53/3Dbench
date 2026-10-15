@@ -15,8 +15,6 @@ export function getEditTransformSpace() {
 		case 'move_tool': default: input_space = BarItems.transform_space.get(); break;
 	}
 
-	if (Toolbox.selected == BarItems.rotate_tool && Format.rotation_limit) return 2;
-
 	if (input_space == 'local' && Outliner.selected.length && Outliner.selected[0].getTypeBehavior('rotatable') && (!Format.bone_rig || !Group.first_selected)) {
 		let is_local = true;
 		if (Format.bone_rig) {

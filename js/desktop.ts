@@ -210,17 +210,6 @@ export function updateRecentProjectData() {
 	
 	if (project.name.length > 48) project.name = project.name.substr(0, 20) + '...' + project.name.substr(-20);
 
-	project.textures = Texture.all.filter(t => t.path).map(t => t.path);
-	project.texture_sets = TextureGroup.all.filter(t => t.is_material && t.material_config).map(t => t.material_config.getFilePath());
-
-	if (Format.animation_files) {
-		project.animation_files = [];
-		// @ts-expect-error
-		Animation.all.forEach(anim => {
-			if (anim.path) project.animation_files.safePush(anim.path);
-		})
-	}
-
 	Blockbench.dispatchEvent('update_recent_project_data', {data: project});
 	updateRecentProjects()
 }
@@ -318,28 +307,6 @@ export function loadDataFromModelMemory() {
 	let project = Project && Project.getProjectMemory();
 	if (!project) return;
 
-	let remember = Format.remember_files ?? [];
-	if (project.textures && remember.includes('textures')) {
-		Blockbench.read(project.textures, {}, files => {
-			files.forEach(f => {
-				if (!Texture.all.find(t => t.path == f.path)) {
-					new Texture({name: f.name}).fromFile(f).add(false);
-				}
-			})
-		})
-	}
-	if (project.texture_sets && remember.includes('texture_sets')) {
-		Blockbench.read(project.texture_sets, {}, files => {
-			files.forEach(f => {
-				if (!TextureGroup.all.find(tg => tg.material_config.getFilePath() == f.path)) {
-					importTextureSet(f, false);
-				}
-			})
-		})
-	}
-	if (project.animation_files && remember.includes('animation_files')) {
-		Project.memory_animation_files_to_load = project.animation_files;
-	}
 	Blockbench.dispatchEvent('load_from_recent_project_data', {data: project});
 }
 
@@ -464,41 +431,6 @@ export function changeImageEditor(texture?: Texture, not_found?: boolean) {
 			}
 		},
 	}).show()
-}
-//Default Pack
-export function openDefaultTexturePath() {
-	let detail = tl('message.default_textures.detail');
-	if (settings.default_path.value) {
-		detail += '\n\n' + tl('message.default_textures.current') + ': ' + settings.default_path.value;
-	}
-	let buttons = (
-		settings.default_path.value ? 	[tl('dialog.continue'), tl('generic.remove'), tl('dialog.cancel')]
-									:	[tl('dialog.continue'), tl('dialog.cancel')]
-	)
-	var answer = electron.dialog.showMessageBoxSync(currentwindow, {
-		type: 'info',
-		buttons,
-		noLink: true,
-		title: tl('message.default_textures.title'),
-		message: tl('message.default_textures.message'),
-		detail
-	})
-	if (answer === buttons.length-1) {
-		return;
-	} else if (answer === 0) {
-
-		let path = Blockbench.pickDirectory({
-			title: tl('message.default_textures.select'),
-			resource_id: 'texture',
-		});
-		if (path) {
-			settings.default_path.value = path;
-			Settings.saveLocalStorages();
-		}
-	} else {
-		settings.default_path.value = false;
-		Settings.saveLocalStorages();
-	}
 }
 export function findExistingFile(paths: string[]) {
 	for (var path of paths) {
@@ -796,7 +728,6 @@ const global = {
 	updateRecentProjectData,
 	loadDataFromModelMemory,
 	changeImageEditor,
-	openDefaultTexturePath,
 	updateRecentProjectThumbnail,
 	createBackup,
 };
@@ -809,7 +740,6 @@ declare global {
 	const updateRecentProjectThumbnail: typeof global.updateRecentProjectThumbnail
 	const loadDataFromModelMemory: typeof global.loadDataFromModelMemory
 	const changeImageEditor: typeof global.changeImageEditor
-	const openDefaultTexturePath: typeof global.openDefaultTexturePath
 	const createBackup: typeof global.createBackup
 }
 Object.assign(window, global);

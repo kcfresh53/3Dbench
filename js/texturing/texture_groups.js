@@ -1,3 +1,4 @@
+import { PBR_CHANNELS, PBR_CHANNEL_IDS, SCALAR_CHANNEL_IDS, guessChannelFromName, isMaterialChannel } from './pbr_channels';
 import { Filesystem } from "../file_system";
 import { fs } from "../native_apis";
 
@@ -112,7 +113,6 @@ export class TextureGroup {
 		let color_tex = textures.find(t => t.pbr_channel == 'color');
 		let normal_tex = textures.find(t => t.pbr_channel == 'normal');
 		let height_tex = textures.find(t => t.pbr_channel == 'height');
-		let mer_tex = textures.find(t => t.pbr_channel == 'mer');
 
 		// Albedo
 		if (color_tex) {
@@ -132,7 +132,7 @@ export class TextureGroup {
 			material.normalMap = normal_tex.getOwnMaterial().map;
 			material.bumpMap = null;
 			// Use DirectX normal maps for RenderDragon. Flips the "handedness" of the normal map.
-			material.normalScale = Project.format.id.includes('bedrock') ? new THREE.Vector2(1, -1) : new THREE.Vector2(1, 1);
+			material.normalScale = new THREE.Vector2(1, 1);
 		} else if (height_tex) {
 			material.bumpMap = height_tex.getOwnMaterial().map.clone();
 			material.bumpScale = 0.4;
@@ -152,77 +152,46 @@ export class TextureGroup {
 			material.bumpMap = null;
 		}
 
-		// MER
-		if (mer_tex && mer_tex.img?.naturalWidth && mer_tex.width) {
-			let image_data = mer_tex.canvas.getContext('2d').getImageData(0, 0, mer_tex.width, mer_tex.height);
+		// Scalar channels: each one lives in its own grayscale texture, with a uniform fallback
+		const config = this.material_config;
+		const getMap = (id) => {
+			let tex = textures.find(t => t.pbr_channel == id);
+			return (tex && tex.width) ? tex.getOwnMaterial().map : null;
+		};
+		let roughness_map = getMap('roughness');
+		material.roughnessMap = roughness_map;
+		material.roughness = roughness_map ? 1 : config.roughness_value / 255;
 
-			const extractEmissiveChannel = () => {
-				// The green channel is the emissive level.
-				// Use it as an mask on the color texture to create the emissive map.
-				const color_data = color_tex.canvas.getContext('2d').getImageData(0, 0, mer_tex.width, mer_tex.height);
-				let emissive_data = new Uint8ClampedArray(color_data.data.length);
-				for (let i = 0; i < image_data.data.length; i += 4) {
-					let green_value = image_data.data[i + 1];
-					if (image_data.data[i + 1] > 0) {
-						emissive_data[i] = Math.round(color_data.data[i] * (green_value/255));
-						emissive_data[i + 1] = Math.round(color_data.data[i + 1] * (green_value/255));
-						emissive_data[i + 2] = Math.round(color_data.data[i + 2] * (green_value/255));
-						emissive_data[i + 3] = 255;
-					} else {
-						emissive_data[i] = 0;
-						emissive_data[i + 1] = 0;
-						emissive_data[i + 2] = 0;
-						emissive_data[i + 3] = 255;
-					}
-				}
+		let metalness_map = getMap('metalness');
+		material.metalnessMap = metalness_map;
+		material.metalness = metalness_map ? 1 : config.metalness_value / 255;
 
-				return new ImageData(emissive_data, mer_tex.width, mer_tex.height);
-			}
-
-			const extractGrayscaleValue = (channel) => {
-				let grayscale_data = new Uint8ClampedArray(image_data.data.length);
-				for (let i = 0; i < image_data.data.length; i += 4) {
-					grayscale_data[i + 0] = image_data.data[i + channel];
-					grayscale_data[i + 1] = image_data.data[i + channel];
-					grayscale_data[i + 2] = image_data.data[i + channel];
-					grayscale_data[i + 3] = 255;
-				}
-
-				return new ImageData(grayscale_data, mer_tex.width, mer_tex.height);
-			}
-
-			function generateMap(source_channel, key) {
-				let canvas = material[key]?.image;
-				if (!canvas || key == 'emissiveMap') {
-					canvas = document.createElement('canvas');
-				}
-				let ctx = canvas.getContext('2d');
-				canvas.width = mer_tex.width;
-				canvas.height = mer_tex.height;
-				ctx.fillStyle = 'black';
-				ctx.fillRect(0, 0, mer_tex.width, mer_tex.height);
-				// document.body.append(canvas);
-
-				ctx.putImageData(source_channel === 1 ? extractEmissiveChannel() : extractGrayscaleValue(source_channel), 0, 0);
-
-				material[key] = new THREE.Texture(canvas, THREE.UVMapping, THREE.RepeatWrapping, THREE.RepeatWrapping, THREE.NearestFilter, THREE.NearestFilter);
-				material[key].needsUpdate = true;
-			}
-			generateMap(0, 'metalnessMap');
-			generateMap(1, 'emissiveMap');
-			generateMap(2, 'roughnessMap');
-			material.emissive.set(0xffffff);
+		let emissive_map = getMap('emissive');
+		material.emissive.set(0xffffff);
+		if (emissive_map) {
+			material.emissiveMap = emissive_map;
 			material.emissiveIntensity = 1;
-			material.metalness = 1;
-			material.roughness = 1;
-		} else {
-			material.metalnessMap = null;
+		} else if (config.emissive_value > 0 && material.map) {
+			// Uniform glow: the color texture glows with the configured strength
 			material.emissiveMap = material.map;
-			material.roughnessMap = null;
-			material.emissive.set(0xffffff);
-			material.metalness = this.material_config.mer_value[0] / 255;
-			material.emissiveIntensity = this.material_config.mer_value[1] / 255;
-			material.roughness = this.material_config.mer_value[2] / 255;
+			material.emissiveIntensity = config.emissive_value / 255;
+		} else {
+			material.emissiveMap = null;
+			material.emissiveIntensity = 0;
+		}
+
+		let ao_map = getMap('ao');
+		if (!!material.aoMap != !!ao_map) material.needsUpdate = true;
+		material.aoMap = ao_map;
+		material.aoMapIntensity = 1;
+		if (!material.userData.ao_uses_uv1) {
+			// three.js reads AO from a second UV set; blockbench meshes only have one, so reuse the first
+			material.userData.ao_uses_uv1 = true;
+			material.onBeforeCompile = (shader) => {
+				shader.vertexShader = shader.vertexShader.replace('#include <uv2_vertex>',
+					'#if defined( USE_LIGHTMAP ) || defined( USE_AOMAP )\n vUv2 = ( uv2Matrix * vec3( uv, 1 ) ).xy;\n#endif');
+			};
+			material.customProgramCacheKey = () => 'bb_ao_uv1';
 		}
 		material.needsUpdate = true;
 	}
@@ -277,7 +246,7 @@ ToDo:
  */
 
 Blockbench.on('edit_texture', ({texture}) => {
-	if ((texture.pbr_channel == 'mer' || texture.pbr_channel == 'height') && texture.getGroup()?.is_material && BarItems.view_mode.value == 'material') {
+	if (isMaterialChannel(texture.pbr_channel) && texture.getGroup()?.is_material && BarItems.view_mode.value == 'material') {
 		texture.getGroup().updateMaterial();
 	}
 })
@@ -296,6 +265,12 @@ export class TextureGroupMaterialConfig {
 		for (let key in TextureGroupMaterialConfig.properties) {
 			TextureGroupMaterialConfig.properties[key].merge(this, data)
 		}
+		// Legacy packed metalness-emissive-roughness value
+		if (data.mer_value instanceof Array && data.roughness_value === undefined) {
+			this.metalness_value = Math.clamp(data.mer_value[0] ?? 0, 0, 255);
+			this.emissive_value = Math.clamp(data.mer_value[1] ?? 0, 0, 255);
+			this.roughness_value = Math.clamp(data.mer_value[2] ?? 204, 0, 255);
+		}
 		return this;
 	}
 	getUndoCopy() {
@@ -312,63 +287,48 @@ export class TextureGroupMaterialConfig {
 		}
 		return copy;
 	}
-	compileForBedrock() {
+	compileMaterialFile() {
 		let texture_set = {};
 		
 		let textures = this.texture_group.getTextures();
-		let color_tex = textures.find(t => t.pbr_channel == 'color');
-		let normal_tex = textures.find(t => t.pbr_channel == 'normal');
-		let height_tex = textures.find(t => t.pbr_channel == 'height');
-		let mer_tex = textures.find(t => t.pbr_channel == 'mer');
+		let getTexture = (id) => textures.find(t => t.pbr_channel == id);
+		let getTextureName = texture => texture.name.replace(/\.\w{2,4}$/, '');
 
-		let getTextureName = texture => {
-			return texture.name.replace(/\.\w{2,4}$/, '');
-		}
+		let color_tex = getTexture('color');
+		texture_set.color = color_tex ? getTextureName(color_tex) : this.color_value.slice();
 
-		if (color_tex) {
-			texture_set.color = getTextureName(color_tex);
-		} else {
-			texture_set.color = this.color_value.slice();
-		}
-		if (mer_tex) {
-			let texture_name = getTextureName(mer_tex);
-			if (this.subsurface_value) {
-				texture_set.metalness_emissive_roughness_subsurface = texture_name;
-			} else {
-				texture_set.metalness_emissive_roughness = texture_name;
+		for (let id of SCALAR_CHANNEL_IDS) {
+			let tex = getTexture(id);
+			if (tex) {
+				texture_set[id] = getTextureName(tex);
+			} else if (id != 'ao') {
+				texture_set[id] = Math.roundTo(this[id + '_value'] / 255, 3);
 			}
-		} else if (this.subsurface_value) {
-			texture_set.metalness_emissive_roughness_subsurface = [...this.mer_value, this.subsurface_value];
-		} else if (!this.mer_value.allEqual(0)) {
-			texture_set.metalness_emissive_roughness = this.mer_value.slice();
 		}
+		let normal_tex = getTexture('normal');
+		let height_tex = getTexture('height');
 		if (normal_tex) {
 			texture_set.normal = getTextureName(normal_tex);
 		} else if (height_tex) {
 			texture_set.heightmap = getTextureName(height_tex);
 		}
 
-		let format_version = "1.16.100";
-		if (texture_set.metalness_emissive_roughness_subsurface) {
-			format_version = "1.21.30";
-		}
-		let file = {
-			format_version,
-			"minecraft:texture_set": texture_set
-		}
-		return file;
+		return {
+			format_version: '2.0',
+			material: texture_set
+		};
 	}
 	getFilePath() {
 		let main_texture = this.texture_group.getTextures().find(t => t.pbr_channel == 'color');
 		if (!main_texture) return '';
-		let path = main_texture.path.replace(/\.\w{2,4}$/, '') + '.texture_set.json';
+		let path = main_texture.path.replace(/\.\w{2,4}$/, '') + '.material.json';
 		return path;
 	}
 	getFileName(extension = true) {
 		return pathToName(this.getFilePath(), extension);
 	}
 	save() {
-		let file = autoStringify(this.compileForBedrock());
+		let file = autoStringify(this.compileMaterialFile());
 		let path = this.getFilePath();
 		if (!path) return;
 		if (isApp) {
@@ -406,120 +366,101 @@ export class TextureGroupMaterialConfig {
 			}
 			texture_options_optional[texture.uuid] = texture_options[texture.uuid] = texture_options_custom[texture.uuid] = opt;
 		}
-		new Dialog('material_config', {
-			title: 'dialog.material_config.title',
-			form: {
-				color: {
-					type: 'select',
-					label: 'menu.texture.pbr_channel.color',
-					options: texture_options_custom,
-					value: textures.find(tex => tex.pbr_channel == 'color')?.uuid ?? 'uniform',
-				},
-				color_value: {
-					label: 'dialog.material_config.color_value',
-					condition: form => form.color == 'uniform',
-					type: 'color',
-					value: {
-						r: this.color_value[0],
-						g: this.color_value[1],
-						b: this.color_value[2],
-						a: this.color_value[3] / 255
-					}
-				},
-				'_mers': '_',
-				mer: {
-					type: 'select',
-					label: 'dialog.material_config.mer',
-					options: texture_options_custom,
-					value: textures.find(tex => tex.pbr_channel == 'mer')?.uuid ?? 'uniform',
-				},
-				mer_value: {
-					label: 'dialog.material_config.mer_value',
-					condition: form => form.mer == 'uniform',
-					type: 'vector', dimensions: 3,
-					min: 0, max: 255, step: 1, force_step: true,
-					value: this.mer_value.map(v => Math.clamp(v, 0, 255)),
-				},
-				subsurface: {
-					type: 'checkbox',
-					label: 'dialog.material_config.subsurface',
-					description: 'dialog.material_config.subsurface_enabled.desc',
-					condition: form => isUUID(form.mer),
-					value: this.subsurface_value > 0,
-				},
-				subsurface_value: {
-					label: 'dialog.material_config.subsurface',
-					condition: form => form.mer == 'uniform',
+		let form = {
+			color: {
+				type: 'select',
+				label: 'menu.texture.pbr_channel.color',
+				options: texture_options_custom,
+				value: textures.find(tex => tex.pbr_channel == 'color')?.uuid ?? 'uniform',
+			},
+			color_value: {
+				label: 'dialog.material_config.color_value',
+				condition: form => form.color == 'uniform',
+				type: 'color',
+				value: {
+					r: this.color_value[0],
+					g: this.color_value[1],
+					b: this.color_value[2],
+					a: this.color_value[3] / 255
+				}
+			},
+			'_scalars': '_',
+		};
+		for (let id of SCALAR_CHANNEL_IDS) {
+			let has_uniform = id != 'ao';
+			form[id] = {
+				type: 'select',
+				label: PBR_CHANNELS[id].lang_key,
+				options: has_uniform ? texture_options_custom : texture_options_optional,
+				value: textures.find(tex => tex.pbr_channel == id)?.uuid ?? (has_uniform ? 'uniform' : 'none'),
+			};
+			if (has_uniform) {
+				form[id + '_value'] = {
+					label: 'dialog.material_config.value',
+					condition: f => f[id] == 'uniform',
 					type: 'number',
 					min: 0, max: 255, step: 1, force_step: true,
-					value: Math.clamp(this.subsurface_value, 0, 255),
+					value: Math.clamp(this[id + '_value'], 0, 255),
+				};
+			}
+		}
+		Object.assign(form, {
+			'_depth': '_',
+			depth_type: {
+				type: 'inline_select',
+				label: 'dialog.material_config.depth_type',
+				options: {
+					height: 'menu.texture.pbr_channel.height',
+					normal: 'menu.texture.pbr_channel.normal'
 				},
-				'_depth': '_',
-				depth_type: {
-					type: 'inline_select',
-					label: 'dialog.material_config.depth_type',
-					options: {
-						height: 'menu.texture.pbr_channel.height',
-						normal: 'menu.texture.pbr_channel.normal'
-					},
-					value: textures.find(tex => tex.pbr_channel == 'normal') ? 'normal' : 'height'
-				},
-				height: {
-					type: 'select',
-					label: 'menu.texture.pbr_channel.height',
-					condition: form => form.depth_type == 'height',
-					options: texture_options_optional,
-					value: textures.find(tex => tex.pbr_channel == 'height')?.uuid ?? 'none',
-				},
-				normal: {
-					type: 'select',
-					label: 'menu.texture.pbr_channel.normal',
-					condition: form => form.depth_type == 'normal',
-					options: texture_options_optional,
-					value: textures.find(tex => tex.pbr_channel == 'normal')?.uuid ?? 'none',
-				},
+				value: textures.find(tex => tex.pbr_channel == 'normal') ? 'normal' : 'height'
 			},
+			height: {
+				type: 'select',
+				label: 'menu.texture.pbr_channel.height',
+				condition: f => f.depth_type == 'height',
+				options: texture_options_optional,
+				value: textures.find(tex => tex.pbr_channel == 'height')?.uuid ?? 'none',
+			},
+			normal: {
+				type: 'select',
+				label: 'menu.texture.pbr_channel.normal',
+				condition: f => f.depth_type == 'normal',
+				options: texture_options_optional,
+				value: textures.find(tex => tex.pbr_channel == 'normal')?.uuid ?? 'none',
+			},
+		});
+		/** Assign exactly one texture (or none) to a channel; other textures on that channel leave the material */
+		const assignChannel = (id, uuid) => {
+			for (let texture of textures) {
+				if (texture.pbr_channel == id && texture.uuid != uuid) texture.group = '';
+			}
+			let target = textures.find(t => t.uuid == uuid);
+			if (target) target.pbr_channel = id;
+		};
+		new Dialog('material_config', {
+			title: 'dialog.material_config.title',
+			form,
 			onConfirm: (result) => {
 				Undo.initEdit({texture_groups: [this.texture_group], textures});
 
 				if (result.color == 'uniform') {
 					let color = result.color_value.toRgb();
-					let color_array = [color.r, color.g, color.b, Math.round(color.a * 255)];
-					this.color_value.replace(color_array);
-					for (let texture of textures) {
-						if (texture.pbr_channel == 'color') texture.group = '';
+					this.color_value.replace([color.r, color.g, color.b, Math.round(color.a * 255)]);
+				}
+				assignChannel('color', result.color);
+
+				for (let id of SCALAR_CHANNEL_IDS) {
+					if (id != 'ao' && result[id] == 'uniform') {
+						this[id + '_value'] = result[id + '_value'];
 					}
-				} else {
-					let target = textures.find(t => t.uuid == result.color);
-					if (target) target.pbr_channel = 'color';
+					assignChannel(id, result[id]);
 				}
 
-				if (result.mer == 'uniform') {
-					this.mer_value.replace(result.mer_value);
-					for (let texture of textures) {
-						if (texture.pbr_channel == 'mer') texture.group = '';
-					}
-					this.subsurface_value = result.subsurface_value;
-				} else {
-					this.mer_value.replace([0, 0, 0]);
-					let target = textures.find(t => t.uuid == result.mer);
-					if (target) target.pbr_channel = 'mer';
-					this.subsurface_value = result.subsurface ? 1 : 0;
-				}
-				
-				if (result.depth_type == 'normal') {
-					textures.forEach(t => {
-						if (t.pbr_channel == 'normal') t.pbr_channel = 'color';
-					})
-					let target = textures.find(t => t.uuid == result.normal);
-					if (target) target.pbr_channel = 'normal';
-				} else {
-					textures.forEach(t => {
-						if (t.pbr_channel == 'height') t.pbr_channel = 'color';
-					})
-					let target = textures.find(t => t.uuid == result.height);
-					if (target) target.pbr_channel = 'height';
-				}
+				let use_normal = result.depth_type == 'normal';
+				assignChannel('normal', use_normal ? result.normal : '');
+				assignChannel('height', use_normal ? '' : result.height);
+
 				this.saved = false;
 				Undo.finishEdit('Change material config properties')
 				this.texture_group.updateMaterial();
@@ -528,8 +469,9 @@ export class TextureGroupMaterialConfig {
 	}
 }
 new Property(TextureGroupMaterialConfig, 'vector4', 'color_value', {default: [255, 255, 255, 255]});
-new Property(TextureGroupMaterialConfig, 'vector', 'mer_value');
-new Property(TextureGroupMaterialConfig, 'number', 'subsurface_value');
+new Property(TextureGroupMaterialConfig, 'number', 'roughness_value', {default: PBR_CHANNELS.roughness.default_value});
+new Property(TextureGroupMaterialConfig, 'number', 'metalness_value', {default: 0});
+new Property(TextureGroupMaterialConfig, 'number', 'emissive_value', {default: 0});
 new Property(TextureGroupMaterialConfig, 'boolean', 'saved', {default: true});
 TextureGroupMaterialConfig.prototype.menu = new Menu('texture_group_material_config', [
 	'generate_pbr_map',
@@ -573,26 +515,30 @@ TextureGroupMaterialConfig.prototype.menu = new Menu('texture_group_material_con
 })
 
 export function importTextureSet(file, undo = true) {
-	if (file.name.endsWith('texture_set.json') == false) return
+	if (file.name.endsWith('material.json') == false) return
 
 	let new_textures = [], new_texture_groups = [];
 	if (undo) Undo.initEdit({textures: new_textures, texture_groups: new_texture_groups});
 	let texture_group = new TextureGroup({is_material: true});
-	texture_group.name = file.name.replace('.texture_set.json', '.png material');
+	texture_group.name = file.name.replace('.material.json', '.png material');
 
 	let content = fs.readFileSync(file.path, {encoding: 'utf-8'});
 	let content_json = autoParseJSON(content, {file_path: file.path});
 
-	if (content_json && content_json['minecraft:texture_set']) {
+	if (content_json && content_json['material']) {
+		const material_data = content_json['material'];
+		const config = texture_group.material_config;
 		let channels = {
 			color: 'color',
 			normal: 'normal',
 			heightmap: 'height',
-			metalness_emissive_roughness: 'mer',
-			metalness_emissive_roughness_subsurface: 'mer',
+			roughness: 'roughness',
+			metalness: 'metalness',
+			emissive: 'emissive',
+			ao: 'ao',
 		};
 		for (let key in channels) {
-			let source = content_json['minecraft:texture_set'][key];
+			let source = material_data[key];
 			if (typeof source == 'string' && !source.startsWith('#')) {
 				let paths = [
 					PathModule.resolve(file.path, '../' + source + '.png'),
@@ -606,35 +552,32 @@ export function importTextureSet(file, undo = true) {
 						let t = new Texture({
 							name: file2.name,
 							pbr_channel: channels[key]
-						}).fromFile(file2).add(false, true).fillParticle();
+						}).fromFile(file2).add(false, true);
 						new_textures.push(t);
 						t.group = texture_group.uuid;
 						break;
 					}
 				})
-				if (key == 'metalness_emissive_roughness_subsurface') {
-					texture_group.material_config.subsurface_value = 1;
-				}
-			} else {
+			} else if (key == 'color') {
 				let color_array = source;
 				if (typeof source == 'string') {
 					let color = tinycolor(source);
 					color_array = [color._r, color._g, color._b, color._a * 255];
 				}
 				if (color_array instanceof Array) {
-					if (key == 'color') {
-						texture_group.material_config.color_value.replace(color_array);
-						while (texture_group.material_config.color_value.length < 4) {
-							texture_group.material_config.color_value.push(255);
-						}
-					} else if (key == 'metalness_emissive_roughness') {
-						texture_group.material_config.mer_value.V3_set(color_array);
-					} else if (key == 'metalness_emissive_roughness_subsurface') {
-						texture_group.material_config.mer_value.V3_set(color_array);
-						texture_group.material_config.subsurface_value = Math.clamp(color_array[3] ?? 0, 0, 255);
-					}
+					config.color_value.replace(color_array);
+					while (config.color_value.length < 4) config.color_value.push(255);
 				}
+			} else if (typeof source == 'number' && SCALAR_CHANNEL_IDS.includes(key)) {
+				config[key + '_value'] = Math.clamp(source * 255, 0, 255);
 			}
+		}
+		// Legacy uniform metalness-emissive-roughness arrays (0-255)
+		let legacy = material_data.metalness_emissive_roughness ?? material_data.metalness_emissive_roughness_subsurface;
+		if (legacy instanceof Array) {
+			config.metalness_value = Math.clamp(legacy[0] ?? 0, 0, 255);
+			config.emissive_value = Math.clamp(legacy[1] ?? 0, 0, 255);
+			config.roughness_value = Math.clamp(legacy[2] ?? 204, 0, 255);
 		}
 	}
 	if (isApp) texture_group.material_config.saved = true;
@@ -643,7 +586,7 @@ export function importTextureSet(file, undo = true) {
 	if (undo) Undo.finishEdit('Import texture set');
 }
 function loadAdjacentTextureSet(texture) {
-	let path = texture.path.replace(/\.png$/i, '.texture_set.json');
+	let path = texture.path.replace(/\.png$/i, '.material.json');
 	if (fs.existsSync(path)) {
 		Blockbench.read([path], {}, (files) => {
 			importTextureSet(files[0], false)
@@ -693,13 +636,8 @@ BARS.defineActions(function() {
 			for (let texture of textures_to_add) {
 				texture.group = texture_group.uuid;
 				if (texture != Texture.selected) {
-					if (texture.name.match(/height/i)) {
-						texture.pbr_channel = 'height';
-					} else if (texture.name.match(/[._-]normal/i)) {
-						texture.pbr_channel = 'normal';
-					} else if (texture.name.match(/[._-]mer[._-]/i)) {
-						texture.pbr_channel = 'mer';
-					}
+					let guess = guessChannelFromName(texture.name);
+					if (guess) texture.pbr_channel = guess;
 				}
 			}
 			texture_group.add(false);
@@ -807,35 +745,18 @@ BARS.defineActions(function() {
 					new_data.data[i+2] = 0;
 					new_data.data[i+3] = 255;
 
-					switch (result.channel) {
-						case 'height': {
-							new_data.data[i+0] = output;
-							new_data.data[i+1] = output;
-							new_data.data[i+2] = output;
-							break;
-						}
-						case 'normal': {
-							let top = y > 0 ? getPixelOutput(x, y-1) : output;
-							let bottom = y < original_data.height-1 ? getPixelOutput(x, y+1) : output;
-							let left = x > 0 ? getPixelOutput(x-1, y) : output;
-							let right = x < original_data.width-1 ? getPixelOutput(x+1, y) : output;
-							new_data.data[i+0] = Math.clamp(127 - (right-left), 0, 255);
-							new_data.data[i+1] = Math.clamp(127 - (top-bottom), 0, 255);
-							new_data.data[i+2] = 255;
-							break;
-						}
-						case 'metalness': {
-							new_data.data[i+0] = output;
-							break;
-						}
-						case 'emissive': {
-							new_data.data[i+1] = output;
-							break;
-						}
-						case 'roughness': {
-							new_data.data[i+2] = output;
-							break;
-						}
+					if (result.channel == 'normal') {
+						let top = y > 0 ? getPixelOutput(x, y-1) : output;
+						let bottom = y < original_data.height-1 ? getPixelOutput(x, y+1) : output;
+						let left = x > 0 ? getPixelOutput(x-1, y) : output;
+						let right = x < original_data.width-1 ? getPixelOutput(x+1, y) : output;
+						new_data.data[i+0] = Math.clamp(127 - (right-left), 0, 255);
+						new_data.data[i+1] = Math.clamp(127 - (top-bottom), 0, 255);
+						new_data.data[i+2] = 255;
+					} else {
+						new_data.data[i+0] = output;
+						new_data.data[i+1] = output;
+						new_data.data[i+2] = output;
 					}
 				}
 				ctx.putImageData(new_data, 0, 0);
@@ -854,13 +775,7 @@ BARS.defineActions(function() {
 					channel: {
 						type: 'select',
 						label: 'dialog.generate_pbr_map.channel',
-						options: {
-							height: 'menu.texture.pbr_channel.height',
-							normal: 'menu.texture.pbr_channel.normal',
-							metalness: 'dialog.generate_pbr_map.channel.metalness',
-							emissive: 'dialog.generate_pbr_map.channel.emissive',
-							roughness: 'dialog.generate_pbr_map.channel.roughness',
-						}
+						options: Object.fromEntries(PBR_CHANNEL_IDS.filter(id => id != 'color').map(id => [id, PBR_CHANNELS[id].lang_key]))
 					},
 					method: {
 						type: 'select',
@@ -962,52 +877,32 @@ BARS.defineActions(function() {
 				onConfirm(result) {
 					updateCanvas(result);
 					let textures = [];
-					let pbr_channel;
-					switch (result.channel) {
-						case 'height': case 'normal': pbr_channel = result.channel; break;
-						default: pbr_channel = 'mer'; break;
-					}
+					let pbr_channel = result.channel;
+					let existing_textures = texture_group?.getTextures().filter(tex => tex.pbr_channel == pbr_channel) ?? [];
 
-					let existing_channel_texture = texture_group.getTextures().find(tex => tex.pbr_channel == pbr_channel);
+					Undo.initEdit({texture_groups: texture_group ? [texture_group] : null, textures: existing_textures});
+					// The new map replaces whatever was assigned to this channel
+					existing_textures.forEach(tex => {tex.group = '';});
 
-					if (existing_channel_texture && pbr_channel == 'mer') {
-						Undo.initEdit({textures: [existing_channel_texture], bitmap: true});
-						if (!existing_channel_texture.layers_enabled) {
-							existing_channel_texture.activateLayers(false);
-						}
-						let layer = new TextureLayer({
-							name: result.channel,
-							blend_mode: 'add'
-						}, existing_channel_texture);
-						let image_data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-						layer.setSize(canvas.width, canvas.height);
-						layer.ctx.putImageData(image_data, 0, 0);
-						layer.addForEditing();
-						existing_channel_texture.updateLayerChanges(true);
+					let main_texture = texture_group?.getTextures().find(t => t.pbr_channel == 'color');
+					let name = main_texture ? main_texture.name : texture.name;
+					name = name.replace('.', `_${PBR_CHANNELS[pbr_channel].suffix}.`);
 
-					} else {
-						Undo.initEdit({texture_groups: texture_group ? [texture_group] : null, textures});
-						
-						let main_texture = texture_group?.getTextures().find(t => t.pbr_channel == 'color');
-						let name = main_texture ? main_texture.name : texture.name;
-						name = name.replace('.', `_${pbr_channel}.`);
+					let new_texture = new Texture({
+						name,
+						pbr_channel,
+						group: texture_group?.uuid,
+					}).fromDataURL(canvas.toDataURL()).add(false);
+					textures.push(new_texture);
 
-						let new_texture = new Texture({
-							name,
-							pbr_channel,
-							group: texture_group?.uuid,
-						}).fromDataURL(canvas.toDataURL()).add(false);
-						textures.push(new_texture);
-
-						if (texture_group.material_config) {
-							texture_group.material_config.saved = false;
-						}
+					if (texture_group?.material_config) {
+						texture_group.material_config.saved = false;
 					}
 
 					setTimeout(() => {
-						texture_group.updateMaterial();
+						texture_group?.updateMaterial();
 					}, 50);
-					Undo.finishEdit('Create PBR map');
+					Undo.finishEdit('Create PBR map', {textures: [...existing_textures, new_texture]});
 					updateSelection();
 				},
 				onOpen() {

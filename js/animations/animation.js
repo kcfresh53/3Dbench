@@ -3,18 +3,11 @@ import { Filesystem } from "../file_system";
 import { openMolangEditor } from "./molang_editor";
 import { clipboard, currentwindow, dialog, fs, ipcRenderer } from "../native_apis";
 import { invertMolang } from "../util/molang";
-import { ScopeColors } from "../multi_file_editing";
 import { dragHelper } from "../util/drag_helper";
 
 export class AnimationItem {
 	constructor() {}
 	getShortName() {
-		if (typeof Project.BedrockEntityManager?.client_entity?.description?.animations == 'object') {
-			let {animations} = Project.BedrockEntityManager.client_entity.description;
-			for (let key in animations) {
-				if (animations[key] == this.name) return key;
-			}
-		}
 		return this.name.split(/\./).last();
 	}
 }
@@ -41,9 +34,6 @@ export class Animation extends AnimationItem {
 			if (isApp && Format.animation_files && data.saved_name) {
 				this.saved_name = data.saved_name;
 			}
-		}
-		if (Project.getMultiFileRuleset() && Group.all.length) {
-			this.setScopeFromAnimators();
 		}
 	}
 	extend(data) {
@@ -157,10 +147,6 @@ export class Animation extends AnimationItem {
 			}
 		}
 		return copy;
-	}
-	compileBedrockAnimation() {
-		console.warn('"Animation.compileBedrockAnimation" is deprecated')
-		return AnimationCodec.codecs.bedrock.compileAnimation(this)
 	}
 	sampleIK(sample_rate = settings.animation_sample_rate.value) {
 		let interval = 1 / Math.clamp(sample_rate, 1, 144);
@@ -339,16 +325,6 @@ export class Animation extends AnimationItem {
 		this.menu.open(event, this);
 		return this;
 	}
-	setScopeFromAnimators() {
-		for (let uuid in this.animators) {
-			if (!this.animators[uuid].keyframes.length) continue;
-			let group = Group.all.find(g => g.uuid == uuid);
-			if (group?.scope) {
-				this.scope = group.scope;
-				return this.scope;
-			}
-		}
-	}
 	getBoneAnimator(node) {
 		if (!node && Group.first_selected) {
 			node = Group.first_selected;
@@ -358,7 +334,6 @@ export class Animation extends AnimationItem {
 			return;
 		}
 		if (!node.constructor.animator) return;
-		if (node.scope && node.scope != this.scope && Project.getMultiFileRuleset()?.scope_isolated_animations) return;
 
 		let uuid = node.uuid;
 		if (!this.animators[uuid]) {
@@ -498,25 +473,6 @@ export class Animation extends AnimationItem {
 					filetype: 'JSON Animation',
 					condition: Animation.properties.path.condition
 				},
-				scope: {
-					label: 'Scope',
-					type: 'select',
-					value: this.scope,
-					get options() {
-						let opts = {
-							0: {name: 'None'},
-						};
-						for (let collection of Collection.all) {
-							if (!collection.scope) continue;
-							opts[collection.scope] = {
-								name: collection.name,
-								color: ScopeColors[collection.scope-1 % ScopeColors.length]
-							}
-						}
-						return opts;
-					},
-					condition: !!Project.getMultiFileRuleset()
-				},
 				loop: {
 					label: 'menu.animation.loop',
 					type: 'inline_select',
@@ -613,7 +569,6 @@ export class Animation extends AnimationItem {
 					|| form_data.name != this.name
 					|| (isApp && form_data.path != this.path)
 					|| form_data.loop != this.loop
-					|| parseInt(form_data.scope) != this.scope
 					|| form_data.override != this.override
 					|| form_data.snapping != this.snapping
 					|| dialog.component.data.anim_time_update != this.anim_time_update
@@ -628,7 +583,6 @@ export class Animation extends AnimationItem {
 						name: form_data.name,
 						override: form_data.override,
 						snapping: form_data.snapping,
-						scope: parseInt(form_data.scope) ?? 0,
 						anim_time_update: dialog.component.data.anim_time_update.trim().replace(/\n/g, ''),
 						blend_weight: dialog.component.data.blend_weight.trim().replace(/\n/g, ''),
 						start_delay: dialog.component.data.start_delay.trim().replace(/\n/g, ''),
@@ -729,17 +683,13 @@ export const BBAnimation = Animation;
 	Animation.prototype.file_menu = new Menu([
 		{name: 'menu.animation_file.unload', icon: 'remove', click(id) {
 			let animations_to_remove = Animation.all.filter(anim => anim.path == id && anim.saved);
-			let controllers_to_remove = AnimationController.all.filter(anim => anim.path == id && anim.saved);
-			if (!animations_to_remove.length && !controllers_to_remove.length) return;
+			if (!animations_to_remove.length) return;
 
-			Undo.initEdit({animations: animations_to_remove, animation_controllers: controllers_to_remove});
+			Undo.initEdit({animations: animations_to_remove});
 			animations_to_remove.forEach(animation => {
 				animation.remove(false, false);
 			})
-			controllers_to_remove.forEach(animation => {
-				animation.remove(false, false);
-			})
-			Undo.finishEdit('Unload animation file', {animations: [], animation_controllers: []});
+			Undo.finishEdit('Unload animation file', {animations: []});
 		}},
 		{name: 'menu.animation_file.save_as', icon: 'save', click(path) {
 			let item = AnimationItem.all.find(item => item.path == path);
@@ -793,8 +743,8 @@ Blockbench.on('finish_edit', event => {
 
 
 Clipbench.setAnimation = function() {
-	if (!Animation.selected && !AnimationController.selected) return;
-	Clipbench.animation = AnimationItem.selected.getUndoCopy();
+	if (!Animation.selected) return;
+	Clipbench.animation = Animation.selected.getUndoCopy();
 
 	if (isApp) {
 		clipboard.writeHTML(JSON.stringify({type: 'animation', content: Clipbench.animation}));
@@ -812,24 +762,13 @@ Clipbench.pasteAnimation = function() {
 	}
 	if (!Clipbench.animation || !Format.animation_mode) return;
 
-	if (Clipbench.animation.type == 'animation_controller') {
-		let animation_controllers = [];
-		Undo.initEdit({animation_controllers});
-		let animation_controller = new AnimationController(Clipbench.animation).add(false);
-		animation_controller.createUniqueName();
-		animation_controller.select().propertiesDialog();
-		animation_controllers.push(animation_controller);
-		Undo.finishEdit('Paste animation controller')
-
-	} else {
-		let animations = [];
+	let animations = [];
 		Undo.initEdit({animations});
 		let animation = new Animation(Clipbench.animation).add(false);
 		animation.createUniqueName();
 		animation.select().propertiesDialog();
 		animations.push(animation);
 		Undo.finishEdit('Paste animation')
-	}
 }
 
 SharedActions.add('rename', {
@@ -854,16 +793,6 @@ SharedActions.add('duplicate', {
 		Animator.animations.splice(Animator.animations.indexOf(Animation.selected)+1, 0, animation)
 		animation.saved = false;
 		animation.add(true).select();
-	}
-})
-
-Filesystem.addDragHandler('animation', {
-	extensions: ['animation.json', 'animation_controllers.json'],
-	readtype: 'text',
-	condition: {modes: ['animate']},
-}, async function(files) {
-	for (let file of files) {
-		await AnimationCodec.codecs.bedrock.importFile(file);
 	}
 })
 
@@ -949,9 +878,8 @@ BARS.defineActions(function() {
 		condition: {modes: ['animate']},
 		click: function () {
 			new Animation({
-				name: Format.id.includes('bedrock') ? 'animation.' + (Project.geometry_name||'model') + '.new' : 'animation',
+				name: 'animation',
 				saved: false,
-				scope: (Group.first_selected)?.scope ?? 0
 			}).add(true).propertiesDialog()
 
 		}
@@ -969,94 +897,6 @@ BARS.defineActions(function() {
 			Undo.finishEdit('Set animation length');
 		}
 	})
-	new Action('load_animation_file', {
-		icon: 'fa-file-video',
-		category: 'animation',
-		condition: {modes: ['animate'], features: ['animation_files'], method: () => AnimationCodec.getCodec()?.pickFile},
-		click: function () {
-			AnimationCodec.getCodec()?.pickFile();
-		}
-	})
-	new Action('export_animation_file', {
-		icon: 'movie',
-		category: 'animation',
-		condition: () => !!AnimationCodec.getCodec(),
-		click: function () {
-			let form = {};
-			let keys = [];
-			let animations = Animation.all.slice()
-			if (Condition(Animation.properties.path.condition)) {
-				animations.sort((a1, a2) => (a1.path ?? a1.name).hashCode() - (a2.path ?? a2.name).hashCode())
-			}
-			animations.forEach(animation => {
-				let key = animation.name;
-				keys.push(key)
-				form[key.hashCode()] = {label: key, type: 'checkbox', value: true};
-			})
-			let dialog = new Dialog({
-				id: 'animation_export',
-				title: 'dialog.animation_export.title',
-				form,
-				onConfirm(form_result) {
-					dialog.hide();
-					keys = keys.filter(key => form_result[key.hashCode()])
-					let animations = Animator.animations.filter((a) => keys.includes(a.name));
-					let codec = AnimationCodec.getCodec() || AnimationCodec.codecs.bedrock;
-					let content = codec.compileFile(animations);
-
-					Blockbench.export({
-						resource_id: 'animation',
-						type: 'JSON Animation',
-						extensions: ['json'],
-						name: (Project.geometry_name||'model')+'.animation',
-						content: autoStringify(content),
-					})
-				}
-			})
-			form.select_all_none = {
-				type: 'buttons',
-				buttons: ['generic.select_all', 'generic.select_none'],
-				click(index) {
-					let values = {};
-					keys.forEach(key => values[key.hashCode()] = (index == 0));
-					dialog.setFormValues(values);
-				}
-			}
-
-			dialog.show();
-		}
-	})
-	new Action('save_all_animations', {
-		icon: 'save',
-		category: 'animation',
-		condition: () => Format.animation_files && AnimationCodec.getCodec(),
-		click: function () {
-			let codec = AnimationCodec.getCodec();
-			if (codec.multiple_per_file) {
-				let paths = [];
-				Animation.all.forEach(animation => {
-					paths.safePush(animation.path);
-				})
-				paths.forEach(path => {
-					codec?.exportFile(path);
-				})
-			} else if (codec.saveAnimation) {
-				Animation.all.forEach(animation => {
-					codec.saveAnimation();
-				})
-			}
-
-			// Controllers
-			let controller_paths = [];
-			AnimationController.all.forEach(controller => {
-				controller_paths.safePush(controller.path);
-			})
-			controller_paths.forEach(path => {
-				AnimationCodec.codecs.bedrock_animation_controller.exportFile(path);
-			})
-		}
-	})
-
 	new Action('bake_ik_animation', {
 		icon: 'precision_manufacturing',
 		category: 'animation',
@@ -1736,11 +1576,8 @@ Interface.definePanels(function() {
 			new Toolbar('animations', {
 				children: [
 					'add_animation',
-					'add_animation_controller',
-					'load_animation_file',
 					'create_animation_group',
 					'slider_animation_length',
-					'export_modded_animations',
 					'+',
 					'search_animations',
 				]
@@ -1750,9 +1587,8 @@ Interface.definePanels(function() {
 			name: 'panel-animations',
 			data() { return {
 				animations: Animation.all,
-				animation_controllers: AnimationController.all,
 				files_folded: {},
-				animation_files: true,
+				animation_files: false,
 				group_animations_by_file: true,
 				search_enabled: false,
 				search_term: '',
@@ -1773,25 +1609,12 @@ Interface.definePanels(function() {
 				},
 				addAnimation(group_name) {
 					let other_animation = AnimationItem.all.find(a => (this.group_animations_by_file ? a.path : a.group_name) == group_name);
-					if (other_animation instanceof Animation) {
-						new Animation({
+					new Animation({
 							name: other_animation && other_animation.name.replace(/\w+$/, 'new'),
 							path: this.group_animations_by_file ? group_name : undefined,
 							group_name: group_name,
-							scope: (other_animation.scope || Group.first_selected?.scope) ?? 0,
 							saved: false
 						}).add(true).propertiesDialog()
-					} else {
-						new AnimationController({
-							name: other_animation && other_animation.name.replace(/\w+$/, 'new'),
-							path: group_name,
-							saved: false
-						}).add(true);
-					}
-				},
-				getScopeColor(animation) {
-					if (!animation.scope) return '';
-					return ScopeColors[(animation.scope-1) % ScopeColors.length];
 				},
 				showFileContextMenu(event, id) {
 					if (this.group_animations_by_file) {
@@ -1854,7 +1677,7 @@ Interface.definePanels(function() {
 							new_order.remove(name)
 							new_order.splice(target_index, 0, name);
 							
-							Undo.initEdit({animations: Animation.all, animation_controllers: AnimationController.all});
+							Undo.initEdit({animations: Animation.all});
 
 							const updateArray = (array) => {
 								let copy = array.slice();
@@ -1866,7 +1689,6 @@ Interface.definePanels(function() {
 								copy.forEach(anim => array.safePush(anim));
 							}
 							updateArray(Animation.all);
-							updateArray(AnimationController.all);
 
 							Undo.finishEdit('Reorder animation groups');
 
@@ -1960,38 +1782,20 @@ Interface.definePanels(function() {
 							let [target_anim] = eventTargetToAnim(target);
 							if (!target_anim || target_anim == anim ) return;
 
-							if (anim instanceof AnimationController) {
-								let index = AnimationController.all.indexOf(target_anim);
-								if (index == -1 && target_anim[group_name_key]) return;
-								if (AnimationController.all.indexOf(anim) < index) index--;
-								if (order == 1) index++;
-								if (AnimationController.all[index] == anim && anim[group_name_key] == target_anim[group_name_key]) return;
-								
-								Undo.initEdit({animation_controllers: [anim]});
-	
-								anim[group_name_key] = target_anim[group_name_key];
-								AnimationController.all.remove(anim);
-								AnimationController.all.splice(index, 0, anim);
-								anim.createUniqueName();
-	
-								Undo.finishEdit('Reorder animation controllers');
+							let index = Animation.all.indexOf(target_anim);
+							if (index == -1 && target_anim[group_name_key]) return;
+							if (Animation.all.indexOf(anim) < index) index--;
+							if (order == 1) index++;
+							if (Animation.all[index] == anim && anim[group_name_key] == target_anim[group_name_key]) return;
+							
+							Undo.initEdit({animations: [anim]});
 
-							} else {
-								let index = Animation.all.indexOf(target_anim);
-								if (index == -1 && target_anim[group_name_key]) return;
-								if (Animation.all.indexOf(anim) < index) index--;
-								if (order == 1) index++;
-								if (Animation.all[index] == anim && anim[group_name_key] == target_anim[group_name_key]) return;
-								
-								Undo.initEdit({animations: [anim]});
-	
-								anim[group_name_key] = target_anim[group_name_key];
-								Animation.all.remove(anim);
-								Animation.all.splice(index, 0, anim);
-								anim.createUniqueName();
-	
-								Undo.finishEdit('Reorder animations');
-							}
+							anim[group_name_key] = target_anim[group_name_key];
+							Animation.all.remove(anim);
+							Animation.all.splice(index, 0, anim);
+							anim.createUniqueName();
+
+							Undo.finishEdit('Reorder animations');
 						}
 					}
 
@@ -2038,18 +1842,6 @@ Interface.definePanels(function() {
 						if (!filter(animation)) return;
 						groups[key].animations.push(animation);
 					})
-					this.animation_controllers.forEach(controller => {
-						let key = controller.path || '';
-						if (!groups[key]) groups[key] = {
-							animations: [],
-							name: controller.path ? pathToName(controller.path, true) : 'Unsaved',
-							type: 'animation_controller',
-							saved: true
-						};
-						if (!controller.saved) groups[key].saved = false;
-						if (!filter(controller)) return;
-						groups[key].animations.push(controller);
-					})
 					return groups;
 				},
 				common_namespace() {
@@ -2066,37 +1858,6 @@ Interface.definePanels(function() {
 
 						for (var anim of this.animations) {
 							if (anim == this.animations[0]) continue;
-
-							let segments = anim.name.split(/[.:]/);
-							let length = 0;
-
-							for (var segment of segments) {
-								if (segment == name.substr(length, segment.length)) {
-									length += segment.length + 1;
-								} else {
-									break;
-								}
-							}
-							name = name.substr(0, length);
-							if (name.length < 8) return '';
-						}
-						return name;
-					}
-				},
-				common_controller_namespace() {
-					if (!this.animation_controllers.length) {
-						return '';
-
-					} else if (this.animation_controllers.length == 1) {
-						let match = this.animation_controllers[0].name.match(/^.*[.:]/);
-						return match ? match[0] : '';
-
-					} else {
-						let name = this.animation_controllers[0].name;
-						if (name.search(/[.:]/) == -1) return '';
-
-						for (var anim of this.animation_controllers) {
-							if (anim == this.animation_controllers[0]) continue;
 
 							let segments = anim.name.split(/[.:]/);
 							let length = 0;
@@ -2146,20 +1907,14 @@ Interface.definePanels(function() {
 								v-bind:anim_id="animation.uuid"
 								class="animation"
 								:key="animation.uuid"
-								:style="{'--color-scope': getScopeColor(animation)}"
 								@click.stop="animation.clickSelect()"
 								@dblclick.stop="animation.propertiesDialog()"
 								@contextmenu.prevent.stop="animation.showContextMenu($event)"
 							>
-								<i class="material-icons" v-if="animation.type == 'animation'">movie</i>
-								<i class="material-icons" v-else>cable</i>
-								<label :title="animation.name" v-if="animation.type == 'animation'">
+								<i class="material-icons">movie</i>
+								<label :title="animation.name">
 									{{ common_namespace ? animation.name.split(common_namespace).join('') : animation.name }}
 									<span v-if="common_namespace"> - {{ animation.name }}</span>
-								</label>
-								<label :title="animation.name" v-else>
-									{{ common_controller_namespace ? animation.name.split(common_controller_namespace).join('') : animation.name }}
-									<span v-if="common_controller_namespace"> - {{ animation.name }}</span>
 								</label>
 								<div v-if="animation_files" class="in_list_button" v-bind:class="{unclickable: animation.saved}" @click.stop="animation.save()" title="${tl('menu.animation.save')}">
 									<i v-if="animation.saved" class="material-icons">check_circle</i>
@@ -2179,13 +1934,27 @@ Interface.definePanels(function() {
 		},
 		menu: new Menu([
 			'add_animation',
-			'add_animation_controller',
-			'load_animation_file',
 			'create_animation_group',
 			'paste',
-			'save_all_animations',
 		])
 	})
+})
+
+Object.defineProperty(AnimationItem, 'all', {
+	get() {
+		return Animation.all;
+	},
+	set() {
+		console.warn('AnimationItem.all is read-only')
+	}
+})
+Object.defineProperty(AnimationItem, 'selected', {
+	get() {
+		return Animation.selected;
+	},
+	set(item) {
+		Animation.selected = item || null;
+	}
 })
 
 Object.assign(window, {AnimationItem, Animation, BBAnimation});

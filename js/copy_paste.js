@@ -30,9 +30,6 @@ export const Clipbench = {
 		if (text) {
 			return Clipbench.types.text;
 		}
-		if (Modes.display) {
-			return Clipbench.types.display_slot
-		}
 		if (Animator.open && Prop.active_panel == 'animations') {
 			return Clipbench.types.animation
 		}
@@ -68,9 +65,6 @@ export const Clipbench = {
 		}
 		if (!Project) {
 			return Clipbench.types.image;
-		}
-		if (Modes.display) {
-			return Clipbench.types.display_slot
 		}
 		if (Animator.open && Prop.active_panel == 'animations') {
 			return Clipbench.types.animation
@@ -134,9 +128,6 @@ export const Clipbench = {
 			case 'text':
 				Clipbench.setText(window.getSelection()+'');
 				break;
-			case 'display_slot':
-				DisplayMode.copy();
-				break;
 			case 'animation':
 				Clipbench.setAnimation();
 				break;
@@ -190,9 +181,6 @@ export const Clipbench = {
 			case 'text':
 				let text = isApp ? clipboard.readText() : await navigator.clipboard.readText();
 				Blockbench.dispatchEvent('paste_text', {text});
-				break;
-			case 'display_slot':
-				DisplayMode.paste();
 				break;
 			case 'animation':
 				Clipbench.pasteAnimation();
@@ -388,7 +376,7 @@ export const Clipbench = {
 		//Rotate Cubes
 		if (!Format.rotate_cubes) {
 			elements.forEach(cube => {
-				if (!cube.getTypeBehavior('cube_rotation_limit')) return;
+				if (!(cube instanceof Cube)) return;
 				cube.rotation.V3_set(0, 0, 0)
 			})
 			Canvas.updateView({elements, element_aspects: {transform: true}});
@@ -398,7 +386,7 @@ export const Clipbench = {
 		if (Format.cube_size_limiter && !settings.deactivate_size_limit.value) {
 
 			elements.forEach(s => {
-				if (s.getTypeBehavior('cube_rotation_limit')) {
+				if (s instanceof Cube) {
 					//Push elements into 3x3 block box
 					Format.cube_size_limiter.move(s);
 				}
@@ -406,20 +394,6 @@ export const Clipbench = {
 			Canvas.updateView({elements, element_aspects: {transform: true, geometry: true}});
 		}
 
-		//Rotation Limit
-		if (Format.rotation_limit && Format.rotate_cubes) {
-			elements.forEach(cube => {
-				if (!cube.getTypeBehavior('cube_rotation_limit')) return;
-				if (!cube.rotation.allEqual(0)) {
-					var axis = getAxisNumber(cube.rotationAxis()) || 0;
-					var cube_rotation = Format.rotation_snap ? Math.round(cube.rotation[axis]/22.5)*22.5 : cube.rotation[axis];
-					var angle = limitNumber( cube_rotation, -45, 45 );
-					cube.rotation.V3_set(0, 0, 0);
-					cube.rotation[axis] = angle;
-				}
-			})
-			Canvas.updateView({elements, element_aspects: {transform: true}});
-		}
 
 		Undo.finishEdit('Paste Elements', {outliner: true, elements: selected, groups: new_groups, selection: true});
 	},
@@ -521,9 +495,6 @@ BARS.defineActions(function() {
 	});
 	paste.addSubKeybind('keyframe', 'menu.keyframe', null, event => {
 		Clipbench.pasteKeyframes();
-	});
-	paste.addSubKeybind('display_slot', 'category.display', null, event => {
-		DisplayMode.paste();
 	});
 })
 

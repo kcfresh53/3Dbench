@@ -131,15 +131,6 @@ export async function loadInfoFromURL() {
 			path: Blockbench.queries.loadname || 'file'
 		};
 		switch (Blockbench.queries.loadtype) {
-			case 'minecraft_skin': {
-				// @ts-expect-error
-				let dialog = Formats.skin.setup_dialog as Dialog;
-				dialog.show();
-				dialog.setFormValues({
-					texture: file
-				})
-				break;
-			}
 			case 'image': {
 				loadImages([file]);
 				break;
@@ -176,7 +167,6 @@ export {
 	NULL as loadDataFromModelMemory,
 	NULL as changeImageEditor,
 	NULL as isImageEditorValid,
-	NULL as openDefaultTexturePath,
 	NULL as findExistingFile,
 	NULL as createBackup,
 }

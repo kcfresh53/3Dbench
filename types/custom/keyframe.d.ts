@@ -84,7 +84,7 @@ declare class BBKeyframe {
 		get_quaternion?: boolean
 	): THREE.Vector3 | THREE.Euler | THREE.Quaternion
 	getTimecodeString(): string
-	compileBedrockKeyframe(): any
+	compilePresetKeyframe(): any
 	replaceOthers(save: any): void
 	select(event?: any): this
 	callPlayhead(): this

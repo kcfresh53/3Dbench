@@ -17,8 +17,8 @@ export function setupDragHandlers() {
 		}
 	)
 	Blockbench.addDragHandler(
-		'texture_set',
-		{extensions: ['texture_set.json'], propagate: true, readtype: 'image', condition: () => Format.pbr && !Dialog.open},
+		'material_file',
+		{extensions: ['material.json'], propagate: true, readtype: 'image', condition: () => Format.pbr && !Dialog.open},
 		function(files, event) {
 			importTextureSet(files[0]);
 		}
@@ -146,9 +146,6 @@ export async function loadImages(files, event) {
 	if (Project) {
 		options.reference_image = 'data.reference_image';
 	}
-	if (img.naturalHeight == img.naturalWidth && [64, 128].includes(img.naturalWidth)) {
-		options.minecraft_skin = 'format.skin';
-	}
 	if (Project && Condition(Panels.textures.condition)) {
 		if (Format.image_editor) {
 			options.texture = 'message.load_images.add_image';
@@ -202,13 +199,6 @@ export async function loadImages(files, event) {
 		} else if (method == 'edit') {
 			Codecs.image.load(files, files[0].path, [img.naturalWidth, img.naturalHeight]);
 			
-		} else if (method == 'minecraft_skin') {
-			Formats.skin.setup_dialog.show();
-			Formats.skin.setup_dialog.setFormValues({
-				texture_source: 'upload_texture',
-				texture_file: files[0]
-			})
-
 		} else if (method == 'extrude_with_cubes') {
 			Extruder.dialog.show();
 			Extruder.drawImage(files[0]);
@@ -226,7 +216,6 @@ export async function loadImages(files, event) {
 			layer: 'new_window',
 			reference_image: 'wallpaper',
 			edit: 'draw',
-			minecraft_skin: 'icon-player',
 			extrude_with_cubes: 'eject',
 		};
 		let categories = {
@@ -235,7 +224,6 @@ export async function loadImages(files, event) {
 			layer: 'message.load_images.category.add_to_project',
 			reference_image: 'message.load_images.category.add_to_project',
 			edit: 'message.load_images.category.new_project',
-			minecraft_skin: 'message.load_images.category.new_project',
 			extrude_with_cubes: 'message.load_images.category.add_to_project',
 		}
 		let commands = {};
@@ -429,9 +417,6 @@ BARS.defineActions(function() {
 							Codecs.project.export();
 						}
 					}
-				}
-				if (Format.animation_mode && Format.animation_files && AnimationItem.all.length) {
-					BarItems.save_all_animations.trigger();
 				}
 			} else {
 				await saveTextures()

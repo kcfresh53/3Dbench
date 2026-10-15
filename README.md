@@ -1,62 +1,36 @@
-# Blockbench
+# 3DBench
 
-Blockbench is a free and open source model editor for low-poly models with pixel art textures.
-Models can be exported into standardized formats, to be shared, rendered, 3D-printed, or used in game engines. There are also multiple dedicated formats for Minecraft Java and Bedrock Edition with format-specific features. 
+3DBench is a modern 3D modelling, texturing and animation platform with a simple, approachable interface.
+It is a fork of [Blockbench](https://github.com/JannisX11/blockbench) that drops all game-specific pipelines and focuses on a generic workflow: model, unwrap, texture, rig and export to standard formats (glTF, OBJ, FBX, STL, Collada).
 
-Blockbench features a modern and beginner friendly interface, but also offers lots of customization and advanced features for experienced 3D artists. Plugins can extend the functionality of the program even further.
+## What is different from Blockbench
 
-Website and download: [blockbench.net](https://www.blockbench.net)
+* **Generic only.** All Minecraft formats and tooling (Java/Bedrock, entity, skin, OptiFine, block display, resource pack handling) are removed.
+* **Smart UV unwrapping.** Angle-based seam detection, LSCM parameterization with ARAP refinement, automatic cutting of closed or high-genus charts, distortion-driven chart splitting and a bitmap-based island packer with rotation and texel density control.
+  Find it as *Smart Unwrap* / *Pack Islands* / *Equalize Texel Density* in the Mesh menu and UV editor.
+* **Rigging.** Heat-diffusion automatic weights, weight smoothing and limiting, bone chain creation and bone mirroring.
+* **Humanoid generator.** Creates a fully rigged, weighted and optionally unwrapped humanoid from presets (average, stylized, chibi, heroic, child, blocky) with Godot, Unity, Mixamo or simple bone naming. Available from the outliner add menu.
+* **Texturing.** Generic PBR channels (color, normal, height, roughness, metalness, emissive, ambient occlusion) with one texture per channel, a map baker (ambient occlusion, thickness, curvature, object normal, position, mesh ID), edge padding, and a UV test grid generator.
+* **Modelling tools inspired by Blender.** Subdivide with Catmull-Clark smoothing, smooth/relax vertices, flatten vertices, recalculate normals, select linked / grow / shrink (`L`), alongside the existing loop cut, inset, extrude, knife and proportional editing.
 
+## Launching from source
 
-![Interface](https://web.blockbench.net/content/front_page_app.png)
+* Install [NodeJS](https://nodejs.org/en/) and run `npm install`.
+* Electron: `npm run dev`
+* Web: `npm run serve`, then open http://localhost:3000
 
+## Code layout of the new systems
 
-
-## Contribution
-
-[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.0-4baaaa.svg)](CODE_OF_CONDUCT.MD)
-
-Check out the [Contribution Guidelines](CONTRIBUTING.md).
-
-
-
-## Launching Blockbench
-
-To launch Blockbench from source, you can clone the repository, navigate to the correct branch and launch the program in development mode using the instructions below.
-If you just want to use the latest version, please download the app from the website.
-
-### Setup Repository
-* Install [NodeJS](https://nodejs.org/en/).
-* Then install all dependencies via
-`npm install`
-
-
-### Run in Electron
-Use this command or press Ctrl + Shift + B to launch Blockbench in Electron:
-
-`npm run dev`
-
-To enable debugging in VS Code, switch to the **Run & Debug** tab, select the **"Debug Renderer"** configuration, and press the green arrow button to launch.
-Now you can set breakpoints and debug inside VSCode.
-
-
-### Run the web app
-Use this command to launch the web app locally:
-
-`npm run serve`
-
-Now you can open the web app in your browser under http://localhost:3000
-
-
-## Plugins
-
-Blockbench supports Javascript-based plugins. Learn more about creating plugins on [https://www.blockbench.net/wiki/docs/plugin](https://www.blockbench.net/wiki/docs/plugin).
-
-
+| Path | Contents |
+| --- | --- |
+| `js/modeling/mesh/unwrap/` | UV unwrapper: mesh graph, cutting, LSCM/ARAP, metrics, packer, texel density |
+| `js/modeling/mesh/tools/` | Subdivide, smooth, flatten, normals, selection tools |
+| `js/modeling/rig/` | Heat weights, weight tools, bone tools |
+| `js/modeling/rig/humanoid/` | Component based humanoid generator (torso, neck/head, legs, arms, hands) |
+| `js/texturing/pbr_channels.ts` | PBR channel definitions |
+| `js/texturing/bake/` | Rasterizer, BVH, bake passes, dilation |
 
 ## License
 
-* The Blockbench source-code is licensed under the GPL license version 3. See `LICENSE.MD`.
-* Modifications to the source code can be made under the terms of that license.
-* Blockbench plugins (external scripts) and themes (theme files to customize the design) that interact with the Blockbench API are an exception. Plugins and themes can be created and/or published as open source, proprietary or paid software.
-* All assets created with Blockbench (models, textures, animations, screenshots etc.) are your own!
+3DBench is licensed under the GPL version 3, like Blockbench. See `LICENSE.MD`.
+Blockbench is created by Jannis Petersen and contributors.

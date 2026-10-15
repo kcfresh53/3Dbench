@@ -10,7 +10,6 @@ export interface PreviewSceneOptions {
 	description?: string
 	category?: string
 	web_config?: string
-	require_minecraft_eula?: boolean
 	light_color?: {r: number, g: number, b: number}
 	light_side?: number
 	condition?: ConditionResolvable
@@ -29,7 +28,6 @@ export interface PreviewSceneOptions {
 export class PreviewScene {
 	id: string
 	loaded: boolean = false;
-	require_minecraft_eula: boolean = false;
 	name: string;
 	description?: string;
 	category: string;
@@ -46,7 +44,6 @@ export class PreviewScene {
 		PreviewScene.scenes[id] = this;
 		this.id = id;
 		this.loaded = false;
-		this.require_minecraft_eula = false;
 
 		this.name = tl(data.name || `preview_scene.${id}`);
 		this.category = data.category || 'generic';
@@ -65,7 +62,6 @@ export class PreviewScene {
 	extend(data: PreviewSceneOptions) {
 		this.loaded = data.web_config ? false : true;
 		this.web_config_path = data.web_config;
-		if (data.require_minecraft_eula) this.require_minecraft_eula = true;
 
 		this.name = tl(data.name || `preview_scene.${this.id}`);
 		if (data.description) {
@@ -145,16 +141,12 @@ export class PreviewScene {
 	 * Selects this preview scene
 	 */
 	async select() {
-		if (this.require_minecraft_eula) {
-			let accepted = await MinecraftEULA.promptUser('preview_scenes');
-			if (accepted != true) return false;
-		}
 		if (!this.loaded) {
 			await this.lazyLoadFromWeb()
 		}
 		if (PreviewScene.active) PreviewScene.active.unselect();
 
-		if (this.fov && !(Modes.display && DisplayMode.display_slot.startsWith('firstperson'))) {
+		if (this.fov) {
 			Preview.selected.setFOV(this.fov);
 		}
 		// Update independent models
@@ -173,7 +165,7 @@ export class PreviewScene {
 			model.disable();
 		})
 
-		if (this.fov && !(Modes.display && DisplayMode.display_slot.startsWith('firstperson'))) {
+		if (this.fov) {
 			Preview.all.forEach(preview => preview.setFOV(settings.fov.value as number));
 		}
 		Blockbench.dispatchEvent('unselect_preview_scene', {scene: this});
@@ -182,7 +174,7 @@ export class PreviewScene {
 	}
 	static updateVisibility() {
 		let scene = PreviewScene.active;
-		let show = !!scene && !(Modes.display && DisplayMode.display_slot == 'gui');
+		let show = !!scene;
 		scene?.preview_models.forEach(model => show ? model.enable() : model.disable());
 		Canvas.global_light_color.set(0xffffff);
 		Canvas.global_light_side = 0;
@@ -227,9 +219,6 @@ export class PreviewScene {
 		},
 		realistic: {
 			_label: 'Realistic'
-		},
-		minecraft: {
-			_label: 'Minecraft'
 		},
 	};
 
@@ -614,391 +603,6 @@ new PreviewScene('space', {
 	category: 'realistic',
 	web_config: 'realistic/space/space.json',
 });
-new PreviewScene('minecraft_plains', {
-	category: 'minecraft',
-	web_config: 'minecraft/plains/plains.json',
-	require_minecraft_eula: true,
-});
-new PreviewScene('minecraft_snowy_tundra', {
-	category: 'minecraft',
-	web_config: 'minecraft/snowy_tundra/snowy_tundra.json',
-	require_minecraft_eula: true,
-});
-new PreviewScene('minecraft_cherry_grove', {
-	category: 'minecraft',
-	web_config: 'minecraft/cherry_grove/cherry_grove.json',
-	require_minecraft_eula: true,
-});
-new PreviewScene('minecraft_sunset', {
-	category: 'minecraft',
-	web_config: 'minecraft/sunset/sunset.json',
-	require_minecraft_eula: true,
-});
-new PreviewScene('minecraft_night', {
-	category: 'minecraft',
-	web_config: 'minecraft/night/night.json',
-	require_minecraft_eula: true,
-});
-new PreviewScene('minecraft_desert', {
-	category: 'minecraft',
-	web_config: 'minecraft/desert/desert.json',
-	require_minecraft_eula: true,
-});
-new PreviewScene('minecraft_ocean', {
-	category: 'minecraft',
-	web_config: 'minecraft/ocean/ocean.json',
-	require_minecraft_eula: true,
-});
-new PreviewScene('minecraft_underwater', {
-	category: 'minecraft',
-	web_config: 'minecraft/underwater/underwater.json',
-	require_minecraft_eula: true,
-});
-new PreviewScene('minecraft_coral_reef', {
-	category: 'minecraft',
-	web_config: 'minecraft/coral_reef/coral_reef.json',
-	require_minecraft_eula: true,
-});
-new PreviewScene('minecraft_lush_cave', {
-	category: 'minecraft',
-	web_config: 'minecraft/lush_cave/lush_cave.json',
-	require_minecraft_eula: true,
-});
-new PreviewScene('minecraft_deep_dark', {
-	category: 'minecraft',
-	web_config: 'minecraft/deep_dark/deep_dark.json',
-	require_minecraft_eula: true,
-});
-new PreviewScene('minecraft_nether', {
-	category: 'minecraft',
-	web_config: 'minecraft/nether/nether.json',
-	require_minecraft_eula: true,
-});
-new PreviewScene('minecraft_end', {
-	category: 'minecraft',
-	web_config: 'minecraft/end/end.json',
-	require_minecraft_eula: true,
-});
-
-
-export const player_preview_model = new PreviewModel('minecraft_player', {
-	name: 'preview_model.minecraft_player',
-	texture: './assets/player_skin.png',
-	texture_size: [64, 64],
-	position: [22, 0, 0],
-	rotation: [0, 20, 0],
-	scale: [0.9375, 0.9375, 0.9375],
-	onUpdate() {
-		this.material.color.copy(Canvas.global_light_color);
-		if (!this.was_set_up) {
-			DisplayMode.updateDisplaySkin();
-			this.was_set_up = true;
-		}
-	},
-	cubes: [
-		{
-			// "Head
-			"position": [-4, 24, -4],
-			"size": [8, 8, 8],
-			"rotation": [0, 18, 0],
-			"faces": {
-				"north": {"uv": [8, 8, 16, 16]},
-				"east": {"uv": [0, 8, 8, 16]},
-				"south": {"uv": [24, 8, 32, 16]},
-				"west": {"uv": [16, 8, 24, 16]},
-				"up": {"uv": [16, 8, 8, 0]},
-				"down": {"uv": [24, 0, 16, 8]}
-			}
-		},
-		{
-			// Hat Layer
-			"position": [-4.5, 23.5, -4.5],
-			"size": [9, 9, 9],
-			"rotation": [0, 18, 0],
-			"faces": {
-				"north": {"uv": [40, 8, 48, 16]},
-				"east": {"uv": [32, 8, 40, 16]},
-				"south": {"uv": [56, 8, 64, 16]},
-				"west": {"uv": [48, 8, 56, 16]},
-				"up": {"uv": [48, 8, 40, 0]},
-				"down": {"uv": [56, 0, 48, 8]}
-			}
-		},
-		{
-			// "Body
-			"position": [-4, 12, -2],
-			"size": [8, 12, 4],
-			"faces": {
-				"north": {"uv": [20, 20, 28, 32]},
-				"east": {"uv": [16, 20, 20, 32]},
-				"south": {"uv": [32, 20, 40, 32]},
-				"west": {"uv": [28, 20, 32, 32]},
-				"up": {"uv": [28, 20, 20, 16]},
-				"down": {"uv": [36, 16, 28, 20]}
-			}
-		},
-		{
-			// Body Layer
-			"position": [-4.25, 11.75, -2.25],
-			"size": [8.5, 12.5, 4.5],
-			"faces": {
-				"north": {"uv": [20, 36, 28, 48]},
-				"east": {"uv": [16, 36, 20, 48]},
-				"south": {"uv": [32, 36, 40, 48]},
-				"west": {"uv": [28, 36, 32, 48]},
-				"up": {"uv": [28, 36, 20, 32]},
-				"down": {"uv": [36, 32, 28, 36]}
-			}
-		},
-
-
-		// ======= Wide Arms
-		{
-			// Right Arm
-			"position": [4, 12, -2],
-			"size": [4, 12, 4],
-			"origin": [5, 22, 0],
-			"rotation": [-1, 0, 3],
-			"faces": {
-				"north": {"uv": [44, 20, 48, 32]},
-				"east": {"uv": [40, 20, 44, 32]},
-				"south": {"uv": [52, 20, 56, 32]},
-				"west": {"uv": [48, 20, 52, 32]},
-				"up": {"uv": [48, 20, 44, 16]},
-				"down": {"uv": [52, 16, 48, 20]}
-			}
-		},
-		{
-			// Arm Layer
-			"position": [3.75, 11.75, -2.25],
-			"size": [4.5, 12.5, 4.5],
-			"origin": [5, 22, 0],
-			"rotation": [-1, 0, 3],
-			"faces": {
-				"north": {"uv": [44, 36, 48, 48]},
-				"east": {"uv": [40, 36, 44, 48]},
-				"south": {"uv": [52, 36, 56, 48]},
-				"west": {"uv": [48, 36, 52, 48]},
-				"up": {"uv": [48, 36, 44, 32]},
-				"down": {"uv": [52, 32, 48, 36]}
-			}
-		},
-		{
-			// Left Arm
-			"position": [-8, 12, -2],
-			"size": [4, 12, 4],
-			"origin": [-5, 22, 0],
-			"rotation": [1, 0, -3],
-			"faces": {
-				"north": {"uv": [36, 52, 40, 64]},
-				"east": {"uv": [32, 52, 36, 64]},
-				"south": {"uv": [44, 52, 48, 64]},
-				"west": {"uv": [40, 52, 44, 64]},
-				"up": {"uv": [40, 52, 36, 48]},
-				"down": {"uv": [44, 48, 40, 52]}
-			}
-		},
-		{
-			// Arm Layer
-			"position": [-8.25, 11.75, -2.25],
-			"size": [4.5, 12.5, 4.5],
-			"origin": [-5, 22, 0],
-			"rotation": [1, 0, -3],
-			"faces": {
-				"north": {"uv": [52, 52, 56, 64]},
-				"east": {"uv": [48, 52, 52, 64]},
-				"south": {"uv": [60, 52, 64, 64]},
-				"west": {"uv": [56, 52, 60, 64]},
-				"up": {"uv": [56, 52, 52, 48]},
-				"down": {"uv": [60, 48, 56, 52]}
-			}
-		},
-
-
-		// ======= Slim Arms
-		{
-			// Right Arm
-			"position": [4, 11.5, -2],
-			"size": [3, 12, 4],
-			"origin": [5, 21.5, 0],
-			"rotation": [-1, 0, 3],
-			"faces": {
-				"north": {"uv": [44,20,47,32]},
-				"east": {"uv": [40,20,44,32]},
-				"south": {"uv": [51,20,54,32]},
-				"west": {"uv": [47,20,51,32]},
-				"up": {"uv": [47,20,44,16]},
-				"down": {"uv": [50,16,47,20]}
-			}
-		},
-		{
-			// Arm Layer
-			"position": [3.75, 11.25, -2.25],
-			"size": [3.5, 12.5, 4.5],
-			"origin": [5, 21.5, 0],
-			"rotation": [-1, 0, 3],
-			"faces": {
-				"north": {"uv": [44,36,47,48]},
-				"east": {"uv": [40,36,44,48]},
-				"south": {"uv": [51,36,54,48]},
-				"west": {"uv": [47,36,51,48]},
-				"up": {"uv": [47,36,44,32]},
-				"down": {"uv": [50,32,47,36]}
-			}
-		},
-		{
-			// Left Arm
-			"position": [-7, 11.5, -2],
-			"size": [3, 12, 4],
-			"origin": [-5, 21.5, 0],
-			"rotation": [1, 0, -3],
-			"faces": {
-				"north": {"uv": [36,52,39,64]},
-				"east": {"uv": [32,52,36,64]},
-				"south": {"uv": [43,52,46,64]},
-				"west": {"uv": [39,52,43,64]},
-				"up": {"uv": [39,52,36,48]},
-				"down": {"uv": [42,48,39,52]}
-			}
-		},
-		{
-			// Arm Layer
-			"position": [-7.25, 11.25, -2.25],
-			"size": [3.5, 12.5, 4.5],
-			"origin": [-5, 21.5, 0],
-			"rotation": [1, 0, -3],
-			"faces": {
-				"north": {"uv": [52,52,55,64]},
-				"east": {"uv": [48,52,52,64]},
-				"south": {"uv": [59,52,62,64]},
-				"west": {"uv": [55,52,59,64]},
-				"up": {"uv": [55,52,52,48]},
-				"down": {"uv": [58,48,55,52]}
-			}
-		},
-
-
-
-		{
-			// Right Leg
-			"position": [-0.1, 0, -2],
-			"size": [4, 12, 4],
-			"faces": {
-				"north": {"uv": [4, 20, 8, 32]},
-				"east": {"uv": [0, 20, 4, 32]},
-				"south": {"uv": [12, 20, 16, 32]},
-				"west": {"uv": [8, 20, 12, 32]},
-				"up": {"uv": [8, 20, 4, 16]},
-				"down": {"uv": [12, 16, 8, 20]}
-			}
-		},
-		{
-			// Leg Layer
-			"position": [-0.35, -0.25, -2.25],
-			"size": [4.5, 12.5, 4.5],
-			"faces": {
-				"north": {"uv": [4, 36, 8, 48]},
-				"east": {"uv": [0, 36, 4, 48]},
-				"south": {"uv": [12, 36, 16, 48]},
-				"west": {"uv": [8, 36, 12, 48]},
-				"up": {"uv": [8, 36, 4, 32]},
-				"down": {"uv": [12, 32, 8, 36]}
-			}
-		},
-		{
-			// Left Leg
-			"position": [-3.9, 0, -2],
-			"size": [4, 12, 4],
-			"faces": {
-				"north": {"uv": [20, 52, 24, 64]},
-				"east": {"uv": [16, 52, 20, 64]},
-				"south": {"uv": [28, 52, 32, 64]},
-				"west": {"uv": [24, 52, 28, 64]},
-				"up": {"uv": [24, 52, 20, 48]},
-				"down": {"uv": [28, 48, 24, 52]}
-			}
-		},
-		{
-			// Leg Layer
-			"position": [-4.15, -0.25, -2.25],
-			"size": [4.5, 12.5, 4.5],
-			"faces": {
-				"north": {"uv": [4, 52, 8, 64]},
-				"east": {"uv": [0, 52, 4, 64]},
-				"south": {"uv": [12, 52, 16, 64]},
-				"west": {"uv": [8, 52, 12, 64]},
-				"up": {"uv": [8, 52, 4, 48]},
-				"down": {"uv": [12, 48, 8, 52]}
-			}
-		}
-	]
-})
-
-new PreviewModel('minecraft_crafting_table', {
-	name: 'preview_model.minecraft_crafting_table',
-	texture: './assets/crafting_table.png',
-	texture_size: [32, 32],
-	position: [16, 0, 0],
-	onUpdate() {
-		this.material.color.copy(Canvas.global_light_color);
-	},
-	cubes: [
-		{
-			"position": [-8, 0, -8],
-			"size": [16, 16, 16],
-			"rotation": [0, 0, 0],
-			"faces": {
-				"north": {"uv": [0, 16, 16, 32]},
-				"east": {"uv": [16, 16, 32, 32]},
-				"south": {"uv": [0, 16, 16, 32]},
-				"west": {"uv": [16, 16, 32, 32]},
-				"up": {"uv": [0, 0, 16, 16]},
-				"down": {"uv": [16, 0, 32, 16]}
-			}
-		}
-	]
-})
-
-player_preview_model.updateArmVariant = function(slim) {
-	for (let i = 4; i < 8; i++) {
-		this.model_3d.children[i].visible = !slim;
-	}
-	for (let i = 8; i < 12; i++) {
-		this.model_3d.children[i].visible = !!slim;
-	}
-}
-
-StateMemory.init('minecraft_eula_accepted', 'object');
-export const MinecraftEULA = {
-	isAccepted(key: string) {
-		return StateMemory.minecraft_eula_accepted[key];
-	},
-	async promptUser(key: string) {
-		if (MinecraftEULA.isAccepted(key)) {
-			return true;
-		}
-		return await new Promise((resolve) => {
-			Blockbench.showMessageBox({
-				width: 540,
-				title: 'Minecraft EULA',
-				message: 'This feature includes Minecraft assets. In order to use it, you need to agree to the [Minecraft End User License Agreement (EULA)](https://www.minecraft.net/en-us/eula).',
-				icon: 'icon-format_bedrock',
-				checkboxes: {
-					accepted: {text: 'I have read the End User License Agreement and I agree to its terms', value: false}
-				},
-				buttons: ['dialog.ok', 'dialog.cancel']
-			}, (button, result) => {
-				if (button == 0 && result.accepted) {
-					StateMemory.minecraft_eula_accepted[key] = true;
-					StateMemory.save('minecraft_eula_accepted');
-				} else if (button == 0) {
-					return false;
-				}
-				resolve(result.accepted);
-			})
-		})
-	}
-}
 
 BARS.defineActions(function() {
 	new Action('preview_scene', {
@@ -1167,16 +771,12 @@ new TransformerModule('preview_model', {
 
 const global = {
 	PreviewScene,
-	PreviewModel,
-	MinecraftEULA,
-	player_preview_model
+	PreviewModel
 };
 declare global {
 	type PreviewScene = import('./preview_scenes').PreviewScene
 	const PreviewScene: typeof global.PreviewScene
 	type PreviewModel = import('./preview_scenes').PreviewModel
 	const PreviewModel: typeof global.PreviewModel
-	const MinecraftEULA: typeof global.MinecraftEULA
-	const player_preview_model: PreviewModel
 }
 Object.assign(window, global);

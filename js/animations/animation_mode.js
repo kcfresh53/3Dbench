@@ -1,5 +1,4 @@
 import MolangParser from "molangjs";
-import Wintersky from 'wintersky';
 import { Mode } from "../modes";
 import { clipboard, fs } from "../native_apis";
 import { openMolangEditor } from "./molang_editor";
@@ -26,20 +25,6 @@ export const Animator = {
 		}
 	},
 	join() {
-		if (isApp && (Format.id == 'bedrock' || Format.id == 'bedrock_old') && !Project.BedrockEntityManager.initialized_animations) {
-			Project.BedrockEntityManager.initAnimations();
-		}
-		if (isApp && Project.memory_animation_files_to_load) {
-			let paths = Project.memory_animation_files_to_load.filter(path => !Animation.all.find(a => a.path == path));
-			if (paths.length) {
-				Blockbench.read(paths, {}, files => {
-					files.forEach(file => {
-						AnimationCodec.getCodec()?.importFile(file, true);
-					})
-				})
-			}
-		}
-
 		Animator.open = true;
 		Canvas.updateAllBones();
 		for (let mesh of Mesh.all) {
@@ -48,8 +33,6 @@ export const Animator = {
 		Animator.MolangParser.resetVariables();
 		processVariablePlaceholderText(Project.variable_placeholders);
 
-		Canvas.scene.add(WinterskyScene.space);
-		WinterskyScene.global_options.tick_rate = settings.particle_tick_rate.value;
 		if (settings.motion_trails.value) Canvas.scene.add(Animator.motion_trail);
 		Animator.motion_trail.no_export = true;
 
@@ -82,10 +65,8 @@ export const Animator = {
 		Timeline.pause()
 		Animator.open = false;
 
-		Canvas.scene.remove(WinterskyScene.space);
 		Canvas.scene.remove(Animator.motion_trail);
 		Canvas.scene.remove(Animator.onion_skin_object);
-		Animator.resetParticles(true);
 
 		three_grid.position.z = three_grid.position.x;
 		Canvas.ground_plane.position.z = Canvas.ground_plane.position.x;
@@ -115,18 +96,6 @@ export const Animator = {
 		}
 		Blockbench.dispatchEvent('display_default_pose', {reduced_updates});
 		if (!reduced_updates) Canvas.scene.updateMatrixWorld()
-	},
-	resetParticles(optimized) {
-		for (var path in Animator.particle_effects) {
-			let {emitters} = Animator.particle_effects[path];
-
-			for (var uuid in emitters) {
-				let emitter = emitters[uuid];
-				if (emitter.tick_interval !== undefined) continue;
-				if (emitter.local_space.parent) emitter.local_space.parent.remove(emitter.local_space);
-				if (emitter.global_space.parent) emitter.global_space.parent.remove(emitter.global_space);
-			}
-		}
 	},
 	showMotionTrail(target, fast = false) {
 		if (!target) {
@@ -355,7 +324,6 @@ export const Animator = {
 		Animator.resetLastValues();
 
 		// Effects
-		Animator.resetParticles(true);
 		animations.forEach(animation => {
 			if (animation.animators.effects) {
 				animation.animators.effects.displayFrame(in_loop);
@@ -367,48 +335,7 @@ export const Animator = {
 		Animator.showDefaultPose(true);
 		if (!Project) return;
 
-		// Controller
-		if (AnimationController.selected?.selected_state) {
-			let controller_blend_values, animations_to_play;
-			let controller = AnimationController.selected;
-			let {selected_state, last_state} = controller;
-			let state_time = selected_state.getStateTime();
-			let blend_progress = (last_state && last_state.blend_transition) ? Math.clamp(state_time / last_state.blend_transition, 0, 1) : 1;
-			let blend_value = last_state?.calculateBlendValue(blend_progress) ?? blend_progress;
-
-			// Active State
-			Timeline.time = state_time;
-			controller_blend_values = {};
-			animations_to_play = [];
-
-			selected_state.animations.forEach(a => {
-				let animation = Animation.all.find(anim => a.animation == anim.uuid);
-				if (!animation) return;
-				let user_blend_value = a.blend_value.trim() ? Animator.MolangParser.parse(a.blend_value) : 1;
-				controller_blend_values[animation.uuid] = user_blend_value * blend_value;
-				animations_to_play.push(animation);
-			})
-			Animator.stackAnimations(animations_to_play, in_loop, controller_blend_values);
-
-			// Last State
-			if (blend_value < 1 && last_state) {
-				Timeline.time = last_state.getStateTime();
-				controller_blend_values = {};
-				animations_to_play = [];
-
-				last_state.animations.forEach(a => {
-					let animation = Animation.all.find(anim => a.animation == anim.uuid);
-					if (!animation) return;
-					let user_blend_value = a.blend_value.trim() ? Animator.MolangParser.parse(a.blend_value) : 1;
-					if (!controller_blend_values[animation.uuid]) controller_blend_values[animation.uuid] = 0;
-					controller_blend_values[animation.uuid] += user_blend_value * (1-blend_value);
-					animations_to_play.push(animation);
-				})
-				Animator.stackAnimations(animations_to_play, in_loop, controller_blend_values);
-			}
-		} else {
-			Animator.stackAnimations(Animation.all.filter(a => a.playing), in_loop);
-		}
+		Animator.stackAnimations(Animation.all.filter(a => a.playing), in_loop);
 
 
 		// Shift ground
@@ -467,132 +394,10 @@ export const Animator = {
 		}
 		Blockbench.dispatchEvent('display_animation_frame', {in_loop});
 	},
-	particle_effects: {},
-	loadParticleEmitter(path, content) {
-		let json_content = autoParseJSON(content, {file_path: path});
-		if (!json_content || !json_content.particle_effect) return;
-
-		if (Animator.particle_effects[path]) {
-			Animator.particle_effects[path].config
-				.reset()
-				.set('file_path', path)
-				.setFromJSON(json_content, {path});
-			for (var uuid in Animator.particle_effects[path].emitters) {
-				let emitter = Animator.particle_effects[path].emitters[uuid];
-				emitter.updateConfig();
-			}
-		} else {
-			Animator.particle_effects[path] = {
-				config: new Wintersky.Config(WinterskyScene, json_content, {path}),
-				emitters: {}
-			};
-			if (isApp) {
-				let timeout;
-				this.watcher = fs.watch(path, (eventType) => {
-					if (eventType == 'change') {
-						if (timeout) clearTimeout(timeout)
-						timeout = setTimeout(() => {
-							Blockbench.read(path, {errorbox: false}, (files) => {
-								if (!files[0].content) return;
-								Animator.loadParticleEmitter(path, files[0].content);
-							})
-						}, 150)
-					}
-				})
-			}
-		}
-		return Animator.particle_effects[path];
-	},
-	loadFile(file, animation_filter) {
-		console.warn('"Animator.loadFile" is deprecated, use AnimationCodec instead')
-		return AnimationCodec.codecs.bedrock.loadFile(file, animation_filter);
-	},
-	buildFile(path_filter, name_filter) {
-		console.warn('"Animator.buildFile" is deprecated, use AnimationCodec instead')
-		let animations = Animator.animations.filter((a) => {
-			return (typeof path_filter != 'string' || a.path == path_filter || (!a.path && !path_filter)) && (!name_filter || !name_filter.length || name_filter.includes(a.name));
-		})
-		return AnimationCodec.codecs.bedrock.compileFile(animations);
-	},
-	importFile(file, auto_loaded) {
-		console.warn('"Animator.importFile" is deprecated, use AnimationCodec instead')
-		return AnimationCodec.codecs.bedrock.importFile(file, auto_loaded);
-	},
-	exportAnimationFile(path, save_as) {
-		console.warn('"Animator.exportAnimationFile" is deprecated, use AnimationCodec instead')
-		return AnimationCodec.codecs.bedrock.exportFile(path, save_as);
-	},
-	buildController(path_filter, name_filter) {
-		console.warn('"Animator.buildController" is deprecated, use AnimationCodec instead')
-		let controllers = AnimationController.all.filter(function(a) {
-			return (typeof path_filter != 'string' || a.path == path_filter || (!a.path && !path_filter)) && (!name_filter || !name_filter.length || name_filter.includes(a.name))
-		})
-		return AnimationCodec.codecs.bedrock_animation_controller.compileFile(controllers);
-	},
-	exportAnimationControllerFile(path, save_as) {
-		console.warn('"Animator.exportAnimationControllerFile" is deprecated, use AnimationCodec instead')
-		return AnimationCodec.codecs.bedrock_animation_controller.exportFile(path, save_as);
-	}
 }
 Canvas.gizmos.push(Animator.motion_trail, Animator.onion_skin_object);
 
-export const WinterskyScene = new Wintersky.Scene({
-	fetchTexture: function(config) {
-		if (config.preview_texture) {
-			return config.preview_texture;
-		}
-		if (isApp && config.file_path && config.particle_texture_path) {
-			let path_arr = config.file_path.split(PathModule.sep);
-			let particle_index = path_arr.indexOf('particles')
-			path_arr.splice(particle_index)
-			let filePath = PathModule.join(path_arr.join(PathModule.sep), config.particle_texture_path.replace(/\.png$/, '')+'.png')
-
-			if (fs.existsSync(filePath)) {
-				config.preview_texture = filePath;
-				return filePath;
-			}
-		}
-	},
-	async fetchParticleFile(identifier, config) {
-		if (!identifier || !config.file_path || !isApp) return;
-
-		let path_segments = config.file_path.split(/[\\/]+/);
-		let index = path_segments.lastIndexOf('particles');
-		let base_path = path_segments.slice(0, index+1).join(PathModule.sep);
-
-		let prio_name = identifier.split(':')[1];
-		let find_options = {
-			filter_regex: /\.json$/i,
-			priority_regex: prio_name ? new RegExp(prio_name, 'i') : undefined,
-			read_file: true,
-			json: true
-		};
-		return Blockbench.findFileFromContent([base_path], find_options, (file_path, json) => {
-			if (json?.particle_effect?.description?.identifier == identifier) {
-				return {json, file_path};
-			}
-		});
-	}
-});
-WinterskyScene.global_options.scale = 16;
-WinterskyScene.global_options.loop_mode = 'auto';
-WinterskyScene.global_options.parent_mode = 'entity';
-
 Prism.languages.molang['function-name'] = /\b(?!\d)(math\.\w+|button)(?=[\t ]*\()/i;
-
-Blockbench.on('close_project', () => {
-	for (let path in Animator.particle_effects) {
-		let effect = Animator.particle_effects[path];
-		if (isApp && effect.watcher) {
-			effect.watcher.close()
-		}
-		for (let uuid in effect.emitters) {
-			effect.emitters[uuid].delete();
-			delete effect.emitters[uuid];
-		}
-		delete Animator.particle_effects[path];
-	}
-})
 
 Animator.animation_presets = {
 	float: {
@@ -1088,9 +893,8 @@ BARS.defineActions(function() {
 				let value = Animator.MolangParser.global_variables[key];
 				if (key == 'true' || key == 'false') continue;
 				let text = value;
-				if (typeof value == 'function' && Format.molang) {
-					let docs_link = 'https://learn.microsoft.com/en-us/minecraft/creator/reference/content/molangreference/examples/molangconcepts/queryfunctions?view=minecraft-bedrock-stable';
-					text = `[${tl('dialog.view_built_in_variables.function')}](${docs_link})`;
+				if (typeof value == 'function') {
+					text = tl('dialog.view_built_in_variables.function');
 				}
 				if (typeof value == 'number') text = Math.roundTo(value, 5).toString();
 				if (typeof text != 'string') continue;
@@ -1331,6 +1135,4 @@ function processVariablePlaceholderText(text) {
 Object.assign(window, {
 	MolangParser,
 	Animator,
-	Wintersky,
-	WinterskyScene
 });

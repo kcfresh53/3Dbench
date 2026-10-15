@@ -172,7 +172,6 @@ export const Modes = {
 	previous_id: '',
 	options: {} as Record<string, Mode>,
 	animate: false,
-	display: false,
 	edit: false,
 	paint: false,
 	pose: false,

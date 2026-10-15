@@ -597,9 +597,7 @@ export function getSpatialInterval(event = 0) {
 }
 //Rotate
 export function getRotationInterval(event) {
-	if (Format.rotation_snap) {
-		return 22.5;
-	} else if ((event.shiftKey || Pressing.overrides.shift) && (event.ctrlOrCmd || Pressing.overrides.ctrl)) {
+	if ((event.shiftKey || Pressing.overrides.shift) && (event.ctrlOrCmd || Pressing.overrides.ctrl)) {
 		return 0.25;
 	} else if (event.shiftKey || Pressing.overrides.shift) {
 		return 22.5;
@@ -630,34 +628,6 @@ export function rotateOnAxis(modify, axis, slider) {
 	var things = getRotationObjects();
 	if (!things) return;
 	if (things instanceof Array == false) things = [things];
-	//Warning
-	if (Format.rotation_limit && settings.dialog_rotation_limit.value && !Dialog.open) {
-		var i = 0;
-		while (i < Cube.selected.length) {
-			if (Cube.selected[i].rotation[(axis+1)%3] ||
-				Cube.selected[i].rotation[(axis+2)%3]
-			) {
-				i = Infinity
-
-				let format_version_message = 'You can also switch to a newer format version in your project settings if you are targeting Minecraft 1.21.11 or newer.';
-				Blockbench.showMessageBox({
-					title: tl('message.rotation_limit.title'),
-					icon: 'rotate_right',
-					message: tl('message.rotation_limit.message') + '\n\n' + format_version_message,
-					checkboxes: {
-						dont_show_again: {value: false, text: 'dialog.dontshowagain'}
-					}
-				}, (button, checkboxes = {}) => {
-					if (checkboxes.dont_show_again) {
-						settings.dialog_rotation_limit.set(false);
-					}
-				})
-				return;
-				//Gotta stop the numslider here
-			}
-			i++;
-		}
-	}
 	var axis_letter = getAxisLetter(axis)
 	var origin = things[0].origin
 	things.forEach(function(obj, i) {
@@ -729,29 +699,9 @@ export function rotateOnAxis(modify, axis, slider) {
 				})
 			}
 
-		} else if (slider || (space == 2 && Format.rotation_limit)) {
+		} else if (slider) {
 			var obj_val = modify(obj.rotation[axis]);
 			obj_val = Math.trimDeg(obj_val)
-			if (Format.rotation_limit && obj instanceof Cube) {
-				//Limit To 1 Axis
-				obj.rotation[(axis+1)%3] = 0
-				obj.rotation[(axis+2)%3] = 0
-				//Limit Angle
-				if (Format.rotation_snap) {
-					obj_val = Math.round(obj_val/22.5)*22.5
-				}
-				if (obj_val > 45 || obj_val < -45) {
-	
-					let f = obj_val > 45
-					let can_roll = obj.roll(axis, f!=(axis==1) ? 1 : 3);
-					if (can_roll) {
-						let roll_angle = Format.rotation_snap ? 22.5 : 90 - Math.abs(obj_val)
-						obj_val = f ? -roll_angle : roll_angle;
-					} else {
-						obj_val = Math.clamp(obj_val, -45, 45);
-					}
-				}
-			}
 			obj.rotation[axis] = obj_val
 			if (obj instanceof Cube) {
 				obj.rotation_axis = axis_letter
@@ -1867,12 +1817,6 @@ BARS.defineActions(function() {
 		condition: {modes: ['edit']},
 		onChange() {toggleElementProperty('autouv')}
 	})
-	new Toggle('toggle_shade', {
-		icon: 'wb_sunny',
-		category: 'transform',
-		condition: () => Format.java_cube_shading_properties && !Format.java_cube_shade_direction_override && Modes.edit,
-		onChange() {toggleElementProperty('shade')}
-	})
 	new Toggle('toggle_mirror_uv', {
 		icon: 'icon-mirror_x',
 		category: 'transform',
@@ -1891,7 +1835,6 @@ BARS.defineActions(function() {
 		updateToggle(BarItems.toggle_locked, 'locked');
 		updateToggle(BarItems.toggle_export, 'export');
 		updateToggle(BarItems.toggle_autouv, 'autouv');
-		updateToggle(BarItems.toggle_shade, 'shade');
 		updateToggle(BarItems.toggle_mirror_uv, 'mirror_uv');
 	})
 	new Action('update_autouv', {
@@ -2096,39 +2039,6 @@ BARS.defineActions(function() {
 				Canvas.updateView({elements, element_aspects: {geometry: true, faces: true, uv: true}})
 				Undo.finishEdit('Remove blank faces');
 			}
-		}
-	})
-	new Action('auto_set_cullfaces', {
-		icon: 'smart_button',
-		condition: () => Modes.edit && Format.cullfaces,
-		click() {
-			if (!Cube.selected.length) {
-				BarItems.select_all.click();
-			}
-			Undo.initEdit({elements: Cube.selected});
-			
-			Cube.selected.forEach(cube => {
-				let vertices = cube.getGlobalVertexPositions();
-				['east', 'up', 'south', 'west', 'down', 'north'].forEach((fkey, index) => {
-					let axis = index % 3;
-					let face = cube.faces[fkey];
-					if (face.texture === null) return;
-					let face_corners = face.getVertexIndices().map(vindex => vertices[vindex]);
-					let offset = index < 3 ? [15.98, 32] : [-16, 0.02];
-
-					let culled = face_corners.allAre(corner => {
-						let off_axes = [0, 1, 2].filter(v => axis !== v);
-						return (corner[axis] > offset[0] && corner[axis] < offset[1]
-							&& corner[off_axes[0]] >= 0 && corner[off_axes[0]] <= 16
-							&& corner[off_axes[1]] >= 0 && corner[off_axes[1]] <= 16
-						);
-					})
-					face.cullface = culled ? fkey : '';
-				});
-			})
-
-			updateSelection();
-			Undo.finishEdit('Automatically set cullfaces');
 		}
 	})
 })

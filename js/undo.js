@@ -83,11 +83,7 @@ export class UndoSystem {
 				if (a2.elements) nodes.push(...a2.elements);
 				if (a2.groups) nodes.push(...a2.groups);
 			}
-			for (let collection of Collection.all) {
-				if (nodes.some(node => node.scope == collection.scope)) {
-					collection.saved = false;
-				}
-			}
+			Collection.all.forEach(collection => collection.saved = false);
 		}
 		if (!aspects || !aspects.keep_saved) {
 			Project.saved = false;
@@ -401,31 +397,6 @@ UndoSystem.save = class {
 				scope.keyframes[kf.uuid] = kf.getUndoCopy()
 			})
 		}
-		if (aspects.animation_controllers) {
-			this.animation_controllers = {}
-			aspects.animation_controllers.forEach(a => {
-				scope.animation_controllers[a.uuid] = a.getUndoCopy();
-			})
-		}
-		if (aspects.animation_controller_state) {
-			this.animation_controller_state = aspects.animation_controller_state.getUndoCopy();
-			this.animation_controller_state.controller = aspects.animation_controller_state.controller?.uuid;
-		}
-
-		if (aspects.display_slots) {
-			scope.display_slots = {}
-			aspects.display_slots.forEach(slot => {
-				if (Project.display_settings[slot]) {
-					scope.display_slots[slot] = Project.display_settings[slot].copy()
-				} else {
-					scope.display_slots[slot] = null
-				}
-			})
-		}
-
-		if (aspects.exploded_view !== undefined) {
-			this.exploded_view = !!aspects.exploded_view;
-		}
 
 		Blockbench.dispatchEvent('create_undo_save', {save: this, aspects})
 		return this;
@@ -721,36 +692,6 @@ UndoSystem.save = class {
 				}
 			}
 		}
-		if (this.animation_controllers) {
-			for (var uuid in this.animation_controllers) {
-
-				var controller = (reference.animation_controllers && reference.animation_controllers[uuid]) ? Undo.getItemByUUID(AnimationController.all, uuid) : null;
-				if (!controller) {
-					controller = new AnimationController();
-					controller.uuid = uuid;
-				}
-				controller.extend(this.animation_controllers[uuid]).add(false);
-				if (this.animation_controllers[uuid].selected) {
-					controller.select();
-				}
-			}
-			for (var uuid in reference.animation_controllers) {
-				if (!this.animation_controllers[uuid]) {
-					var controller = Undo.getItemByUUID(AnimationController.all, uuid);
-					if (controller) {
-						controller.remove(false);
-					}
-				}
-			}
-		}
-		if (this.animation_controller_state) {
-			let controller = AnimationController.all.find(controller => this.animation_controller_state.controller == controller.uuid);
-			let state = controller && controller.states.find(state => state.uuid == this.animation_controller_state.uuid);
-			if (state) {
-				state.extend(this.animation_controller_state);
-			}
-		}
-
 		if (this.keyframes) {
 			var animation = Animation.selected;
 			if (!animation || animation.uuid !== this.keyframes.animation) {
@@ -796,26 +737,6 @@ UndoSystem.save = class {
 				}
 				updateKeyframeSelection()
 			}
-		}
-
-		if (this.display_slots) {
-			for (let slot in this.display_slots) {
-				let data = this.display_slots[slot]
-
-				if (!Project.display_settings[slot] && data) {
-					Project.display_settings[slot] = new DisplaySlot(slot)
-				} else if (data === null && Project.display_settings[slot]) {
-					Project.display_settings[slot].default()
-				}
-				if (Project.display_settings[slot]) {
-					Project.display_settings[slot].extend(data).update();
-				}
-			}
-		}
-
-		if (this.exploded_view !== undefined) {
-			Project.exploded_view = BarItems.explode_skin_model.value = this.exploded_view;
-			BarItems.explode_skin_model.updateEnabledState();
 		}
 
 		Blockbench.dispatchEvent('load_undo_save', {save: this, reference, mode})

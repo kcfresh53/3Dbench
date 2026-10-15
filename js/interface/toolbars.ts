@@ -37,7 +37,6 @@ export interface ToolbarRegistry {
 	timeline: Toolbar
 	color_picker: Toolbar
 	palette: Toolbar
-	skin_pose: Toolbar
 	[id: string]: Toolbar
 }
 export const Toolbars: Record<string, Toolbar> = {};
@@ -504,10 +503,6 @@ export const BARS = {
 				'spline_handle_mode',
 				'slider_spline_handle_tilt',
 				'slider_spline_handle_size',
-				'animation_controller_preview_mode',
-				'slider_animation_controller_speed',
-				'bedrock_animation_mode',
-				'load_on_bedrock_player',
 				'lock_motion_trail',
 				'extrude_mesh_selection',
 				'inset_mesh_selection',

@@ -120,9 +120,6 @@ export class CubeFace extends Face {
 }
 CubeFace.prototype.is_rectangular = true;
 new Property(CubeFace, 'number', 'rotation', {default: 0});
-new Property(CubeFace, 'number', 'tint', {default: -1});
-new Property(CubeFace, 'enum', 'cullface', {values: ['', 'north', 'south', 'west', 'east', 'up', 'down']});
-new Property(CubeFace, 'string', 'material_name');
 new Property(CubeFace, 'boolean', 'enabled', {default: true});
 
 CubeFace.opposite = {
@@ -138,7 +135,6 @@ export class Cube extends OutlinerElement {
 	constructor(data, uuid) {
 		super(data, uuid)
 		let size = Settings.get('default_cube_size');
-		this.shade = true;
 		this.mirror_uv = false;
 		this.color = Math.floor(Math.random()*markerColors.length);
 		this.uv_offset = [0,0]
@@ -329,7 +325,6 @@ export class Cube extends OutlinerElement {
 		copy.color = this.color;
 		copy.visibility = this.visibility;
 		copy.export = this.export;
-		copy.shade = this.shade;
 		copy.mirror_uv = this.mirror_uv;
 
 		copy.faces = {};
@@ -355,7 +350,6 @@ export class Cube extends OutlinerElement {
 
 		if (!this.visibility) el.visibility = false;
 		if (!this.export) el.export = false;
-		if (!this.shade) el.shade = false;
 		if (this.mirror_uv) el.mirror_uv = true;
 		if (this.inflate) el.inflate = this.inflate;
 		if (this.isStretched()) el.stretch = this.stretch;
@@ -978,7 +972,6 @@ export class Cube extends OutlinerElement {
 		has_pivot: true,
 		use_absolute_position: true,
 		stretchable: true,
-		cube_rotation_limit: true,
 		cube_size_limit: true,
 		marker_color: true,
 		unique_name: false,
@@ -1043,7 +1036,6 @@ export class Cube extends OutlinerElement {
 	Cube.prototype.buttons = [
 		Outliner.buttons.autouv,
 		Outliner.buttons.mirror_uv,
-		Outliner.buttons.shade,
 		Outliner.buttons.export,
 		Outliner.buttons.locked,
 		Outliner.buttons.visibility,
@@ -1069,52 +1061,7 @@ new Property(Cube, 'enum', 'render_order', {
 		}
 	}
 });
-new Property(Cube, 'boolean', 'rescale', {
-	condition: {features: ['java_cube_shading_properties']},
-	inputs: {
-		element_panel: {
-			input: {label: 'cube.rescale', description: 'cube.rescale.desc', type: 'checkbox'},
-			onChange() {
-				Canvas.updateView({elements: Cube.all, element_aspects: {transform: true}})
-			}
-		}
-	}
-});
 new Property(Cube, 'boolean', 'locked');
-new Property(Cube, 'boolean', 'shade', {
-	default: true,
-	condition: {features: ['java_cube_shading_properties'], method: () => !Format.java_cube_shade_direction_override},
-	inputs: {
-		element_panel: {
-			input: {label: 'switches.shade', type: 'checkbox'},
-		}
-	}
-});
-new Property(Cube, 'enum', 'shade_direction_override', {
-	default: '',
-	condition: {features: ['java_cube_shading_properties', 'java_cube_shade_direction_override']},
-	inputs: {
-		element_panel: {
-			input: {label: 'cube.shade_direction_override', description: 'cube.shade_direction_override.desc', type: 'select', options: {
-				'': 'generic.none',
-				north: 'face.north',
-				south: 'face.south',
-				west: 'face.west',
-				east: 'face.east',
-				up: 'face.up',
-				down: 'face.down',
-			}},
-		}
-	}
-});
-new Property(Cube, 'number', 'light_emission', {
-	condition: {features: ['java_cube_shading_properties']},
-	inputs: {
-		element_panel: {
-			input: {label: 'action.cube_light_emission', type: 'number', min: 0, max: 15, step: 1, force_step: true},
-		}
-	}
-});
 
 OutlinerElement.registerType(Cube, 'cube');
 
@@ -1178,16 +1125,7 @@ new NodePreviewController(Cube, {
 
 		let mesh = element.mesh;
 
-		if (Format.rotate_cubes && element.rescale === true) {
-			let rescale = element.rotation.map(angle => getRescalingFactor(angle));
-			mesh.scale.set(
-				rescale[1] * rescale[2],
-				rescale[0] * rescale[2],
-				rescale[0] * rescale[1],
-			)
-		} else {
-			mesh.scale.set(1, 1, 1);
-		}
+		mesh.scale.set(1, 1, 1);
 
 		this.dispatchEvent('update_transform', {element});
 	},
@@ -1272,7 +1210,7 @@ new NodePreviewController(Cube, {
 		} else if ((Format.single_texture || Format.single_texture_default) && Texture.all.length >= 2 && Texture.all.find(t => t.render_mode == 'layered')) {
 			mesh.material = Canvas.getLayeredMaterial();
 
-		} else if (Format.single_texture && !Project.getMultiFileRuleset()) {
+		} else if (Format.single_texture) {
 			let tex = Texture.getDefault();
 			mesh.material = tex ? tex.getMaterial() : Canvas.getEmptyMaterial(element.color);
 
@@ -1629,7 +1567,6 @@ BARS.defineActions(function() {
 			let group = getCurrentGroup();
 			if (group) {
 				base_cube.addTo(group)
-				base_cube.scope = group.scope;
 				if (settings.inherit_parent_color.value) base_cube.color = group.color;
 			}
 
@@ -1669,49 +1606,6 @@ BARS.defineActions(function() {
 				}
 			})
 			return base_cube
-		}
-	})
-
-	new Action({
-		id: 'edit_material_instances',
-		icon: 'fas.fa-adjust',
-		category: 'edit',
-		condition: {modes: ['edit'], formats: ['bedrock_block'], method: () => Cube.selected.length && !Cube.selected.find(cube => cube.box_uv)},
-		click: function () {
-			let form = {};
-
-			let first = Cube.selected[0];
-			for (var key in first.faces) {
-				let face = first.faces[key];
-				if (face.texture != null) {
-					form[key] = {
-						label: `face.${key}`,
-						value: face.material_name
-					}
-				}
-			}
-
-			let dialog = new Dialog({
-				id: 'material_instances',
-				title: 'dialog.material_instances.title',
-				width: 460,
-				form,
-				onConfirm: form_data => {
-					dialog.hide();
-					
-					Undo.initEdit({elements: Cube.selected});
-					Cube.selected.forEach(cube => {
-						for (var key in cube.faces) {
-							let face = cube.faces[key];
-							if (face.texture != null && typeof form_data[key] == 'string') {
-								face.material_name = form_data[key];
-							}
-						}
-					})
-					Undo.finishEdit('Edit material instances')
-				}
-			})
-			dialog.show();
 		}
 	})
 
@@ -1766,35 +1660,6 @@ BARS.defineActions(function() {
 		}
 	})
 
-	new NumSlider('cube_light_emission', {
-		category: 'edit',
-		condition: {features: ['java_cube_shading_properties']},
-		settings: {
-			min: 0, max: 15, default: 0,
-			show_bar: true
-		},
-		getInterval(event) {
-			return 1;
-		},
-		get() {
-			return Cube.selected[0]?.light_emission ?? 0;
-		},
-		change(modify) {
-			for (let cube of Cube.selected) {
-				cube.light_emission = modify(cube.light_emission);
-			}
-		},
-		onBefore() {
-			Undo.initEdit({elements: Cube.selected});
-		},
-		onAfter() {
-			Undo.finishEdit('Change cube light emission');
-		}
-	})
-	Blockbench.on('update_selection', () => {
-		let value = Cube.selected[0]?.light_emission ?? 0;
-		BarItems.cube_light_emission.setValue(value);
-	})
 })
 
 

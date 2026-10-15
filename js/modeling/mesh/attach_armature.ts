@@ -4,6 +4,7 @@ import { sameMeshEdge } from "./util";
 import { THREE } from "../../lib/libs";
 import { pointInPolygon } from "../../util/util";
 import { Blockbench } from "../../api";
+import { applyHeatWeights, DEFAULT_HEAT_OPTIONS } from "../rig/heat_weights";
 
 
 interface BoneInfo {
@@ -273,24 +274,73 @@ function getEdgeLoops(mesh: Mesh, start_vkey: string) {
 }
 
 BARS.defineActions(() => {
-	
+	interface WeightFormResult {
+		method: 'heat' | 'loops'
+		locality: number
+		max_influences: number
+		check_visibility: boolean
+	}
+
+	function runWeightCalculation(result: WeightFormResult): void {
+		let armature_bones: ArmatureBone[] = [];
+		let meshes: Mesh[] = [];
+		for (let mesh of Mesh.selected) {
+			let armature = mesh.getArmature();
+			if (!armature) continue;
+			armature_bones.safePush(...armature.getAllBones());
+			meshes.push(mesh);
+		}
+		Undo.initEdit({elements: [...meshes, ...armature_bones]});
+		for (let mesh of meshes) {
+			let armature: Armature = mesh.getArmature();
+			if (result.method == 'heat') {
+				applyHeatWeights(mesh, armature, {
+					...DEFAULT_HEAT_OPTIONS,
+					locality: result.locality,
+					max_influences: result.max_influences,
+					check_visibility: result.check_visibility,
+				});
+			} else {
+				calculateWeights(mesh, armature);
+			}
+		}
+		Undo.finishEdit('Calculate vertex weights');
+	}
+
+	let weights_dialog = new Dialog({
+		id: 'calculate_vertex_weights',
+		title: 'action.calculate_vertex_weights',
+		form: {
+			method: {
+				label: 'dialog.calculate_vertex_weights.method', type: 'select', value: 'heat',
+				options: {
+					heat: 'dialog.calculate_vertex_weights.method.heat',
+					loops: 'dialog.calculate_vertex_weights.method.loops',
+				},
+			},
+			locality: {
+				label: 'dialog.calculate_vertex_weights.locality', type: 'number', value: DEFAULT_HEAT_OPTIONS.locality,
+				min: 0.05, max: 20, step: 0.1, condition: (form: WeightFormResult) => form.method == 'heat',
+			},
+			max_influences: {
+				label: 'dialog.calculate_vertex_weights.max_influences', type: 'number', value: DEFAULT_HEAT_OPTIONS.max_influences,
+				min: 1, max: 8, step: 1, force_step: true, condition: (form: WeightFormResult) => form.method == 'heat',
+			},
+			check_visibility: {
+				label: 'dialog.calculate_vertex_weights.check_visibility', type: 'checkbox', value: DEFAULT_HEAT_OPTIONS.check_visibility,
+				condition: (form: WeightFormResult) => form.method == 'heat',
+			},
+		},
+		onConfirm(result: WeightFormResult) {
+			runWeightCalculation(result);
+		},
+	});
+
 	new Action('calculate_vertex_weights', {
 		icon: 'accessibility',
 		condition: () => !!Mesh.selected[0]?.getArmature(),
 		click(e) {
-			let armature_bones: ArmatureBone[] = [];
-			let meshes: Mesh[] = [];
-			for (let mesh of Mesh.selected) {
-				let armature = mesh.getArmature();
-				if (!armature) continue;
-				armature_bones.safePush(...armature.getAllBones());
-				meshes.push(mesh);
-			}
-			Undo.initEdit({elements: [...meshes, ...armature_bones]});
-			for (let mesh of meshes) {
-				calculateWeights(mesh, mesh.getArmature());
-			}
-			Undo.finishEdit('Calculate vertex weights');
+			weights_dialog.show();
 		}
 	});
 })

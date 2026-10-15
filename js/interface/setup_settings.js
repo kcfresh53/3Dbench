@@ -136,13 +136,9 @@ function setupSettings() {
 	new Setting('fps_limit',						{category: 'preview', value: 144, min: 10, max: 1024, type: 'number'});
 	new Setting('background_rendering', 			{category: 'preview', value: true});
 	new Setting('flipbook_textures_in_animation',	{category: 'preview', value: true});
-	new Setting('particle_tick_rate',				{category: 'preview', value: 30, type: 'number', min: 1, max: 1000, onChange() {
-		WinterskyScene.global_options.tick_rate = this.value;
-	}});
 	new Setting('volume', 							{category: 'preview', value: 80, min: 0, max: 200, type: 'number'});
 	new Setting('audio_scrubbing',					{category: 'preview', value: true});
 	new Setting('save_view_per_tab',				{category: 'preview', value: true});
-	new Setting('display_skin',						{category: 'preview', value: false, type: 'click', icon: 'icon-player', click: function() { changeDisplaySkin() }});
 
 	new Setting('viewport_rotate_speed',	{category: 'controls', value: 100, min: 10, max: 1000, type: 'number', onChange(value) {
 		Preview.all.forEach(viewport => viewport.controls.rotateSpeed = value / 100)
@@ -164,13 +160,9 @@ function setupSettings() {
 		Canvas.updateCubeHighlights();
 	}});
 	new Setting('outliner_reveal_on_select', {category: 'edit', value: true})
-	new Setting('allow_display_slot_mirror', {category: 'edit', value: false, onChange(value) {
-		DisplayMode.vue.allow_mirroring = value;
-	}})
 	new Setting('local_position_values',	{category: 'edit', value: false});
 	new Setting('transform_cube_from_center',{category: 'edit', value: false});
 	new Setting('deactivate_size_limit',	{category: 'edit', value: false});
-	new Setting('modded_entity_integer_size',{category:'edit', value: true});
 	new Setting('vertex_merge_distance',	{category: 'edit', value: 0.1, step: 0.01, type: 'number', min: 0});
 	new Setting('preview_paste_behavior',	{category: 'edit', value: 'always_ask', type: 'select', options: {
 		'always_ask': tl('settings.preview_paste_behavior.always_ask'),
@@ -271,17 +263,6 @@ function setupSettings() {
 	new Setting('autouv',							{category: 'defaults', value: true});
 	new Setting('inherit_parent_color',				{category: 'defaults', value: false});
 	new Setting('create_rename', 					{category: 'defaults', value: false});
-	new Setting('default_path', 					{category: 'defaults', value: false, type: 'click', condition: isApp, icon: 'burst_mode', click: function() { openDefaultTexturePath() }});
-	new Setting('default_bedrock_format',			{category: 'defaults', type: 'select', value: 'entity', options: {
-		entity: 'format.bedrock',
-		block: 'format.bedrock_block',
-	}});
-	new Setting('default_java_block_version',		{category: 'defaults', type: 'select', value: 'latest', options: {
-		latest: 'Latest',
-		'1.21.11': '1.21.11 - 26.2',
-		'1.21.6': '1.21.6 - 1.21.10',
-		'1.9.0': '1.9 - 1.21.5',
-	}});
 	new Setting('animation_snap',					{category: 'defaults', value: 24, type: 'number'});
 	new Setting('default_keyframe_interpolation',	{category: 'defaults', value: 'linear', type: 'select', options: {
 		linear: 'action.keyframe_interpolation.linear',
@@ -294,10 +275,6 @@ function setupSettings() {
 	//Dialogs
 	new Setting('new_project_dialog',		{category: 'dialogs', value: true});
 	new Setting('dialog_larger_cubes', 		{category: 'dialogs', value: true, name: tl('message.model_clipping.title'), description: tl('settings.dialog.desc', [tl('message.model_clipping.title')])});
-	new Setting('dialog_rotation_limit', 	{category: 'dialogs', value: true, name: tl('message.rotation_limit.title'), description: tl('settings.dialog.desc', [tl('message.rotation_limit.title')])});
-	new Setting('dialog_loose_texture', 	{category: 'dialogs', value: true, name: tl('message.loose_texture.title'), description: tl('settings.dialog.desc', [tl('message.loose_texture.title')])});
-	new Setting('dialog_invalid_characters',{category: 'dialogs', value: true, name: tl('message.invalid_characters.title'), description: tl('settings.dialog.desc', [tl('message.invalid_characters.title')])});
-	new Setting('dialog_generated_item_model', {category: 'dialogs', value: true, name: tl('message.generated_item_model.title'), description: tl('settings.dialog.desc', [tl('message.generated_item_model.title')])});
 	new Setting('dialog_save_codec',		{category: 'dialogs', value: true, name: tl('message.save_codec_selector.title'), description: tl('settings.dialog.desc', [tl('message.save_codec_selector.title')])});
 	
 	//Application
@@ -328,8 +305,6 @@ function setupSettings() {
 	new Setting('minify_bbmodel', 		{category: 'export', value: true});
 	new Setting('export_empty_groups',	{category: 'export', value: true});
 	new Setting('export_groups', 		{category: 'export', value: true});
-	new Setting('java_export_pivots', 	{category: 'export', value: true});
-	new Setting('optifine_save_default_texture',{category: 'export', value: true});
 	new Setting('obj_face_export_mode',	{category: 'export', value: 'both', type: 'select', options: {
 		both: tl('settings.obj_face_export_mode.both'),
 		tris: tl('settings.obj_face_export_mode.tris'),
@@ -338,7 +313,7 @@ function setupSettings() {
 	new Setting('animation_sample_rate',{category: 'export', value: 24, type: 'number', min: 1, max: 640});
 	new Setting('model_export_scale',	{category: 'export', value: 16, type: 'number', min: 0.0001, max: 4096});
 	new Setting('sketchfab_token', 		{category: 'export', value: '', type: 'password'});
-	new Setting('credit', 				{category: 'export', value: 'Made with Blockbench', type: 'text'});
+	new Setting('credit', 				{category: 'export', value: 'Made with 3DBench', type: 'text'});
 
 	Blockbench.onUpdateTo('5.0.0', () => {
 		settings.antialiasing_bleed_fix.set(true);

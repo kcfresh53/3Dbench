@@ -212,7 +212,6 @@ export const Canvas = {
 			Canvas.side_grids.z.children.empty();
 		}
 		if (!settings.grids.value) return;
-		if (Modes.display) return;
 
 		three_grid.name = 'grid_group'
 		gizmo_colors.grid.set(parseInt('0x'+CustomTheme.data.colors.grid.replace('#', ''), 16));
@@ -341,7 +340,7 @@ export const Canvas = {
 		}
 		three_grid.add(Canvas.side_grids.x)
 		Canvas.side_grids.x.name = 'side_grid_x'
-		Canvas.side_grids.x.visible = !Modes.display;
+		Canvas.side_grids.x.visible = true;
 		Canvas.side_grids.x.rotation.z = Math.PI/2;
 		Canvas.side_grids.x.position.y = Format.centered_grid ? block_size/2 : 0;
 		Canvas.side_grids.z.position.z = 0
@@ -351,7 +350,7 @@ export const Canvas = {
 
 		three_grid.add(Canvas.side_grids.z)
 		Canvas.side_grids.z.name = 'side_grid_z'
-		Canvas.side_grids.z.visible = !Modes.display;
+		Canvas.side_grids.z.visible = true;
 		Canvas.side_grids.z.rotation.z = Math.PI/2;
 		Canvas.side_grids.z.rotation.y = Math.PI/2
 		Canvas.side_grids.z.position.y = Format.centered_grid ? block_size/2 : 0;
@@ -476,10 +475,6 @@ export const Canvas = {
 			obj.was_visible = obj.visible
 			obj.visible = false
 		})
-		var ground_anim_before = Canvas.ground_animation
-		if (Modes.display && Canvas.ground_animation) {
-			Canvas.ground_animation = false
-		}
 		Canvas.updateCubeHighlights(null, true);
 
 		try {
@@ -492,9 +487,6 @@ export const Canvas = {
 			obj.visible = obj.was_visible
 			delete obj.was_visible
 		})
-		if (Modes.display && ground_anim_before) {
-			Canvas.ground_animation = ground_anim_before
-		}
 		Canvas.updateCubeHighlights();
 	},
 

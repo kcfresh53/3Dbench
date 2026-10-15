@@ -637,50 +637,6 @@ var news_call = $.ajax({
 documentReady.then(() => {
 
 	//Bluesky
-	let bsky_ad;
-	Blockbench.onUpdateTo('4.12.2', () => {
-		//Bluesky
-		if (!settings.classroom_mode.value) {
-			bsky_ad = true;
-			addStartScreenSection('bluesky_link', {
-				color: 'rgb(32, 139, 254);',
-				text_color: '#ffffff',
-				graphic: {type: 'icon', icon: 'fab.fa-bluesky'},
-				text: [
-					{type: 'h3', text: 'Blockbench on Bluesky'},
-					{text: 'Follow Blockbench on Bluesky for the latest news & cool models from the community! [@blockbench.net](https://bsky.app/profile/blockbench.net)'}
-				],
-				last: true
-			})
-		}
-	})
-	if (!settings.classroom_mode.value && !bsky_ad && Blockbench.startup_count < 20 && Blockbench.startup_count % 5 === 4) {
-		bsky_ad = true;
-		addStartScreenSection('bluesky_link', {
-			color: 'rgb(32, 139, 254);',
-			text_color: '#ffffff',
-			graphic: {type: 'icon', icon: 'fab.fa-bluesky'},
-			text: [
-				{type: 'h3', text: 'Blockbench on Bluesky'},
-				{text: 'Follow Blockbench on Bluesky for the latest news & cool models from the community! [@blockbench.net](https://bsky.app/profile/blockbench.net)'}
-			],
-			last: true
-		})
-	}
-	//Discord
-	if (!settings.classroom_mode.value && Blockbench.startup_count < 6 && !bsky_ad) {
-		addStartScreenSection('discord_link', {
-			color: '#5865F2',
-			text_color: '#ffffff',
-			graphic: {type: 'icon', icon: 'fab.fa-discord'},
-			text: [
-				{type: 'h2', text: 'Discord Server'},
-				{text: 'You need help with modeling or you want to chat about Blockbench? Join the official [Blockbench Discord](https://discord.gg/WVHg5kH)!'}
-			],
-			last: true
-		})
-	}
-
 	// Quick Setup
 	if (Blockbench.startup_count <= 1) {
 		

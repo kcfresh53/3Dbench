@@ -65,7 +65,7 @@ BARS.defineActions(() => {
 		toolbar: 'main_tools',
 		transform_toolbar: 'element_position',
 		alt_tool: 'resize_tool',
-		modes: ['edit', 'display', 'animate', 'pose'],
+		modes: ['edit', 'animate', 'pose'],
 		keybind: new Keybind({key: 'v'}),
 	})
 	new Tool('resize_tool', {
@@ -77,7 +77,7 @@ BARS.defineActions(() => {
 		toolbar: 'main_tools',
 		transform_toolbar: 'element_size',
 		alt_tool: 'move_tool',
-		modes: ['edit', 'display', 'animate'],
+		modes: ['edit', 'animate'],
 		keybind: new Keybind({key: 's'}),
 		onSelect() {
 			if (Modes.edit) {
@@ -102,7 +102,7 @@ BARS.defineActions(() => {
 		toolbar: 'main_tools',
 		transform_toolbar: 'element_rotation',
 		alt_tool: 'pivot_tool',
-		modes: ['edit', 'display', 'animate', 'pose'],
+		modes: ['edit', 'animate', 'pose'],
 		keybind: new Keybind({key: 'r'}),
 	})
 	new Tool('pivot_tool', {
@@ -155,7 +155,7 @@ BARS.defineActions(() => {
 	let swap_tools = new Action('swap_tools', {
 		icon: 'swap_horiz',
 		category: 'tools',
-		condition: {modes: ['edit', 'paint', 'display'], project: true},
+		condition: {modes: ['edit', 'paint'], project: true},
 		keybind: new Keybind({key: 32}),
 		click: function () {
 			let alt_tool = BarItems[Toolbox.selected.alt_tool];

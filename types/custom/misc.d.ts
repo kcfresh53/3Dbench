@@ -56,7 +56,6 @@ interface BlockbenchEventMap {
 	add_bounding_box: {object: BoundingBox}
 	group_elements: {object: Group}
 	update_selection: void
-	compile_bedrock_animation: {animation: Animation, json: any}
 	load_animation: {animation: Animation, json: any}
 	load_animation_controller: {animation_controller: AnimationController, json: any}
 	update_keyframe_selection: void
@@ -116,13 +115,11 @@ interface BlockbenchEventMap {
 	unselect_preview_scene: {scene: PreviewScene}
 	select_animation: {animation: BBAnimation}
 	remove_animation: {animations: BBAnimation[]}
-	compile_bedrock_animation_controller_state: {state: AnimationControllerState, json: any}
 	select_animation_controller_state: {state: AnimationControllerState}
 	add_animation_controller_animation: {state: AnimationControllerState}
 	add_animation_controller_transition: {state: AnimationControllerState}
 	add_animation_controller_particle: {state: AnimationControllerState}
 	add_animation_controller_sound: {state: AnimationControllerState}
-	compile_bedrock_animation_controller: {state: AnimationController, json: any}
 	add_animation_controller: {state: AnimationController}
 	edit_animation_controller_properties: {state: AnimationController}
 	timeline_play: {}

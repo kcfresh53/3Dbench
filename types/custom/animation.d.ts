@@ -44,11 +44,6 @@ declare class BBAnimation extends AnimationItem {
 	constructor(data?: AnimationOptions)
 	extend(data?: AnimationOptions): this
 	getUndoCopy(options?: {}, save?: any): AnimationUndoCopy
-	/**
-	 * Compiles the JSON tree of the animation for the Minecraft Bedrock Edition animation format.
-	 * @deprecated
-	 */
-	compileBedrockAnimation(): any
 	save(): this | undefined
 	select(): this | undefined
 	setLength(length?: number): void
@@ -135,14 +130,6 @@ declare namespace Animator {
 	 * Updates the preview based on the current time
 	 */
 	function preview(in_loop?: boolean): void
-	function loadParticleEmitter(path: string, content: string): void
-	/**
-	 * Import a Bedrock animation file
-	 * @param file File any
-	 * @param animation_filter List of names of animations to import
-	 * @deprecated AnimationCodec should be used instead
-	 */
-	function loadFile(file: any, animation_filter?: string[]): void
 	/**
 	 * @deprecated AnimationCodec should be used instead
 	 */

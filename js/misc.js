@@ -77,10 +77,6 @@ export function updateNslideValues() {
 			BarItems.slider_stretch_z.update()
 		}
 
-		if (Condition(BarItems.slider_face_tint)) {
-			BarItems.slider_face_tint.update()
-		}
-
 		if (Condition(BarItems.slider_spline_handle_tilt)) {
 			BarItems.slider_spline_handle_tilt.update()
 			BarItems.slider_spline_handle_size.update()

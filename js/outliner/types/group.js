@@ -10,7 +10,6 @@ export class Group extends OutlinerNode {
 		this.name = (Format.bone_rig && !Format.armature_rig) ? 'bone' : 'group';
 		this.children = []
 		this.reset = false;
-		this.shade = true;
 		this.mirror_uv = false;
 		this.selected = false;
 		this.locked = false;
@@ -395,7 +394,6 @@ export class Group extends OutlinerNode {
 		base_group.name = this.name;
 		base_group.origin.V3_set(this.origin);
 		base_group.rotation.V3_set(this.rotation);
-		base_group.shade = this.shade;
 		base_group.mirror_uv = this.mirror_uv;
 		base_group.reset = this.reset;
 		base_group.locked = this.locked;
@@ -414,9 +412,6 @@ export class Group extends OutlinerNode {
 		}
 		for (var key in Group.properties) {
 			Group.properties[key].copy(this, obj)
-		}
-		if (this.shade == false) {
-			obj.shade = false
 		}
 		if (undo) {
 			obj.uuid = this.uuid;
@@ -485,7 +480,6 @@ Group.addBehaviorOverride({
 	Group.prototype.buttons = [
 		Outliner.buttons.autouv,
 		Outliner.buttons.mirror_uv,
-		Outliner.buttons.shade,
 		Outliner.buttons.export,
 		Outliner.buttons.locked,
 		Outliner.buttons.visibility,
@@ -493,7 +487,6 @@ Group.addBehaviorOverride({
 	Group.prototype.menu = new Menu([
 		...Outliner.control_menu_group,
 		new MenuSeparator('settings'),
-		'edit_bedrock_binding',
 		'set_element_marker_color',
 		"randomize_marker_colors",
 		{name: 'menu.cube.texture', icon: 'collections', condition: () => Format.per_group_texture, children(context) {
@@ -575,48 +568,7 @@ new Property(Group, 'vector', 'origin', {default() {
 	return Format.centered_grid ? [0, 0, 0] : [8, 8, 8]
 }});
 new Property(Group, 'vector', 'rotation');
-new Property(Group, 'number', 'scope');
-new Property(Group, 'string', 'bedrock_binding', {
-	condition: {formats: ['bedrock']},
-	inputs: {
-		element_panel: {
-			input: {label: 'group.bedrock_binding', description: 'action.edit_bedrock_binding.desc', type: 'text'},
-			onChange() {
-				Group.selected.forEach(group => {
-					group.preview_controller.updateTransform(group);
-				});
-			}
-		}
-	}
-});
-new Property(Group, 'array', 'cem_animations', {condition: {formats: ['optifine_entity']}});
-new Property(Group, 'boolean', 'cem_attach', {
-	condition: {formats: ['optifine_entity']},
-	inputs: {
-		element_panel: {
-			input: {label: 'group.cem_attach', type: 'checkbox'}
-		}
-	}
-});
-new Property(Group, 'string', 'cem_model', {
-	condition: {formats: ['optifine_entity']},
-	inputs: {
-		element_panel: {
-			input: {label: 'group.cem_model', type: 'text'}
-		}
-	}
-});
-new Property(Group, 'number', 'cem_scale', {
-	condition: {formats: ['optifine_entity']},
-	inputs: {
-		element_panel: {
-			input: {label: 'group.cem_scale', type: 'number'}
-		}
-	}
-});
 new Property(Group, 'string', 'texture', {condition: {features: ['per_group_texture']}});
-//new Property(Group, 'vector2', 'texture_size', {condition: {formats: ['optifine_entity']}});
-new Property(Group, 'vector', 'skin_original_origin', {condition: {formats: ['skin']}});
 new Property(Group, 'number', 'color');
 
 new NodePreviewController(Group, {
@@ -635,46 +587,6 @@ new NodePreviewController(Group, {
 	updateTransform(group) {
 		NodePreviewController.prototype.updateTransform.call(this, group);
 		let bone = group.scene_object;
-
-		if (group.scope >= 2 && Project.getMultiFileRuleset()) {
-			if (group.bedrock_binding) {
-				let base = 85000;
-				let bone_names = [];
-				let mapped_binding = group.bedrock_binding.replace(/'(\w+)'/g, (match, name) => {
-					bone_names.push(name.toLowerCase());
-					return base + bone_names.length-1;
-				})
-				let result = Animator.MolangParser.parse(mapped_binding, {
-					"query.item_slot_to_bone_name"(input) {
-						return 85070;
-					}
-				});
-				let bone_name = bone_names[result - base];
-				if (result == 85070) bone_name = 'rightitem';
-				let target_group = bone_name && Group.all.find(g => g.name.length == bone_name.length && g.name.toLowerCase() == bone_name);
-
-				if (target_group) {
-					bone.position.set(group.origin[0], group.origin[1], group.origin[2])
-					if (group.parent instanceof Group) {
-						bone.position.x -= group.parent.origin[0];
-						bone.position.y -= group.parent.origin[1];
-						bone.position.z -= group.parent.origin[2];
-					} else {
-						bone.position.y -= 24;
-					}
-					target_group.mesh.add(bone);
-					bone.updateMatrixWorld();
-				}
-			} else {
-				let name = group.name.toLowerCase();
-				let target_group = Group.all.find(g => g.scope == 1 && g.name.toLowerCase() == name);
-				if (target_group) {
-					target_group.mesh.add(bone);
-					bone.position.set(0, 0, 0);
-					bone.updateMatrixWorld();
-				}
-			}
-		}
 
 		bone.scale.x = bone.scale.y = bone.scale.z = 1;
 		bone.fix_position = bone.position.clone();
@@ -727,8 +639,7 @@ BARS.defineActions(function() {
 			let lowest_selected = Outliner.selected.concat(Group.multi_selected).filter(n => !n.parent?.selected);
 			var add_group = lowest_selected.find(s => s instanceof Group) || lowest_selected[0];
 			var base_group = new Group({
-				origin: add_group ? add_group.origin : undefined,
-				scope: add_group?.scope
+				origin: add_group ? add_group.origin : undefined
 			})
 			base_group.isOpen = true
 			if (base_group.getTypeBehavior('unique_name')) {
@@ -781,8 +692,7 @@ BARS.defineActions(function() {
 			let new_name = add_group?.name;
 			let base_group = new Group({
 				origin: add_group ? add_group.origin : undefined,
-				name: ['cube', 'mesh'].includes(new_name) ? undefined : new_name,
-				scope: add_group?.scope
+				name: ['cube', 'mesh'].includes(new_name) ? undefined : new_name
 			})
 			base_group.sortInBefore(add_group);
 			base_group.isOpen = true
@@ -830,94 +740,6 @@ BARS.defineActions(function() {
 			});
 		}
 	})
-	new Action('edit_bedrock_binding', {
-		icon: 'fa-paperclip',
-		category: 'edit',
-		condition: () => Format.bone_binding_expression && Group.first_selected,
-		click: function() {
-
-			let dialog = new Dialog({
-				id: 'edit_bedrock_binding',
-				title: 'action.edit_bedrock_binding',
-				resizable: 'x',
-				component: {
-					components: {VuePrismEditor},
-					data: {
-						binding: Group.first_selected.bedrock_binding,
-					},
-					methods: {
-						showPresetMenu(event) {
-							new Menu([
-								{
-									name: 'Item Slot',
-									icon: 'build',
-									click: () => {
-										this.binding = 'q.item_slot_to_bone_name(c.item_slot)';
-									}
-								},
-								{
-									name: 'Right Hand',
-									icon: 'build',
-									click: () => {
-										this.binding = '\'rightitem\'';
-									}
-								},
-								{
-									name: 'Left Hand',
-									icon: 'build',
-									click: () => {
-										this.binding = '\'leftitem\'';
-									}
-								},
-								{
-									name: 'Body',
-									icon: 'build',
-									click: () => {
-										this.binding = '\'body\'';
-									}
-								},
-								{
-									name: 'Head',
-									icon: 'build',
-									click: () => {
-										this.binding = '\'head\'';
-									}
-								}
-							]).show(event.target);
-						},
-						autocomplete(text, position) {
-							if (Settings.get('autocomplete_code') == false) return [];
-							let test = MolangAutocomplete.BedrockBindingContext.autocomplete(text, position);
-							return test;
-						}
-					},
-					template: 
-						`<div class="dialog_bar">
-							<vue-prism-editor class="molang_input" v-model="binding" language="molang" :autocomplete="autocomplete" :line-numbers="false" style="width: calc(100% - 36px); display: inline-block;" />
-							<i class="tool material-icons" style="vertical-align: top; padding: 3px; float: none;" @click="showPresetMenu($event)">menu</i>
-						</div>`
-				},
-				onConfirm: form_data => {
-					dialog.hide().delete();
-					let value = dialog.component.data.binding.replace(/\n/g, '');
-					if (
-						value != Group.first_selected.bedrock_binding
-					) {
-						Undo.initEdit({groups: Group.multi_selected});
-						for (let group of Group.multi_selected) {
-							group.bedrock_binding = value;
-							group.preview_controller.updateTransform(group);
-						}
-						Undo.finishEdit('Edit group binding');
-						updateSelection();
-					}
-				},
-				onCancel() {
-					dialog.hide().delete();
-				}
-			}).show();
-		}
-	})
 	new Action('resolve_group', {
 		icon: 'fa-leaf',
 		condition: {modes: ['edit'], method: () => Group.first_selected},
@@ -947,7 +769,7 @@ BARS.defineActions(function() {
 Interface.definePanels(function() {
 	new Panel('bone', {
 		icon: 'fas.fa-bone',
-		condition: !Blockbench.isMobile && {modes: ['animate'], method: () => !AnimationController.selected},
+		condition: !Blockbench.isMobile && {modes: ['animate']},
 		display_condition: () => Group.first_selected,
 		default_position: {
 			slot: 'right_bar',

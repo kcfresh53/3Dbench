@@ -111,10 +111,6 @@ export interface FormatFeatures {
 	 */
 	legacy_editable_file_name: boolean
 	/**
-	 * If true, enables a field in the project settings to set a parent model ID
-	 */
-	parent_model_id: boolean
-	/**
 	 * Adds a toggle in the project settings to enable project wide vertex color ambient occlusion
 	 */
 	vertex_color_ambient_occlusion: boolean
@@ -183,14 +179,6 @@ export interface FormatFeatures {
 	 */
 	pbr: boolean
 	/**
-	 * Enforces a rotation limit for cubes of up to 45 degrees in either direction and one axis at a time
-	 */
-	rotation_limit: boolean
-	/**
-	 * Forces cube rotations to snap to 22.5 degree increments
-	 */
-	rotation_snap: boolean
-	/**
 	 * Rotation euler order for outliner nodes
 	 */
 	euler_order: 'XYZ' | 'ZYX'
@@ -199,29 +187,9 @@ export interface FormatFeatures {
 	 */
 	uv_rotation: boolean
 	/**
-	 * Enables Minecraft Java block/item model specific cube face features (tint and export)
-	 */
-	java_face_properties: boolean
-	/**
-	 * Allows assigning one texture to be used as a texture for particles related to the model
-	 */
-	select_texture_for_particles: boolean
-	/**
-	 * Enable mcmeta files for animated texture files
-	 */
-	texture_mcmeta: boolean
-	/**
-	 * Enables an option to set an expression for bone bindings
-	 */
-	bone_binding_expression: boolean
-	/**
 	 * If true, animations will be saved into files
 	 */
 	animation_files: boolean
-	/**
-	 * Files to reopen alongside the model, for formats that cannot reference them in the model file itself
-	 */
-	remember_files: ('textures' | 'texture_sets' | 'animation_files')[]
 	/**
 	 * Change how animations can be grouped
 	 */
@@ -247,10 +215,6 @@ export interface FormatFeatures {
 	 */
 	paint_mode: boolean
 	/**
-	 * Enables display mode
-	 */
-	display_mode: boolean
-	/**
 	 * Emaböes animation mode
 	 */
 	animation_mode: boolean
@@ -258,10 +222,6 @@ export interface FormatFeatures {
 	 * Enables pose mode
 	 */
 	pose_mode: boolean
-	/**
-	 * Enables animation controllers
-	 */
-	animation_controllers: boolean
 	/**
 	 * If true, interpolation between keyframes in looping animations will wrap around
 	 */
@@ -278,18 +238,6 @@ export interface FormatFeatures {
 	 * If true, cube sizes will not be floored to calculate UV sizes with box UV. This can result in UVs not aligning with pixel edges
 	 */
 	box_uv_float_size: boolean
-	/**
-	 * Enables properties for Minecraft Java block/item models related to block shading (shading option and light emission value)
-	 */
-	java_cube_shading_properties: boolean
-	/**
-	 * Enables the shade direction override property on Minecraft Java block/item model cubes. Added to the model format in 26.3, replacing the shade boolean property
-	 */
-	java_cube_shade_direction_override: boolean
-	/**
-	 * Enables cullfaces, the ability on faces in Minecraft block models to set a direction, that, if covered by another block, will cause the face to unrender
-	 */
-	cullfaces: boolean
 	/**
 	 * A set of characters that is allowed in node names (names of elements and groups that can be referenced externally, this does not apply to cubes or meshes)
 	 */
@@ -397,9 +345,6 @@ export class ModelFormat implements FormatOptions {
 
 		if (data.new) this.new = data.new;
 
-		if (data.rotation_limit && data.rotation_snap === undefined) {
-			data.rotation_snap = true;
-		}
 		for (let id in ModelFormat.properties) {
 			ModelFormat.properties[id].merge(this, data);
 		}
@@ -614,19 +559,6 @@ export class ModelFormat implements FormatOptions {
 			})
 		}
 
-		//Rotation Limit
-		if (this.rotation_limit && !old_format.rotation_limit && this.rotate_cubes) {
-			Cube.all.forEach(cube => {
-				if (!cube.rotation.allEqual(0)) {
-					var axis = (getAxisNumber(cube.rotationAxis())) || 0;
-					var cube_rotation = this.rotation_snap ? Math.round(cube.rotation[axis]/22.5)*22.5 : cube.rotation[axis];
-					var angle = limitNumber( cube_rotation, -45, 45 );
-					cube.rotation.V3_set(0, 0, 0)
-					cube.rotation[axis] = angle;
-				}
-			})
-		}
-
 		if (Format.per_texture_wrap_mode == false) {
 			Texture.all.forEach(texture => {
 				texture.wrap_mode = Texture.properties.wrap_mode.getDefault()
@@ -671,7 +603,6 @@ new Property(ModelFormat, 'enum', 'texture_wrap_default', {default: 'limited', v
 new Property(ModelFormat, 'boolean', 'per_texture_wrap_mode');
 new Property(ModelFormat, 'boolean', 'model_identifier', {default: true});
 new Property(ModelFormat, 'boolean', 'legacy_editable_file_name');
-new Property(ModelFormat, 'boolean', 'parent_model_id');
 new Property(ModelFormat, 'boolean', 'vertex_color_ambient_occlusion');
 new Property(ModelFormat, 'boolean', 'animated_textures');
 new Property(ModelFormat, 'boolean', 'bone_rig');
@@ -688,20 +619,9 @@ new Property(ModelFormat, 'boolean', 'texture_meshes');
 new Property(ModelFormat, 'boolean', 'billboards');
 new Property(ModelFormat, 'boolean', 'bounding_boxes');
 new Property(ModelFormat, 'boolean', 'locators');
-new Property(ModelFormat, 'boolean', 'rotation_limit');
-new Property(ModelFormat, 'boolean', 'rotation_snap');
 new Property(ModelFormat, 'boolean', 'uv_rotation');
-new Property(ModelFormat, 'boolean', 'java_cube_shading_properties');
-new Property(ModelFormat, 'boolean', 'java_cube_shade_direction_override');
-new Property(ModelFormat, 'boolean', 'java_face_properties');
-new Property(ModelFormat, 'boolean', 'cullfaces');
-new Property(ModelFormat, 'boolean', 'select_texture_for_particles');
-new Property(ModelFormat, 'boolean', 'texture_mcmeta');
-new Property(ModelFormat, 'boolean', 'bone_binding_expression');
 new Property(ModelFormat, 'boolean', 'animation_files');
-new Property(ModelFormat, 'array', 'remember_files');
 new Property(ModelFormat, 'enum', 'animation_grouping', {default: 'by_file', values: ['by_file', 'custom', 'disabled']});
-new Property(ModelFormat, 'boolean', 'animation_controllers');
 new Property(ModelFormat, 'boolean', 'animation_loop_wrapping');
 new Property(ModelFormat, 'boolean', 'quaternion_interpolation');
 new Property(ModelFormat, 'boolean', 'per_animator_rotation_interpolation');
@@ -710,7 +630,6 @@ new Property(ModelFormat, 'boolean', 'image_editor');
 new Property(ModelFormat, 'boolean', 'edit_mode', {default: true});
 new Property(ModelFormat, 'boolean', 'paint_mode', {default: true});
 new Property(ModelFormat, 'boolean', 'pose_mode');
-new Property(ModelFormat, 'boolean', 'display_mode');
 new Property(ModelFormat, 'boolean', 'animation_mode');
 new Property(ModelFormat, 'boolean', 'texture_folder');
 new Property(ModelFormat, 'boolean', 'pbr');

@@ -1115,7 +1115,7 @@ import { TransformerModule } from "./transform_modules";
 				this.getWorldPosition(worldPosition)
 				this.setScale(this.getScale());
 
-				_gizmo.rotate.children[0].children[6].visible = !(Format && Format.rotation_limit && Modes.edit);
+				_gizmo.rotate.children[0].children[6].visible = true;
 
 				// Origin
 				let scale = scope.camera.preview.calculateControlScale(Canvas.pivot_marker.getWorldPosition(new THREE.Vector3())) * settings.origin_size.value * 0.2;
@@ -1389,9 +1389,7 @@ import { TransformerModule } from "./transform_modules";
 
 				if (Toolbox.selected.transformerMode !== 'rotate') {
 					point.sub( offset );
-					if (!Modes.display) {
-						point.removeEuler(worldRotation)
-					}
+					point.removeEuler(worldRotation)
 
 				} else {
 

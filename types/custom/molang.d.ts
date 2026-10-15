@@ -154,6 +154,4 @@ declare namespace MolangAutocomplete {
 	const AnimationContext: Context
 	/** Variable Placeholders Molang Auto-complete Context */
 	const VariablePlaceholdersContext: Context
-	/** Bedrock Binding Molang Auto-complete Context */
-	const BedrockBindingContext: Context
 }

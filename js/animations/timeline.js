@@ -804,7 +804,7 @@ Interface.definePanels(() => {
 	}
 	Timeline.panel = new Panel('timeline', {
 		icon: 'timeline',
-		condition: {modes: ['animate'], method: () => !AnimationController.selected},
+		condition: {modes: ['animate']},
 		default_position: {
 			slot: 'bottom',
 			float_position: [100, 400],
@@ -1758,7 +1758,6 @@ Interface.definePanels(() => {
 											<i class="icon-open-state fa" v-bind:class="{'fa-angle-right': !animator.expanded, 'fa-angle-down': animator.expanded}"></i>
 										</div>
 										<dynamic-icon v-if="animator.node" :icon="animator.node.icon.replace('fa ', '').replace(/ /g, '.')" :color="getNodeColor(animator.node)" />
-										<dynamic-icon v-else-if="animator.particle" :icon="'wand_shine'" />
 										<dynamic-icon v-else :icon="'help'" style="color: var(--color-error)" />
 										<span class="timeline_animator_name" v-on:click.stop="animator.clickSelect();" @mousedown="dragAnimator(animator, $event)" @touchstart="dragAnimator(animator, $event)">
 											{{animator.name}}
@@ -1965,7 +1964,7 @@ BARS.defineActions(function() {
 		icon: 'play_arrow',
 		category: 'animation',
 		keybind: new Keybind({key: 32}),
-		condition: {modes: ['animate'], selected: {animation_controller: false}},
+		condition: {modes: ['animate'], },
 		click: function () {
 			
 			if (!Animation.selected) {
@@ -2145,7 +2144,7 @@ BARS.defineActions(function() {
 	new Action('add_all_to_timeline', {
 		icon: 'docs_add_on',
 		category: 'animation',
-		condition: {modes: ['animate'], selected: {animation_controller: false, animation: true}},
+		condition: {modes: ['animate'], selected: {animation: true}},
 		click() {
 			Group.all.concat(Outliner.elements).forEach(node => {
 				if (!node.selected) return;

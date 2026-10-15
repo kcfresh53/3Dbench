@@ -25,8 +25,6 @@ Blockbench.Animator = Animator;
 Blockbench.Timeline = Timeline;
 Blockbench.AnimationItem = AnimationItem;
 Blockbench.Animation = Animation;
-Blockbench.AnimationController = AnimationController;
-Blockbench.AnimationControllerState = AnimationControllerState;
 Blockbench.Keyframe = Keyframe;
 Blockbench.KeyframeDataPoint = KeyframeDataPoint;
 Blockbench.BoneAnimator = BoneAnimator;
@@ -72,7 +70,6 @@ Blockbench.ResizeLine = ResizeLine;
 Blockbench.ModelProject = ModelProject;
 Blockbench.ModelFormat = ModelFormat;
 Blockbench.Codec = Codec;
-Blockbench.DisplaySlot = DisplaySlot;
 Blockbench.Reusable = Reusable;
 
 Blockbench.Texture = Texture;

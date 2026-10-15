@@ -25,8 +25,6 @@ export class BoundingBox extends OutlinerElement {
 	public menu = new Menu([
 		...Outliner.control_menu_group,
 		new MenuSeparator('export'),
-		'generate_bedrock_block_box',
-		'generate_bedrock_entity_box',
 		new MenuSeparator('settings'),
 		{name: 'menu.cube.color', icon: 'color_lens', children() {
 			return markerColors.map((color, i) => {return {
@@ -451,7 +449,7 @@ new NodePreviewController(BoundingBox, {
 	updateSelection(element: BoundingBox) {
 		let mesh = element.mesh as THREE.LineSegments;
 		if (mesh) {
-			if (Modes.paint || Modes.display) {
+			if (Modes.paint) {
 				mesh.visible = false;
 			} else {
 				mesh.visible = element.visibility;
@@ -463,7 +461,7 @@ new NodePreviewController(BoundingBox, {
 		this.dispatchEvent('update_selection', {element});
 	},
 	updateVisibility(element: BoundingBox) {
-		element.mesh.visible = (Modes.paint || Modes.display) ? false : element.visibility;
+		element.mesh.visible = Modes.paint ? false : element.visibility;
 
 		this.dispatchEvent('update_visibility', {element});
 	},

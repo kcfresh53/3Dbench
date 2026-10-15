@@ -228,35 +228,20 @@ export const Screencam = {
 
 			if (options.crop !== false) {
 
-				if (!options && Modes.display && DisplayMode.display_slot === 'gui') {
-					let display_preview = Preview.all.find(p => p.id == 'display');
-					var zoom = display_preview.camOrtho.zoom * devicePixelRatio
-					var resolution = 256 * zoom;
-	
-					var start_x = display_preview.width *devicePixelRatio/2 - display_preview.controls.target.x*zoom*40 - resolution/2;
-					var start_y = display_preview.height*devicePixelRatio/2 + display_preview.controls.target.y*zoom*40 - resolution/2;
-					
-					let frame = new CanvasFrame(resolution, resolution)
-	
-					frame.ctx.drawImage(preview.canvas, start_x, start_y, resolution, resolution, 0, 0, resolution, resolution);
-					Screencam.returnScreenshot(frame.canvas.toDataURL(), cb);
+				let frame = new CanvasFrame(preview.canvas);
+				frame.autoCrop()
 
-				} else {
-					let frame = new CanvasFrame(preview.canvas);
-					frame.autoCrop()
-	
-					if (options.width && options.height) {
-						let new_frame = new CanvasFrame(options.width, options.height)
-						let width = frame.width;
-						let height = frame.height;
-						if (width > options.width)   {height /= width / options.width;  width = options.width;}
-						if (height > options.height) {width /= height / options.height; height = options.height;}
-						new_frame.ctx.drawImage(frame.canvas, (options.width - width)/2, (options.height - height)/2, width, height)
-						frame = new_frame;
-					}
-	
-					Screencam.returnScreenshot(frame.canvas.toDataURL(), cb)
+				if (options.width && options.height) {
+					let new_frame = new CanvasFrame(options.width, options.height)
+					let width = frame.width;
+					let height = frame.height;
+					if (width > options.width)   {height /= width / options.width;  width = options.width;}
+					if (height > options.height) {width /= height / options.height; height = options.height;}
+					new_frame.ctx.drawImage(frame.canvas, (options.width - width)/2, (options.height - height)/2, width, height)
+					frame = new_frame;
 				}
+
+				Screencam.returnScreenshot(frame.canvas.toDataURL(), cb)
 			} else {
 				
 				if (!options.width && !options.height) {

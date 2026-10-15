@@ -795,13 +795,6 @@ export const UVEditor = {
 		let face = UVEditor.getReferenceFace();
 		if (face instanceof CubeFace) {
 			BarItems.uv_rotation.set((face && face.rotation)||0);
-			if (Format.cullfaces) {
-				BarItems.cullface.set(face.cullface||'off')
-			}
-			if (Format.java_face_properties) {
-				BarItems.face_tint.setIcon(face.tint !== -1 ? 'check_box' : 'check_box_outline_blank')
-				BarItems.slider_face_tint.update()
-			}
 		}
 	},
 	getFacePosition(axis) {
@@ -1571,46 +1564,6 @@ export const UVEditor = {
 		Undo.finishEdit('Remove face')
 		Canvas.updateSelectedFaces()
 	},
-	switchCullface(event) {
-		Undo.initEdit({elements: Cube.selected, uv_only: true})
-		var val = BarItems.cullface.get()
-		if (val === 'off') val = false
-		this.forCubes(obj => {
-			UVEditor.getSelectedFaces(obj).forEach(fkey => {
-				obj.faces[fkey].cullface = val || '';
-			})
-		})
-		if (val) {
-			this.message('uv_editor.cullface_on')
-		} else {
-			this.message('uv_editor.cullface_off')
-		}
-		Undo.finishEdit('Toggle cullface')
-	},
-	switchTint(event) {
-		var val = UVEditor.getReferenceFace().tint === -1 ? 0 : -1;
-
-		if (event === 0 || event === false) val = event
-		this.forCubes(obj => {
-			UVEditor.getSelectedFaces(obj).forEach(fkey => {
-				obj.faces[fkey].tint = val;
-			})
-		})
-		if (val !== -1) {
-			this.message('uv_editor.tint_on')
-		} else {
-			this.message('uv_editor.tint_off')
-		}
-		this.displayTools()
-	},
-	setTint(event, val) {
-		this.forCubes(obj => {
-			UVEditor.getSelectedFaces(obj).forEach(fkey => {
-				obj.faces[fkey].tint = val;
-			})
-		})
-		this.displayTools()
-	},
 	rotate(mesh_angle) {
 		var value = parseInt(BarItems.uv_rotation.get());
 		let ref_face = this.getReferenceFace();
@@ -1695,15 +1648,6 @@ export const UVEditor = {
 		this.message('uv_editor.rotated')
 	},
 	selectGridSize(event) {
-	},
-	autoCullface(event) {
-		this.forCubes(obj => {
-			UVEditor.getFaces(obj, event, BarItems.auto_cullface).forEach(function(side) {
-				obj.faces[side].cullface = side
-			})
-		})
-		this.loadData()
-		this.message('uv_editor.auto_cull')
 	},
 	copy(event) {
 		let elements = this.getMappableElements();
@@ -1874,7 +1818,7 @@ export const UVEditor = {
 		{
 			name: 'menu.uv.export',
 			icon: () => UVEditor.getReferenceFace()?.enabled !== false ? 'check_box' : 'check_box_outline_blank',
-			condition: () => (!UVEditor.isBoxUV() && UVEditor.getReferenceFace() && Format.java_face_properties),
+			condition: () => (!UVEditor.isBoxUV() && UVEditor.getReferenceFace()),
 			click(event) {
 				Undo.initEdit({elements: Cube.selected, uv_only: true});
 				UVEditor.toggleUV(event);
@@ -1885,6 +1829,9 @@ export const UVEditor = {
 		'uv_auto',
 		'uv_rel_auto',
 		'uv_project_from_view',
+		'uv_smart_unwrap',
+		'uv_pack_islands',
+		'uv_equalize_texel_density',
 		'move_uv_to_cursor',
 		'connect_uv_faces',
 		'merge_uv_vertices',
@@ -1942,30 +1889,6 @@ export const UVEditor = {
 			}
 		},
 		new MenuSeparator('face_options'),
-		'face_tint',
-		{icon: 'flip_to_back', condition: () => (Format.cullfaces && Cube.selected.length && UVEditor.getReferenceFace()), name: 'action.cullface' , children: function() {
-			let off = 'far.fa-circle';
-			let on = 'far.fa-dot-circle';
-			function setCullface(cullface) {
-				Undo.initEdit({elements: Cube.selected, uv_only: true})
-				UVEditor.forCubes(obj => {
-					UVEditor.getSelectedFaces(obj).forEach(face => {
-						obj.faces[face].cullface = cullface;
-					})
-				})
-				Undo.finishEdit(cullface ? `Set cullface to ${cullface}` : 'Disable cullface');
-			}
-			return [
-				{icon: (!UVEditor.getReferenceFace().cullface ? on : off), name: 'uv_editor.no_faces', click: () => setCullface('')},
-				{icon: (UVEditor.getReferenceFace().cullface == 'north' ? on : off), name: 'face.north', click: () => setCullface('north')},
-				{icon: (UVEditor.getReferenceFace().cullface == 'south' ? on : off), name: 'face.south', click: () => setCullface('south')},
-				{icon: (UVEditor.getReferenceFace().cullface == 'west' ? on : off), name: 'face.west', click: () => setCullface('west')},
-				{icon: (UVEditor.getReferenceFace().cullface == 'east' ? on : off), name: 'face.east', click: () => setCullface('east')},
-				{icon: (UVEditor.getReferenceFace().cullface == 'up' ? on : off), name: 'face.up', click: () => setCullface('up')},
-				{icon: (UVEditor.getReferenceFace().cullface == 'down' ? on : off), name: 'face.down', click: () => setCullface('down')},
-				'auto_cullface'
-			]
-		}},
 		{icon: 'collections', name: 'menu.uv.texture', condition: () => UVEditor.getReferenceFace() && !Format.single_texture, children: function() {
 			let arr = [
 				{icon: 'crop_square', name: Format.single_texture_default ? 'menu.cube.texture.default' : 'menu.cube.texture.blank', click: function(context, event) {
@@ -2416,70 +2339,6 @@ BARS.defineActions(function() {
 			Undo.finishEdit('Apply UV to all faces')
 		}
 	})
-	new BarSelect('cullface', { 
-		category: 'uv',
-		condition: () => Modes.edit && UVEditor.isFaceUV() && Format.cullfaces && Cube.selected.length && UVEditor.getReferenceFace(),
-		label: true,
-		options: {
-			off: tl('uv_editor.no_faces'),
-			north: tl('face.north'),
-			south: tl('face.south'),
-			west: tl('face.west'),
-			east: tl('face.east'),
-			up: tl('face.up'),
-			down: tl('face.down'),
-		},
-		onChange: function(sel, event) {
-			Undo.initEdit({elements: Cube.selected, uv_only: true});
-			UVEditor.forSelection('switchCullface');
-			Undo.finishEdit('Set cullface');
-		}
-	})
-	new Action('auto_cullface', {
-		icon: 'block',
-		category: 'uv',
-		condition: () => Modes.edit && UVEditor.isFaceUV() && Format.cullfaces && Cube.selected.length && UVEditor.getReferenceFace(),
-		keybind: new Keybind({}, {
-			all_faces: 'shift'
-		}),
-		variations: {
-			all_faces: {name: 'action.uv_maximize.all_faces'}
-		},
-		click: function (event) {
-			Undo.initEdit({elements: Cube.selected, uv_only: true})
-			UVEditor.forSelection('autoCullface', event)
-			Undo.finishEdit('Set automatic cullface')
-		}
-	})
-	new Action('face_tint', {
-		category: 'uv',
-		condition: () => Modes.edit && UVEditor.isFaceUV() && Format.java_face_properties && Cube.selected.length && UVEditor.getReferenceFace(),
-		click: function (event) {
-			Undo.initEdit({elements: Cube.selected, uv_only: true})
-			UVEditor.forSelection('switchTint', event)
-			Undo.finishEdit('Toggle face tint')
-		}
-	})
-	new NumSlider('slider_face_tint', {
-		category: 'uv',
-		condition: () => Modes.edit && UVEditor.isFaceUV() && Format.java_face_properties && Cube.selected.length && UVEditor.getReferenceFace(),
-		getInterval(event) {
-			return 1;
-		},
-		get: function() {
-			return Cube.selected[0] && Cube.selected[0].faces[UVEditor.getSelectedFaces(Cube.selected[0], false)[0]].tint
-		},
-		change: function(modify) {
-			let number = Math.clamp(Math.round(modify(this.get())), -1)
-			UVEditor.setTint(null, number);
-		},
-		onBefore: function() {
-			Undo.initEdit({elements: Cube.selected, uv_only: true})
-		},
-		onAfter: function() {
-			Undo.finishEdit('Set face tint')
-		}
-	})
 	new Action('move_uv_to_cursor', {
 		icon: 'fas.fa-magnet',
 		category: 'uv',
@@ -2776,6 +2635,9 @@ Interface.definePanels(function() {
 					'uv_maximize',
 					'uv_auto',
 					'uv_project_from_view',
+					'uv_smart_unwrap',
+					'uv_pack_islands',
+					'uv_equalize_texel_density',
 					'uv_transparent',
 					'uv_mirror_x',
 					'uv_mirror_y',
@@ -2843,15 +2705,6 @@ Interface.definePanels(function() {
 				selection_outline: '',
 
 				face_names: {
-					north: tl('face.north'),
-					south: tl('face.south'),
-					west: tl('face.west'),
-					east: tl('face.east'),
-					up: tl('face.up'),
-					down: tl('face.down'),
-				},
-				cullface_options: {
-					'': tl('uv_editor.no_faces'),
 					north: tl('face.north'),
 					south: tl('face.south'),
 					west: tl('face.west'),
@@ -4886,46 +4739,6 @@ Interface.definePanels(function() {
 					}))
 					menu.open(event.target);
 				},
-				toggleFaceTint(key, event) {
-					Undo.initEdit({elements: Cube.selected, uv_only: true})
-					let value = UVEditor.getFirstMappableElement()?.faces[key]?.tint === -1 ? 0 : -1;
-					UVEditor.forCubes(cube => {
-						cube.faces[key].tint = value;
-					})
-					this.$forceUpdate();
-					Undo.finishEdit('Toggle face tint')
-				},
-				changeFaceTint(key, event) {
-					Undo.initEdit({elements: Cube.selected, uv_only: true})
-					let value = parseInt(event.target.value);
-					UVEditor.forCubes(cube => {
-						cube.faces[key].tint = value;
-					})					
-					Undo.finishEdit('Set face tint');
-				},
-				setCullface(key, value) {
-					Undo.initEdit({elements: Cube.selected, uv_only: true})
-					UVEditor.forCubes(obj => {
-						if (obj.faces[key]) {
-							obj.faces[key].cullface = value;
-						}
-					})
-					Undo.finishEdit(value ? `Set cullface to ${value}` : 'Disable cullface');
-				},
-				startInputMaterialInstance(event) {
-					Undo.initEdit({elements: Cube.selected, uv_only: true})
-				},
-				endInputMaterialInstance(event, fkey) {
-					let value = this.mappable_elements[0]?.faces[fkey]?.material_name;
-					if (typeof value == 'string') {
-						for (let element of this.mappable_elements) {
-							if (element.faces[fkey]) {
-								element.faces[fkey].material_name = value;
-							}
-						}
-					}
-					Undo.finishEdit('Change material instances');
-				},
 				showInfoBox(title, text) {
 					Blockbench.showMessageBox({
 						title: tl(title),
@@ -4971,26 +4784,6 @@ Interface.definePanels(function() {
 
 							<label style="width: 120px;" class="flexible">Texture</label>
 
-							<template v-if="checkFormat({java_face_properties: true})">
-								<label style="width: 58px;" @click="showInfoBox('action.face_tint', 'uv_editor.tint.info')" title="${tl('uv_editor.tint.info')}">
-									${tl('action.face_tint')}
-									<i class="material-icons">info</i>
-								</label>
-							</template>
-
-							<template v-if="checkFormat({cullfaces: true})">
-								<label style="width: 50px;" @click="showInfoBox('action.cullface', 'uv_editor.cullface.info')" title="${tl('uv_editor.cullface.info')}" class="flexible">
-									${tl('action.cullface')}
-									<i class="material-icons">info</i>
-								</label>
-							</template>
-
-							<template v-if="checkFormat({id: 'bedrock_block'})">
-								<label style="width: 100px;" class="flexible" @click="showInfoBox('uv_editor.face_properties.material_instance', 'uv_editor.material_instance.info')" title="${tl('uv_editor.material_instance.info')}">
-									${tl('uv_editor.face_properties.material_instance')}
-									<i class="material-icons">info</i>
-								</label>
-							</template>
 						</div>
 
 
@@ -5011,25 +4804,6 @@ Interface.definePanels(function() {
 									{{ face_texture ? face_texture.name : '${tl('menu.cube.texture.blank')}' }}
 								</div>
 
-								<template v-if="checkFormat({java_face_properties: true})">
-									<div style="width: 58px; display: flex;">
-										<input type="checkbox" title="${tl('action.face_tint')}" :checked="mappable_elements[0].faces[key].tint > -1" @change="toggleFaceTint(key, $event)">
-										<input type="number" title="${tl('action.face_tint')}" style="width: 30px;" :value="mappable_elements[0].faces[key].tint" min="0" step="1" @input="changeFaceTint(key, $event)" v-if="mappable_elements[0].faces[key].tint > -1">
-									</div>
-								</template>
-
-								<template v-if="checkFormat({cullfaces: true})">
-									<select-input class="flexible" title="${tl('action.cullface')}" :value="mappable_elements[0].faces[key].cullface" @input="setCullface(key, $event)" :options="cullface_options" />
-								</template>
-
-								<template v-if="checkFormat({id: 'bedrock_block'})">
-									<input type="text" style="width: 100px;" class="flexible dark_bordered"
-										title="${tl('uv_editor.face_properties.material_instance')}"
-										v-model="mappable_elements[0].faces[key].material_name"
-										@focus="startInputMaterialInstance($event)"
-										@focusout="endInputMaterialInstance($event, key)"
-									>
-								</template>
 							</li>
 						</ul>
 					</div>

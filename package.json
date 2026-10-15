@@ -1,6 +1,6 @@
 {
-	"name": "Blockbench",
-	"description": "Low-poly modeling and animation software",
+	"name": "3DBench",
+	"description": "Modern 3D modelling, texture and animation platform",
 	"desktopName": "net.blockbench.blockbench",
 	"version": "5.2.2",
 	"license": "GPL-3.0-or-later",
@@ -23,8 +23,8 @@
 	},
 	"build": {
 		"afterSign": "scripts/notarize.js",
-		"appId": "blockbench",
-		"productName": "Blockbench",
+		"appId": "3dbench",
+		"productName": "3DBench",
 		"artifactName": "${productName}_${version}.${ext}",
 		"directories": {
 			"output": "dist-electron"
@@ -123,8 +123,8 @@
 		"fileAssociations": [
 			{
 				"ext": "bbmodel",
-				"name": "Blockbench Project",
-				"mimeType": "model/vnd.blockbench.bbmodel",
+				"name": "3DBench Project",
+				"mimeType": "model/vnd.3dbench.bbmodel",
 				"role": "Editor"
 			},
 			{

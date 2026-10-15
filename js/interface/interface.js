@@ -338,10 +338,6 @@ export function setupInterface() {
 		var val = parseFloat(obj.val()) + parseFloat(obj.attr('step')) * factor
 		val = limitNumber(val, obj.attr('min'), obj.attr('max'))
 
-		if (obj.attr('trigger_type')) {
-			DisplayMode.scrollSlider(obj.attr('trigger_type'), val, obj)
-			return;
-		}
 
 		obj.val(val)
 		// eval(obj.attr('oninput'))
@@ -415,7 +411,7 @@ export function resizeWindow(event) {
 }
 
 export function setProjectTitle(title) {
-	let window_title = 'Blockbench';
+	let window_title = '3DBench';
 	if (title == undefined && Project.name) {
 		title = Project.name
 	}
@@ -429,7 +425,7 @@ export function setProjectTitle(title) {
 				title = title.replace(/^geometry\./,'').replace(/:[a-z0-9.]+/, '')
 			}
 		}
-		window_title = title+' - Blockbench';
+		window_title = title+' - 3DBench';
 	} else {
 		Prop.file_name = Prop.file_name_alt = ''
 	}

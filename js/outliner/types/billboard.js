@@ -75,7 +75,6 @@ new Property(BillboardFace, 'number', 'rotation', {default: 0});
 export class Billboard extends OutlinerElement {
 	constructor(data, uuid) {
 		super(data, uuid)
-		this.shade = true;
 		this.visibility = true;
 		this.autouv = 0;
 
@@ -154,7 +153,6 @@ export class Billboard extends OutlinerElement {
 
 		if (!this.visibility) el.visibility = false;
 		if (!this.export) el.export = false;
-		if (!this.shade) el.shade = false;
 		el.origin = this.origin;
 		el.faces = {
 			front: this.faces.front.getSaveCopy()
@@ -327,7 +325,6 @@ export class Billboard extends OutlinerElement {
 	Billboard.prototype.buttons = [
 		Outliner.buttons.autouv,
 		Outliner.buttons.mirror_uv,
-		Outliner.buttons.shade,
 		Outliner.buttons.export,
 		Outliner.buttons.locked,
 		Outliner.buttons.visibility,

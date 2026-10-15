@@ -285,7 +285,6 @@ export abstract class OutlinerElement extends OutlinerNode {
 		if (!constructor.properties?.name) new Property(constructor, 'string', 'name');
 		if (!constructor.properties?.export) new Property(constructor, 'boolean', 'export', {default: true});
 		if (!constructor.properties?.locked) new Property(constructor, 'boolean', 'locked', {default: false});
-		if (!constructor.properties?.scope) new Property(constructor, 'number', 'scope');
 
 		Object.defineProperty(constructor, 'all', {
 			get() {

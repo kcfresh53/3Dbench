@@ -24,10 +24,8 @@ export namespace Filesystem {
 	export type ResourceID =
 		| string
 		| 'texture'
-		| 'minecraft_skin'
 		| 'dev_plugin'
 		| 'animation'
-		| 'animation_particle'
 		| 'animation_audio'
 		| 'theme'
 		| 'model'

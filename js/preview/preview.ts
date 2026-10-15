@@ -2037,21 +2037,12 @@ Preview.prototype.menu = new Menu([
 	'edit_reference_images',
 	'preview_scene',
 	'preview_models',
-	{
-		icon: 'icon-player',
-		name: 'settings.display_skin',
-		condition: () => ((Modes.display && displayReferenceObjects.active.id === 'player') || Project.bedrock_animation_mode == 'attachable_third'),
-		click: function() {
-		
-			changeDisplaySkin()
-		}
-	},
 	new MenuSeparator('controls'),
 	'focus_on_selection',
-	{icon: 'add_a_photo', name: 'menu.preview.save_angle', condition(preview) {return !ReferenceImageMode.active && !Modes.display}, click(preview) {
+	{icon: 'add_a_photo', name: 'menu.preview.save_angle', condition(preview) {return !ReferenceImageMode.active}, click(preview) {
 		preview.newAnglePreset()
 	}},
-	{id: 'angle', icon: 'videocam', name: 'menu.preview.angle', condition(preview) {return !ReferenceImageMode.active && !Modes.display}, children: function(preview) {
+	{id: 'angle', icon: 'videocam', name: 'menu.preview.angle', condition(preview) {return !ReferenceImageMode.active}, children: function(preview) {
 		let children = []
 		let presets: AnglePreset[] = (localStorage.getItem('camera_presets') && autoParseJSON(localStorage.getItem('camera_presets'), false)) || [];
 		let all_presets = [
@@ -2095,7 +2086,7 @@ Preview.prototype.menu = new Menu([
 	}},
 	new MenuSeparator('interface'),
 	'split_screen',
-	{icon: 'fullscreen', name: 'menu.preview.maximize', condition: function(preview) {return Preview.split_screen.enabled && !ReferenceImageMode.active && !Modes.display}, click: function(preview) {
+	{icon: 'fullscreen', name: 'menu.preview.maximize', condition: function(preview) {return Preview.split_screen.enabled && !ReferenceImageMode.active}, click: function(preview) {
 		preview.fullscreen();
 	}}
 ])
@@ -2506,39 +2497,6 @@ window.addEventListener("gamepadconnected", function(event) {
 });
 
 export function setupPreviews() {
-	canvas_scenes.inventory_nine = new ReferenceImage({
-		condition: () => Modes.display && displayReferenceObjects.active?.id == 'inventory_nine',
-		name: tl('display.reference.inventory_nine'),
-		source: './assets/inventory_nine.png',
-		position: [0, 0],
-		size: [528, 528],
-		attached_side: 'south',
-		layer: 'background',
-		is_blueprint: true
-	}).addAsBuiltIn(),
-
-	canvas_scenes.inventory_full = new ReferenceImage({
-		condition: () => Modes.display && displayReferenceObjects.active?.id == 'inventory_full',
-		name: tl('display.reference.inventory_full'),
-		source: './assets/inventory_full.png',
-		position: [0, -215.6],
-		size: [1390, 1310],
-		attached_side: 'south',
-		layer: 'background',
-		is_blueprint: true
-	}).addAsBuiltIn(),
-
-	canvas_scenes.hud = new ReferenceImage({
-		condition: () => Modes.display && displayReferenceObjects.active?.id == 'hud',
-		name: tl('display.reference.hud'),
-		source: './assets/hud.png',
-		position: [-112, -70],
-		size: [1695, 308],
-		attached_side: 'south',
-		layer: 'background',
-		is_blueprint: true
-	}).addAsBuiltIn(),
-
 	MediaPreview = new Preview({id: 'media', offscreen: true});
 	Screencam.NoAAPreview = new Preview({id: 'no_aa_media', offscreen: true, antialias: false});
 	main_preview = new Preview({id: 'main'}).fullscreen();
@@ -2560,12 +2518,7 @@ export function animate() {
 	if (Animator.open) {
 		if (Timeline.playing) {
 			Timeline.loop();
-		} else if (AnimationController.selected) {
-			AnimationController.selected.updatePreview();
 		}
-	}
-	if (Preview.selected) {
-		WinterskyScene.updateFacingRotation(Preview.selected.camera);
 	}
 	Preview.all.forEach(function(prev) {
 		if (prev.canvas.isConnected) {
@@ -2573,9 +2526,6 @@ export function animate() {
 		}
 	})
 	framespersecond++;
-	if (Modes.display === true && Canvas.ground_animation === true && !Transformer.hoverAxis && DisplayMode.animate_preview) {
-		DisplayMode.groundAnimation()
-	}
 	if (TextureAnimator.isPlaying) {
 		TextureAnimator.playAnimationFrame();
 	}
@@ -2692,7 +2642,7 @@ BARS.defineActions(function() {
 	new BarSelect('split_screen', {
 		icon: 'grid_view',
 		category: 'view',
-		condition: () => !Modes.display && !Format.image_editor,
+		condition: () => !Format.image_editor,
 		value: 'single',
 		icon_mode: true,
 		options: {
@@ -2732,12 +2682,8 @@ BARS.defineActions(function() {
 				let preview = Preview.selected;
 				if (!preview.controls.enabled) return;
 				let center = new THREE.Vector3();
-				if (!Modes.display) {
-					center.fromArray(getSelectionCenter());
-					center.add(scene.position);
-				} else {
-					Transformer.getWorldPosition(center)
-				}
+				center.fromArray(getSelectionCenter());
+				center.add(scene.position);
 
 				let zoom_offset;
 				let difference = new THREE.Vector3().copy(preview.controls.target).sub(center);
@@ -2782,7 +2728,6 @@ BARS.defineActions(function() {
 	new Action('toggle_camera_projection', {
 		icon: 'switch_video',
 		category: 'view',
-		condition: _ => (!ReferenceImageMode.active || !Modes.display),
 		keybind: new Keybind({key: 101}),
 		click: function () {
 			Preview.selected.setProjectionMode(!Preview.selected.isOrtho, true);
@@ -2794,7 +2739,6 @@ BARS.defineActions(function() {
 		icon: 'videocam',
 		color: 'y',
 		category: 'view',
-		condition: _ => !Modes.display,
 		keybind: new Keybind({key: 97}),
 		click: function () {
 			Preview.selected.loadAnglePreset(DefaultCameraPresets[0])
@@ -2806,7 +2750,6 @@ BARS.defineActions(function() {
 		icon: 'videocam',
 		color: 'y',
 		category: 'view',
-		condition: _ => !Modes.display,
 		keybind: new Keybind({key: 104}),
 		click: function () {
 			Preview.selected.loadAnglePreset(DefaultCameraPresets[1])
@@ -2818,7 +2761,6 @@ BARS.defineActions(function() {
 		icon: 'videocam',
 		color: 'y',
 		category: 'view',
-		condition: _ => !Modes.display,
 		keybind: new Keybind({key: 98}),
 		click: function () {
 			Preview.selected.loadAnglePreset(DefaultCameraPresets[2])
@@ -2830,7 +2772,6 @@ BARS.defineActions(function() {
 		icon: 'videocam',
 		color: 'z',
 		category: 'view',
-		condition: _ => !Modes.display,
 		keybind: new Keybind({key: 100}),
 		click: function () {
 			Preview.selected.loadAnglePreset(DefaultCameraPresets[3])
@@ -2842,7 +2783,6 @@ BARS.defineActions(function() {
 		icon: 'videocam',
 		color: 'z',
 		category: 'view',
-		condition: _ => !Modes.display,
 		keybind: new Keybind({key: 102}),
 		click: function () {
 			Preview.selected.loadAnglePreset(DefaultCameraPresets[4])
@@ -2854,7 +2794,6 @@ BARS.defineActions(function() {
 		icon: 'videocam',
 		color: 'x',
 		category: 'view',
-		condition: _ => !Modes.display,
 		keybind: new Keybind({key: 103}),
 		click: function () {
 			Preview.selected.loadAnglePreset(DefaultCameraPresets[5])
@@ -2866,7 +2805,6 @@ BARS.defineActions(function() {
 		icon: 'videocam',
 		color: 'x',
 		category: 'view',
-		condition: _ => !Modes.display,
 		keybind: new Keybind({key: 105}),
 		click: function () {
 			Preview.selected.loadAnglePreset(DefaultCameraPresets[6])

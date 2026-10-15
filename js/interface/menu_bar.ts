@@ -221,22 +221,10 @@ export const MenuBar = {
 					}
 				},
 				'import_project',
-				'import_java_block_model',
-				'import_optifine_part',
-				'import_bedrock_attachable',
-				'import_bedrock_voxel_shape',
 				'import_obj',
 				'extrude_texture'
 			]},
 			{name: 'generic.export', id: 'export', icon: 'insert_drive_file', condition: () => !!Project, children: [
-				'export_blockmodel',
-				'export_bedrock',
-				'export_entity',
-				'export_bedrock_voxel_shape',
-				'export_class_entity',
-				'export_optifine_full',
-				'export_optifine_part',
-				'export_minecraft_skin',
 				'export_image',
 				'export_gltf',
 				'export_obj',
@@ -244,7 +232,6 @@ export const MenuBar = {
 				'export_stl',
 				'export_collada',
 				'export_legacy_project',
-				'export_modded_animations',
 				'upload_sketchfab',
 				'share_model',
 			]},
@@ -344,7 +331,6 @@ export const MenuBar = {
 				'toggle_locked',
 				'toggle_export',
 				'toggle_autouv',
-				'toggle_shade',
 				'toggle_mirror_uv'
 			]}
 
@@ -357,28 +343,33 @@ export const MenuBar = {
 			'extrude_mesh_selection',
 			'inset_mesh_selection',
 			'loop_cut',
+			'subdivide_mesh_selection',
 			'create_face',
 			'invert_face',
 			'switch_face_crease',
 			'merge_vertices',
 			'dissolve_edges',
 			'solidify_mesh_selection',
+			'smooth_vertices',
+			'flatten_vertices',
+			'recalculate_normals',
+			new MenuSeparator('selection'),
+			'select_linked_mesh',
+			'select_grow_mesh',
+			'select_shrink_mesh',
+			new MenuSeparator('weights'),
 			'set_vertex_weights',
+			'calculate_vertex_weights',
+			'smooth_vertex_weights',
+			'limit_vertex_weights',
+			'uv_smart_unwrap',
+			'uv_pack_islands',
+			'uv_equalize_texel_density',
 			new MenuSeparator('element'),
 			'apply_mesh_rotation',
 			'split_mesh',
 			'merge_meshes',
 		], {icon: 'fa-gem', condition: {selected: {mesh: true}, modes: ['edit']}})
-
-		new BarMenu('skin', [
-			new MenuSeparator('view'),
-			'custom_skin_poses',
-			'add_custom_skin_pose',
-			new MenuSeparator('edit'),
-			'toggle_skin_layer',
-			'explode_skin_model',
-			'convert_minecraft_skin_variant',
-		], {icon: 'icon-player', condition: {formats: ['skin']}})
 
 		new BarMenu('uv', UVEditor.menu.structure, {
 			condition: {modes: ['edit']},
@@ -400,6 +391,10 @@ export const MenuBar = {
 			'split_rgb_into_layers',
 			'split_alpha_into_layer',
 			'clear_unused_texture_space',
+			'texture_edge_padding',
+			new MenuSeparator('generate'),
+			'bake_texture_map',
+			'generate_uv_grid',
 			new MenuSeparator('transform'),
 			'flip_texture_x',
 			'flip_texture_y',
@@ -443,8 +438,6 @@ export const MenuBar = {
 			'bake_animation_into_model',
 			'merge_animation',
 			new MenuSeparator('file'),
-			'load_animation_file',
-			'save_all_animations',
 			'export_animation_file'
 		], {
 			icon: 'movie',
@@ -482,24 +475,12 @@ export const MenuBar = {
 		new BarMenu('timeline', Timeline.menu.structure, {
 			name: 'panel.timeline',
 			icon: 'timeline',
-			condition: {modes: ['animate'], method: () => !AnimationController.selected},
+			condition: {modes: ['animate']},
 			onOpen() {
 				setActivePanel('timeline');
 			}
 		})
 
-		new BarMenu('display', [
-			new MenuSeparator('copypaste'),
-			'copy',
-			'paste',
-			new MenuSeparator('presets'),
-			'add_display_preset',
-			'apply_display_preset'
-		], {
-			icon: 'tune',
-			condition: {modes: ['display']}
-		})
-		
 		new BarMenu('tools', [
 			new MenuSeparator('overview'),
 			{id: 'main_tools', icon: 'construction', name: 'menu.tools.main_tools', condition: () => !!Project, children() {
@@ -529,14 +510,8 @@ export const MenuBar = {
 			'swap_tools',
 			'action_control',
 			new MenuSeparator('tools'),
-			'predicate_overrides',
 			'convert_to_mesh',
-			'auto_set_cullfaces',
 			'remove_blank_faces',
-			'generate_voxel_shapes',
-			'generate_bedrock_block_box',
-			'generate_bedrock_entity_box',
-			'slice_bedrock_multiblock',
 		], {icon: 'handyman'})
 		MenuBar.menus.filter = MenuBar.menus.tools;
 
@@ -581,7 +556,6 @@ export const MenuBar = {
 			'pixel_grid',
 			'painting_grid',
 			new MenuSeparator('references'),
-			'bedrock_animation_mode',
 			'preview_scene',
 			'preview_models',
 			'edit_reference_images',

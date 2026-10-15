@@ -1,6 +1,5 @@
 import { Filesystem } from "../file_system";
 import { Animation, AnimationItem } from "./animation";
-import { AnimationController } from "./animation_controllers";
 
 type FileResult = Filesystem.FileResult;
 
@@ -88,12 +87,8 @@ export class AnimationCodec implements SharedOptions {
 	}
 	static codecs: Record<string, AnimationCodec> = {}
 	static getCodec(animation?: AnimationItem): AnimationCodec {
-		if (animation instanceof AnimationController) {
-			return AnimationCodec.codecs.bedrock_controller;
-		} else if (Format.animation_codec) {
+		if (Format.animation_codec) {
 			return Format.animation_codec;
-		} else if (Format.animation_files) {
-			return AnimationCodec.codecs.bedrock;
 		}
 	}
 }

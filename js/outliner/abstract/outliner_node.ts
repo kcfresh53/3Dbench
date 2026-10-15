@@ -8,7 +8,6 @@ export abstract class OutlinerNode {
 	uuid: UUID
 	export: boolean
 	locked: boolean
-	scope: number
 	parent: (OutlinerNode & OutlinerNodeParentTraits) | 'root'
 	selected: boolean
 	visibility?: boolean
@@ -33,7 +32,6 @@ export abstract class OutlinerNode {
 		this.uuid = uuid || guid()
 		this.export = true;
 		this.locked = false;
-		this.scope = 0;
 		
 		this._static = Object.freeze({
 			properties: {},
@@ -305,7 +303,7 @@ export abstract class OutlinerNode {
 	createUniqueName(additional?: OutlinerNode[]): string | false {
 		if (!Condition(this.getTypeBehavior('unique_name'))) return;
 		var scope = this;
-		let others = (this.constructor as typeof OutlinerNode).all.filter(node => node.scope == this.scope);
+		let others = (this.constructor as typeof OutlinerNode).all;
 		if (additional && additional.length) {
 			additional.forEach(g => {
 				others.safePush(g)
