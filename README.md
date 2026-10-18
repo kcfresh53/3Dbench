@@ -26,7 +26,7 @@ It is a fork of [Blockbench](https://github.com/JannisX11/blockbench) that drops
 | `js/modeling/mesh/unwrap/` | UV unwrapper: mesh graph, cutting, LSCM/ARAP, metrics, packer, texel density |
 | `js/modeling/mesh/tools/` | Subdivide, smooth, flatten, normals, selection tools |
 | `js/modeling/rig/` | Heat weights, weight tools, bone tools |
-| `js/modeling/rig/humanoid/` | Component based humanoid generator (torso, neck/head, legs, arms, hands) |
+| `js/modeling/rig/humanoid/` | Bodiez shape customization, local templates, and procedural humanoid components |
 | `js/texturing/pbr_channels.ts` | PBR channel definitions |
 | `js/texturing/bake/` | Rasterizer, BVH, bake passes, dilation |
 
@@ -39,17 +39,19 @@ Blockbench is created by Jannis Petersen and contributors.
 
 The `Blockbench` scripting API and `.bbmodel` file identifiers remain compatible with upstream projects and plugins. Upstream credits and documentation links are retained; application releases and issue reporting point to this fork. Desktop settings continue to use the existing `3DBench` data directory.
 
-Run `npm run test:humanoid` to check generated geometry, closed surfaces, winding, skin weights, symmetry, rig names and the triangle budget. Locally installed chibi templates also have geometry, UV, material and weight preservation checks.
+Run `npm run test:humanoid-scene` to check the live modal, viewport updates and zoom, cancellation, scene creation, and undo/redo in Electron. Run `npm run test:humanoid` to check generated geometry, closed surfaces, winding, skin weights, symmetry, rig names and the triangle budget. Locally installed chibi templates also have geometry, UV, material and weight preservation checks.
 
-## Male base mesh
+## Customizable male and female bases
 
-The Male base preset uses the supplied low-poly male FBX, adapted to model coordinates and a height of 32 with a fitted 28-bone rig and normalized heat weights (at most four influences per vertex). Its 484 vertices, silhouette and source UVs are retained; polygons larger than quads are triangulated for editor compatibility, producing 964 triangles. Hands use a finger-group control and two thumb controls. It starts in the source A-pose, untextured. Height scales the mesh and skeleton together; procedural shape and pose controls are hidden for this preset. The adapted asset is bundled in `assets/humanoid/male_base.json`.
+Male base and Female base use the locally installed Bodiez meshes. The creation dialog includes an isolated live 3D preview: drag to orbit, scroll to zoom, and double-click to reset the camera. Changes update before anything is added to the project; Cancel discards the preview and Add Humanoid creates one undoable character. Visible sliders provide continuous body-type blending (Thin → Regular → Muscular → Heavy), head size, body size, shoulders, female breast size, short proportions, hips, arm size and leg size. Combine them freely; body-type landmarks are at 0, 1, 2 and 3, and size controls are neutral at 1. Proportion changes use the source skin weights and resize the rest skeleton with the surface, preserving connected joints and finger chains. Short proportions shorten the torso and legs relative to the head; Height still sets the final overall height. Optional ears and a single-mesh option remain available. Shapes are baked into editable geometry using the source Blender shape-key deltas. The source A-pose, polygon topology, UVs and deform rig (including individual fingers) are retained. Ears use the head bone where the separate source ear rig has no matching influence. Height normalizes the chosen body's floor and top while scaling the skeleton together. No textures, subdivision, Blender control widgets, drivers or embedded scripts are loaded.
 
-To regenerate it from the supplied archive:
+Install or regenerate both bases from the supplied folder:
 
 ```sh
-/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --disable-autoexec --python scripts/import_male_base.py -- "/path/to/low-poly-male-base-mesh.zip"
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --disable-autoexec --python scripts/import_bodiez.py -- "/path/to/Bodiez+Customizable+Male+&+Female+Base+Meshes"
 ```
+
+The importer writes `bodiez_male.json` and `bodiez_female.json` to `.local-assets/humanoid/`. These commercial source assets stay local, are ignored by Git and are excluded from release packaging. Keep the installed files beside the app's `index.html` (including for a locally deployed web build). Missing installations produce an explicit installation message. Blender is needed only for import; character creation runs inside 3D Bench. The previous bundled male FBX and procedural female are no longer used by these presets. Chibi presets retain their existing workflow.
 
 ## Local character templates
 

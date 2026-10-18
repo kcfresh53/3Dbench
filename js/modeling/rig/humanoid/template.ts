@@ -8,6 +8,12 @@ export interface HumanoidTemplate extends ComponentOutput {
 	source: string
 	height: number
 	textures: { name: string; file: string }[]
+	customization?: {
+		system: 'bodiez'
+		sex: 'male' | 'female'
+		/** Per-mesh source shape deltas, relative to each source key's reference. */
+		morphs: Record<string, Vec3[]>[]
+	}
 }
 
 export function validateTemplate(value: unknown): asserts value is HumanoidTemplate {
@@ -29,6 +35,14 @@ export function validateTemplate(value: unknown): asserts value is HumanoidTempl
 			if (!Number.isInteger(material) || (material !== -1 && (material < 0 || material >= t.textures.length))) throw new Error('Invalid template material');
 		});
 	}
+	if (t.customization) {
+		const c = t.customization;
+		if (c.system !== 'bodiez' || !['male', 'female'].includes(c.sex) || !Array.isArray(c.morphs) || c.morphs.length !== t.meshes.length || !t.meshes[0]?.vertices.length) throw new Error('Invalid body customization data');
+		c.morphs.forEach((morphs, i) => {
+			if (!morphs || Object.values(morphs).some(deltas => !Array.isArray(deltas) || deltas.length !== t.meshes[i].vertices.length || !deltas.every(point))) throw new Error('Invalid body shape deltas');
+		});
+		if (['Regular', 'Thin', 'Muscular', 'Fat', 'Hip_Wide', ...(c.sex === 'female' ? ['Breast_Small', 'Breast_Big'] : [])].some(key => !Object.hasOwn(c.morphs[0], key))) throw new Error('Missing body shape');
+	}
 	if (t.textures.some(texture => !/^[a-zA-Z0-9_-]+\.png$/.test(texture.file))) throw new Error('Invalid template texture path');
 }
 
@@ -49,9 +63,9 @@ export function buildFromTemplate(template: HumanoidTemplate, height: number, ge
 }
 
 export async function loadHumanoidTemplate(id: string): Promise<HumanoidTemplate> {
-	if (id !== 'male_base' && !/^chibi_(male|female)$/.test(id)) throw new Error('Unknown character preset');
+	if (id !== 'male_base' && !/^(chibi|bodiez)_(male|female)$/.test(id)) throw new Error('Unknown character preset');
 	const base = new URL(id === 'male_base' ? './assets/humanoid/' : './.local-assets/humanoid/', location.href);
-	const missing = id === 'male_base' ? 'The bundled Male base mesh could not be loaded.' : 'The purchased template has not been installed locally. See README → Local character templates.';
+	const missing = id.startsWith('bodiez_') ? 'Bodiez base meshes are not installed locally. Run scripts/import_bodiez.py with your Bodiez folder (see README → Customizable male and female bases).' : id === 'male_base' ? 'The bundled Male base mesh could not be loaded.' : 'The purchased template has not been installed locally. See README → Local character templates.';
 	if (base.protocol === 'file:') {
 		const { fs } = await import('../../../native_apis');
 		let template: HumanoidTemplate;

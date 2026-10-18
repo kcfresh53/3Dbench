@@ -135,11 +135,8 @@ export const DEFAULT_HUMANOID: HumanoidParams = {
 
 /** Every preset stays low-poly; proportions can still be edited independently. */
 export const HUMANOID_PRESETS: Record<string, HumanoidPreset> = {
-	male: { label: 'Male base', template: 'male_base', values: { auto_uv: false, arm_pose: 'a_pose' } },
-	female: {
-		label: 'Female base',
-		values: { shoulder_width: 0.86, hip_width: 1.16, waist_width: 0.78, chest_shape: 0.65, limb_thickness: 0.85, hand_scale: 0.9, foot_scale: 0.88, jaw_width: 0.78, head_width: 0.96 },
-	},
+	male: { label: 'Male base', template: 'bodiez_male', values: { auto_uv: false, arm_pose: 'a_pose' } },
+	female: { label: 'Female base', template: 'bodiez_female', values: { auto_uv: false, arm_pose: 'a_pose' } },
 	chibi_male: {
 		label: 'Male Chibi base', template: 'chibi_male',
 		values: { auto_uv: false, style: 'low_poly' },

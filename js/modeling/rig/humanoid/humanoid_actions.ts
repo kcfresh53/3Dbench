@@ -1,8 +1,10 @@
 import { Armature } from '../../../outliner/types/armature';
 import { ArmatureBone } from '../../../outliner/types/armature_bone';
-import { BoneSpec, DEFAULT_HUMANOID, HUMANOID_PRESETS, HumanoidParams, MeshSpec } from './humanoid_types';
+import { BoneSpec, ComponentOutput, DEFAULT_HUMANOID, HUMANOID_PRESETS, HumanoidParams, MeshSpec } from './humanoid_types';
 import { buildHumanoid } from './humanoid_builder';
 import { buildFromTemplate, HumanoidTemplate, loadHumanoidTemplate } from './template';
+import { buildModularHumanoid, DEFAULT_MODULAR, ModularOptions } from './modular';
+import { createHumanoidPreview } from './preview';
 import { boneName } from './bone_names';
 import { distance, Vec3 } from './vec';
 import { THREE } from '../../../lib/libs';
@@ -10,7 +12,8 @@ import { unwrapMeshes } from '../../mesh/unwrap/mesh_unwrap';
 import type { FormResultValue } from '../../../interface/form';
 import { DEFAULT_UNWRAP_OPTIONS, UnwrapOptions } from '../../mesh/unwrap/types';
 
-type HumanoidForm = HumanoidParams & { preset: string };
+type HumanoidForm = HumanoidParams & ModularOptions & { preset: string };
+const isModular = (f: HumanoidForm): boolean => !!HUMANOID_PRESETS[f.preset]?.template?.startsWith('bodiez_');
 
 const PRESET_OPTIONS: Record<string, string> = {};
 for (const key in HUMANOID_PRESETS) PRESET_OPTIONS[key] = HUMANOID_PRESETS[key].label;
@@ -46,9 +49,15 @@ function boneWorldQuaternion(head: Vec3, tail: Vec3): THREE.Quaternion {
 	return quaternion;
 }
 
+/** Shared by the isolated preview and final scene creation. */
+function buildCharacter(params: HumanoidParams, template?: HumanoidTemplate, options: ModularOptions = DEFAULT_MODULAR): ComponentOutput {
+	return template?.customization ? buildModularHumanoid(template, params.height, params.generate_mesh, options)
+		: template ? buildFromTemplate(template, params.height, params.generate_mesh) : buildHumanoid(params);
+}
+
 /** Creates the armature, bones and meshes for a humanoid in the current project. Returns the armature. */
-export function createHumanoidInScene(params: HumanoidParams, template?: HumanoidTemplate): Armature {
-	const output = template ? buildFromTemplate(template, params.height, params.generate_mesh) : buildHumanoid(params);
+export function createHumanoidInScene(params: HumanoidParams, template?: HumanoidTemplate, options: ModularOptions = DEFAULT_MODULAR): Armature {
+	const output = buildCharacter(params, template, options);
 	const elements: OutlinerElement[] = [];
 	Undo.initEdit({ outliner: true, elements: [], selection: true });
 	unselectAllElements();
@@ -139,9 +148,20 @@ export function createHumanoidInScene(params: HumanoidParams, template?: Humanoi
 	return armature;
 }
 
-BARS.defineActions(function() {
+function showHumanoidDialog() {
+	const owner = Project;
 	const form: Record<string, any> = {
 		preset: { label: 'dialog.create_humanoid.preset', type: 'select', value: 'male', options: PRESET_OPTIONS },
+		head_size: { label: 'Head size', type: 'range', editable_range_label: true, value: 1, min: 0.5, max: 2, step: 0.01, condition: isModular },
+		body_type: { label: 'Body type', type: 'range', editable_range_label: true, value: 1, min: 0, max: 3, step: 0.01, description: 'Thin (0) → Regular (1) → Muscular (2) → Heavy (3). Blend freely between neighboring types.', condition: isModular },
+		body_size: { label: 'Body size', type: 'range', editable_range_label: true, value: 1, min: 0.6, max: 1.6, step: 0.01, condition: isModular },
+		shoulder_size: { label: 'Shoulders', type: 'range', editable_range_label: true, value: 1, min: 0.6, max: 1.6, step: 0.01, condition: isModular },
+		breast_size: { label: 'Breast size', type: 'range', editable_range_label: true, value: 0, min: -1, max: 1, step: 0.01, condition: (f: HumanoidForm) => isModular(f) && f.preset === 'female' },
+		shortness: { label: 'Short proportions', type: 'range', editable_range_label: true, value: 0, min: 0, max: 1, step: 0.01, condition: isModular },
+		hip_fullness: { label: 'Hips', type: 'range', editable_range_label: true, value: 0, min: 0, max: 1, step: 0.01, condition: isModular },
+		arm_size: { label: 'Arm size', type: 'range', editable_range_label: true, value: 1, min: 0.6, max: 1.5, step: 0.01, condition: isModular },
+		leg_size: { label: 'Leg size', type: 'range', editable_range_label: true, value: 1, min: 0.6, max: 1.5, step: 0.01, condition: isModular },
+		include_ears: { label: 'Include ears', type: 'checkbox', value: true, condition: (f: HumanoidForm) => isModular(f) && f.generate_mesh },
 		height: { label: 'dialog.create_humanoid.height', type: 'number', value: DEFAULT_HUMANOID.height, min: 1, step: 1 },
 		style: {
 			label: 'dialog.create_humanoid.style', type: 'select', value: DEFAULT_HUMANOID.style,
@@ -175,50 +195,120 @@ BARS.defineActions(function() {
 	// Hide controls that would suggest they can be changed without losing that exact match.
 	for (const key of ['style', 'arm_pose', 'fingers', 'toes', 'spine_bones', 'root_bone', 'single_mesh', 'auto_uv', ...PROPORTION_FIELDS.map(([key]) => key)]) {
 		const previous = form[key].condition;
-		form[key].condition = (f: HumanoidForm) => !HUMANOID_PRESETS[f.preset]?.template && (!previous || previous(f));
+		form[key].condition = (f: HumanoidForm) => (!HUMANOID_PRESETS[f.preset]?.template || (key === 'single_mesh' && isModular(f))) && (!previous || previous(f));
 	}
-	form._male_note = { type: 'info', text: 'Adapted low-poly male mesh with a fitted rig, skin weights and preserved UVs. A-pose, without textures. Height scales the entire model uniformly.', condition: (f: HumanoidForm) => f.preset === 'male' };
-	form._template_note = { type: 'info', text: 'Original geometry, UVs, skin weights and A-pose, without textures. Height scales the entire model uniformly.', condition: (f: HumanoidForm) => !!HUMANOID_PRESETS[f.preset]?.template && f.preset !== 'male' };
-	let last_preset: string = 'male';
+	form._modular_note = { type: 'info', text: 'Body type blends Thin (0), Regular (1), Muscular (2), and Heavy (3). Combine the sliders freely; 1 is neutral for size controls. Short proportions shorten the torso and legs relative to the head. Height sets the final overall height.', condition: isModular };
+	form._template_note = { type: 'info', text: 'Original geometry, UVs, skin weights and A-pose, without textures. Height scales the entire model uniformly.', condition: (f: HumanoidForm) => !!HUMANOID_PRESETS[f.preset]?.template && !isModular(f) };
+	let last_preset = 'male', active = false, revision = 0, confirming = false;
+	let timer: ReturnType<typeof setTimeout>;
+	let pendingPreview: HumanoidForm;
+	let preview: ReturnType<typeof createHumanoidPreview>;
+	let status: HTMLElement;
+	const templates = new Map<string, Promise<HumanoidTemplate>>();
+	const readForm = (): HumanoidForm => ({ ...DEFAULT_HUMANOID, ...DEFAULT_MODULAR, preset: 'male', ...dialog.getFormResult() });
+	function getTemplate(result: HumanoidForm): Promise<HumanoidTemplate | undefined> {
+		const id = HUMANOID_PRESETS[result.preset]?.template;
+		if (!id) return Promise.resolve(undefined);
+		if (!templates.has(id)) templates.set(id, loadHumanoidTemplate(id).catch(error => { templates.delete(id); throw error; }));
+		return templates.get(id)!;
+	}
+	function setStatus(text: string, error = false) {
+		if (!status) return;
+		status.textContent = text;
+		status.classList.toggle('humanoid_error', error);
+	}
+	function refresh(result: HumanoidForm, delay = 60) {
+		if (!active) return;
+		pendingPreview = result;
+		++revision;
+		setStatus('Updating preview…');
+		// Throttle instead of waiting for the drag to stop: keep rendering while a slider moves.
+		if (timer !== undefined) return;
+		timer = setTimeout(async () => {
+			timer = undefined;
+			const result = pendingPreview, request = revision;
+			try {
+				const template = await getTemplate(result);
+				if (!active || request !== revision) return;
+				const params = { ...DEFAULT_HUMANOID, ...result };
+				const output = buildCharacter(params, template, { ...DEFAULT_MODULAR, ...result });
+				preview?.update(output, !template && params.style === 'blocky');
+				const vertices = output.meshes.reduce((n, mesh) => n + mesh.vertices.length, 0);
+				const triangles = output.meshes.reduce((n, mesh) => n + mesh.faces.reduce((n, face) => n + face.length - 2, 0), 0);
+				setStatus(`${vertices.toLocaleString()} vertices · ${triangles.toLocaleString()} triangles · ${output.bones.length} bones${preview ? '' : ' · 3D preview unavailable'}`);
+			} catch (error) {
+				if (!active || request !== revision) return;
+				preview?.clear();
+				setStatus(error instanceof Error ? error.message : 'Could not preview this character.', true);
+			}
+		}, delay);
+	}
+	function cleanup() {
+		active = false; ++revision; clearTimeout(timer);
+		preview?.dispose(); preview = undefined; templates.clear();
+	}
 	const dialog: Dialog = new Dialog({
 		id: 'create_humanoid',
 		title: 'action.create_humanoid',
-		width: 520,
+		width: 1060,
+		buttons: ['Add Humanoid', 'dialog.cancel'],
+		part_order: ['component', 'form'],
 		form,
+		component: {
+			template: `<div class="humanoid_view"><div class="humanoid_heading">LIVE CHARACTER PREVIEW</div><canvas aria-label="Humanoid preview"></canvas><p class="humanoid_stats" role="status" aria-live="polite"></p><p class="humanoid_hint">Drag to orbit · Scroll to zoom · Double-click to reset</p></div>`,
+		},
+		onOpen() {
+			active = true;
+			status = dialog.object.querySelector('.humanoid_stats');
+			try { preview = createHumanoidPreview(dialog.object.querySelector('canvas')); }
+			catch (error) { console.error('Humanoid preview unavailable', error); }
+			refresh(readForm(), 0);
+		},
 		onFormChange(result: Record<string, FormResultValue>) {
-			const preset_key: string = result.preset as string;
-			if (preset_key == last_preset) return;
-			last_preset = preset_key;
-			const preset = HUMANOID_PRESETS[preset_key];
-			if (!preset) return;
-			// reset proportions to the defaults, then apply what the preset changes
-			const values: Record<string, any> = { ...DEFAULT_HUMANOID, ...preset.values };
-			const update: Record<string, any> = {};
-			for (const [key] of PROPORTION_FIELDS) update[key] = values[key];
-			for (const key of ['style', 'fingers', 'toes', 'spine_bones']) update[key] = values[key];
-			dialog.setFormValues(update, false);
+			const preset_key = result.preset as string;
+			if (preset_key !== last_preset) {
+				last_preset = preset_key;
+				const preset = HUMANOID_PRESETS[preset_key];
+				if (!preset) return;
+				const values = { ...DEFAULT_HUMANOID, ...preset.values };
+				const update: Record<string, any> = { ...DEFAULT_MODULAR };
+				for (const [key] of PROPORTION_FIELDS) update[key] = values[key];
+				for (const key of ['style', 'fingers', 'toes', 'spine_bones']) update[key] = values[key];
+				dialog.setFormValues(update, false);
+			}
+			refresh(readForm());
 		},
 		onConfirm(result: HumanoidForm) {
+			if (confirming) return false;
+			confirming = true;
 			void (async () => {
-				const params: HumanoidParams = { ...DEFAULT_HUMANOID, ...result };
-				const templateId = HUMANOID_PRESETS[result.preset]?.template;
 				try {
-					const template = templateId ? await loadHumanoidTemplate(templateId) : undefined;
-					createHumanoidInScene(params, template);
+					const template = await getTemplate(result);
+					if (!active) return;
+					if (Project !== owner) throw new Error('The original project is no longer open. Reopen Create Humanoid in the current project.');
+					createHumanoidInScene({ ...DEFAULT_HUMANOID, ...result }, template, { ...DEFAULT_MODULAR, ...result });
+					dialog.close(dialog.cancelIndex);
 				} catch (error) {
-					console.error(error);
-					Blockbench.showMessageBox({ title: 'Create Humanoid', message: error instanceof Error ? error.message : 'Could not load the local character template.' });
-				}
+					if (active) setStatus(error instanceof Error ? error.message : 'Could not create this character.', true);
+				} finally { confirming = false; }
 			})();
+			return false;
+		},
+		onClose() {
+			cleanup();
+			queueMicrotask(() => dialog.delete());
 		},
 	});
+	dialog.show();
+}
 
+BARS.defineActions(function() {
 	new Action('create_humanoid', {
 		icon: 'accessibility_new',
 		category: 'edit',
 		condition: () => Modes.edit && !!Format.armature_rig && !!Format.meshes,
 		click() {
-			dialog.show();
+			showHumanoidDialog();
 		},
 	});
 });

@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
 const dir = await mkdtemp(path.join(tmpdir(), '3dbench-humanoid-'));
 after(() => rm(dir, { recursive: true, force: true }));
-for (const name of ['humanoid_builder', 'humanoid_types', 'bone_names', 'template']) {
+for (const name of ['humanoid_builder', 'humanoid_types', 'bone_names', 'template', 'modular']) {
  await build({ entryPoints: [`js/modeling/rig/humanoid/${name}.ts`], bundle: true, platform: 'node', format: 'esm', outfile: path.join(dir, `${name}.mjs`) });
 }
 const { buildHumanoid } = await import(pathToFileURL(path.join(dir, 'humanoid_builder.mjs')));
@@ -52,7 +52,7 @@ function validate(output, params) {
   }
  }
 }
-for(const [name,preset] of Object.entries(HUMANOID_PRESETS)) {
+for(const [name,preset] of Object.entries({ ...HUMANOID_PRESETS, procedural: { values: {} }, procedural_female: { values: { shoulder_width: 0.86, hip_width: 1.16, waist_width: 0.78, chest_shape: 0.65, limb_thickness: 0.85 } } })) {
  if (preset.template) continue;
  test(`${name}: rigged manifold game mesh in all poses`,()=>{
   for(const arm_pose of ['t_pose','a_pose','relaxed']) {
@@ -132,7 +132,7 @@ for (const [sex, vertices, triangles] of [['male',637,1270],['female',673,1342]]
 
 test('adapted Male base: bundled source mesh, fitted rig, UVs and scalable skin weights', async () => {
  const template = JSON.parse(await readFile('assets/humanoid/male_base.json', 'utf8'));
- assert.equal(HUMANOID_PRESETS.male.template, 'male_base');
+ assert.equal(HUMANOID_PRESETS.male.template, 'bodiez_male');
  validateTemplate(template);
  assert.equal(template.name, 'Male base');
  assert.equal(template.bones.length, 28);
@@ -168,3 +168,89 @@ test('adapted Male base: bundled source mesh, fitted rig, UVs and scalable skin 
  mesh.vertices[0][0] = 999;
  assert.notEqual(template.meshes[0].vertices[0][0], 999);
 });
+
+const { buildModularHumanoid, DEFAULT_MODULAR } = await import(pathToFileURL(path.join(dir, 'modular.mjs')));
+for (const sex of ['male', 'female']) {
+ const file = `.local-assets/humanoid/bodiez_${sex}.json`;
+ const installed = await access(file).then(() => true, () => false);
+ test(`Bodiez ${sex}: all body types, morphs, rig, UVs, height and mesh options`, { skip: !installed }, async () => {
+  assert.equal(HUMANOID_PRESETS[sex].template, `bodiez_${sex}`);
+  const template = JSON.parse(await readFile(file, 'utf8'));
+  validateTemplate(template);
+  const before = JSON.stringify(template);
+  assert.equal(template.bones.length, sex === 'male' ? 62 : 64);
+  for (const convention of ['simple', 'unity', 'godot', 'mixamo']) assert.equal(new Set(template.bones.map(b => boneName(b.id, convention))).size, template.bones.length);
+  for (const body_type of ['regular', 'thin', 'muscular', 'heavy']) for (const hip_fullness of [0, 0.5, 1]) for (const breast_size of sex === 'female' ? [-1, 0, 1] : [0]) {
+   const options = { ...DEFAULT_MODULAR, body_type, hip_fullness, breast_size, single_mesh: false };
+   const output = buildModularHumanoid(template, 32, true, options);
+   const body = output.meshes[0];
+   assert(Math.abs(Math.min(...body.vertices.map(v => v[1]))) < 1e-8);
+   assert(Math.abs(Math.max(...body.vertices.map(v => v[1])) - 32) < 1e-8);
+   const ids = new Set();
+   for (const b of output.bones) { assert(!b.parent || ids.has(b.parent)); ids.add(b.id); assert(b.head.concat(b.tail).every(Number.isFinite)); }
+   output.meshes.forEach((m, i) => {
+    assert(m.vertices.flat().every(Number.isFinite));
+    assert.deepEqual(m.faces, template.meshes[i].faces);
+    assert.deepEqual(m.face_uvs, template.meshes[i].face_uvs);
+    assert.deepEqual(m.vertex_weights, template.meshes[i].vertex_weights);
+    for (const w of m.vertex_weights) { assert(Math.abs(Object.values(w).reduce((a,b) => a+b,0)-1)<1e-8); assert(Object.keys(w).every(id=>ids.has(id))); }
+   });
+  }
+  const neutral = buildModularHumanoid(template, 32, true, { ...DEFAULT_MODULAR, single_mesh: false });
+  for (const [key, value] of [['body_type','thin'], ['body_type','muscular'], ['body_type','heavy'], ['hip_fullness',1], ...(sex === 'female' ? [['breast_size',-1],['breast_size',1]] : [])]) {
+   const changed = buildModularHumanoid(template,32,true,{...DEFAULT_MODULAR,[key]:value,single_mesh:false});
+   assert(changed.meshes[0].vertices.some((v,i)=>v.some((n,a)=>Math.abs(n-neutral.meshes[0].vertices[i][a])>1e-4)), `${key} ${value} must change the body`);
+  }
+  const merged = buildModularHumanoid(template, 32, true, DEFAULT_MODULAR).meshes[0];
+  assert.equal(merged.vertices.length, neutral.meshes.reduce((n,m)=>n+m.vertices.length,0));
+  assert.deepEqual(merged.face_uvs,neutral.meshes.flatMap(m=>m.face_uvs));
+  assert(merged.faces.flat().every(i=>i>=0&&i<merged.vertices.length));
+  assert.equal(buildModularHumanoid(template,32,true,{...DEFAULT_MODULAR,include_ears:false}).meshes[0].vertices.length,template.meshes[0].vertices.length);
+  assert.equal(buildModularHumanoid(template,32,false,DEFAULT_MODULAR).meshes.length,0);
+  const scaled = buildModularHumanoid(template,64,true,DEFAULT_MODULAR);
+  scaled.meshes[0].vertices.forEach((v,i)=>assert.deepEqual(v,merged.vertices[i].map(n=>n*2)));
+  scaled.bones.forEach((b,i)=>assert.deepEqual(b.head,neutral.bones[i].head.map(n=>n*2)));
+  assert.throws(()=>buildModularHumanoid(template,NaN,true,DEFAULT_MODULAR));
+  assert.throws(()=>buildModularHumanoid(template,32,true,{...DEFAULT_MODULAR,hip_fullness:2}));
+  assert.throws(()=>buildModularHumanoid(template,32,true,{...DEFAULT_MODULAR,body_type:'unknown'}));
+  const invalid=structuredClone(template); invalid.customization.morphs[0].Thin.pop(); assert.throws(()=>validateTemplate(invalid));
+  assert.equal(JSON.stringify(template),before,'template remains reusable');
+ });
+}
+
+for (const sex of ['male', 'female']) {
+ const file = `.local-assets/humanoid/bodiez_${sex}.json`;
+ const installed = await access(file).then(() => true, () => false);
+ test(`Bodiez ${sex}: continuous body blending and combined proportion controls`, { skip: !installed }, async () => {
+  const template = JSON.parse(await readFile(file, 'utf8'));
+  const buildShape = options => buildModularHumanoid(template,32,true,{...DEFAULT_MODULAR,...options});
+  const neutral = buildShape({});
+  const difference = (a,b) => Math.max(...a.meshes[0].vertices.flatMap((v,i)=>v.map((n,axis)=>Math.abs(n-b.meshes[0].vertices[i][axis]))));
+  for (const [name,number] of [['thin',0],['regular',1],['muscular',2],['heavy',3]]) assert.deepEqual(buildShape({body_type:name}),buildShape({body_type:number}));
+  for (const center of [0.5,1,1.5,2,2.5]) {
+   const a = buildShape({body_type:center-0.0001}), b = buildShape({body_type:center+0.0001});
+   assert(difference(a,b)>0,'body type must move continuously');
+   assert(difference(a,b)<0.01,'body type must not jump at preset boundaries');
+  }
+  for (const [key,min,max] of [['head_size',0.5,2],['body_size',0.6,1.6],['shoulder_size',0.6,1.6],['shortness',0,1],['arm_size',0.6,1.5],['leg_size',0.6,1.5]]) {
+   for (const value of [min,max]) {
+    const output = buildShape({[key]:value,body_type:1.35,hip_fullness:0.4,breast_size:0.3});
+    assert(difference(output,neutral)>0.01,`${key} must change the mesh`);
+    assert(output.meshes[0].vertices.flat().every(Number.isFinite));
+    const bones = new Map(output.bones.map(b=>[b.id,b]));
+    for(const b of output.bones) {
+     assert(Math.hypot(...b.head.map((v,i)=>v-b.tail[i]))>1e-5);
+     if(b.connected) assert(Math.hypot(...b.head.map((v,i)=>v-bones.get(b.parent).tail[i]))<1e-5,`${key}: ${b.id} detached`);
+    }
+    assert.deepEqual(output.meshes[0].face_uvs,neutral.meshes[0].face_uvs);
+    assert.deepEqual(output.meshes[0].vertex_weights,neutral.meshes[0].vertex_weights);
+   }
+   assert.throws(()=>buildShape({[key]:NaN}));
+   assert.throws(()=>buildShape({[key]:max+1}));
+  }
+  const combined = buildShape({head_size:1.3,body_size:1.15,shoulder_size:0.8,shortness:0.5,arm_size:0.85,leg_size:1.1,body_type:2.4});
+  assert(combined.meshes[0].vertices.flat().every(Number.isFinite));
+  assert(Math.abs(Math.max(...combined.meshes[0].vertices.map(v=>v[1]))-32)<1e-8);
+  assert(difference(combined,neutral)>1);
+ });
+}
