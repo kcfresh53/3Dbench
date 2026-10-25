@@ -1,3 +1,4 @@
+import { updateNativeMenu } from './native_menu';
 import { ModelLoader } from "../io/model_loader";
 import { Menu, MenuItem, MenuOpenPositionAnchor, MenuOptions } from "./menu"
 import { currentwindow, exposeNativeApisInDevTools } from "../native_apis";
@@ -107,13 +108,14 @@ export const MenuBar = {
 			new MenuSeparator('file_options'),
 			'project_window',
 			new MenuSeparator('open'),
-			{name: 'menu.file.new', id: 'new', icon: 'insert_drive_file',
+			'new_model',
+			{name: 'mode.start.other_workflows', id: 'new', icon: 'insert_drive_file',
 				children: function() {
 					let arr = [];
 					let redact = settings.streamer_mode.value;
 					for (let key in Formats) {
 						let format = Formats[key];
-						if (format.show_in_new_list === false) continue;
+						if (format.id === 'free' || format.show_in_new_list === false) continue;
 						arr.push({
 							id: format.id,
 							name: (redact && format.confidential) ? `[${tl('generic.redacted')}]` : format.name,
@@ -824,6 +826,7 @@ export const MenuBar = {
 	 * Update the menu bar
 	 */
 	update(): void {
+		updateNativeMenu();
 		if (!Blockbench.isMobile) {
 			let bar = document.getElementById('menu_bar');
 			bar.replaceChildren();

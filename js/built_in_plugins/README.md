@@ -5,6 +5,7 @@ the editor UI and compatibility API are ready:
 
 | Feature | Version | Author | Location |
 | --- | --- | --- | --- |
+| Procedural Trees | 2.3.0 | 3DBench | Tools → Procedural Tree / Edit Procedural Tree |
 | Easing Peasy | 1.0.1 | Titus Evans (SnaveSutit) | Easing panel in Animation mode |
 | Optimize | 1.2.8 | Krozi | Tools → Optimize |
 | glTF Importer | 1.2.1 | 0x13F | File → Import → Import glTF Model (desktop, mesh formats) |

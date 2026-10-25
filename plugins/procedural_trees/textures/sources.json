@@ -1,0 +1,55 @@
+{
+  "license": "CC0-1.0",
+  "license_url": "https://polyhaven.com/license",
+  "downloaded": "2026-10-24",
+  "sources": [
+    {
+      "asset": "bark_willow",
+      "map": "Diffuse",
+      "resolution": "1k",
+      "size": 779438,
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/bark_willow/bark_willow_diff_1k.jpg",
+      "md5": "792d4f8467fe360092eee335ee60b698"
+    },
+    {
+      "asset": "pine_bark",
+      "map": "Diffuse",
+      "resolution": "1k",
+      "size": 837641,
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/pine_bark/pine_bark_diff_1k.jpg",
+      "md5": "7bb38cccfc647aeaf2f5b6488c815e75"
+    },
+    {
+      "asset": "tree_small_02",
+      "map": "leaves_diff",
+      "resolution": "1k",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/tree_small_02/tree_small_02_leaves_diff_1k.png",
+      "md5": "2c667193084725e8553062ddbdc73c7d",
+      "size": 2338424
+    },
+    {
+      "asset": "tree_small_02",
+      "map": "leaves_alpha",
+      "resolution": "1k",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/tree_small_02/tree_small_02_leaves_alpha_1k.png",
+      "md5": "63199ba87a9e8928424bd8c3b8017bd0",
+      "size": 264711
+    },
+    {
+      "asset": "pine_tree_01",
+      "map": "twig_diff",
+      "resolution": "1k",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/pine_tree_01/pine_tree_01_twig_diff_1k.png",
+      "md5": "a4fa4a55aab9231915a4023ea9841577",
+      "size": 3208228
+    },
+    {
+      "asset": "pine_tree_01",
+      "map": "twig_alpha",
+      "resolution": "1k",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/pine_tree_01/pine_tree_01_twig_alpha_1k.png",
+      "md5": "641911a5a3f543911dad04ebb26e7bca",
+      "size": 351928
+    }
+  ]
+}

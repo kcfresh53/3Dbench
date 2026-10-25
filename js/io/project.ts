@@ -1052,6 +1052,16 @@ onVueSetup(() => {
 
 BARS.defineActions(function() {
 
+	new Action('new_model', {
+		icon: 'add',
+		category: 'file',
+		condition: () => !Project?.locked,
+		keybind: new Keybind({key: 'n', ctrl: true}),
+		click() {
+			Formats.free.new();
+		}
+	});
+
 	new Action('project_window', {
 		icon: 'featured_play_list',
 		category: 'file',
@@ -1414,6 +1424,7 @@ declare global {
 	const setStartScreen: typeof global.setStartScreen
 	const showUnsavedWorkDialog: typeof global.showUnsavedWorkDialog
 	interface BarItemRegistry {
+		new_model: Action
 		project_window: Action
 		close_project: Action
 		duplicate_project: Action

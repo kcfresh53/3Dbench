@@ -19,6 +19,10 @@ It is a fork of [Blockbench](https://github.com/JannisX11/blockbench) that drops
 * Electron: `npm run dev`
 * Web: `npm run serve`, then open http://localhost:3000
 
+Use **New Model** on the start screen or **File → New Model** (**Cmd/Ctrl+N**) to create a generic model directly. Recent projects stay on the start screen; image and plugin workflows are under **Other Workflows**. The existing New Project Dialog preference controls whether project settings appear during creation. Save your editable work as `.bench`, then use **File → Export** for standard formats. Existing `.bbmodel` projects can still be opened; saving them creates a `.bench` project. On macOS, commands appear in the native system menu bar. The default Blockmorphism theme uses neutral grey gradient glass, warm amber accents, rounded dock panels and project tabs, and bundled Outfit typography. Motion respects the system reduced-motion setting.
+
+Run `npm run build-electron && npx electron tests/model_workflow.cjs` to check the start screen, creation preferences, multiple projects, editable project round-trip, and glTF export in a temporary profile.
+
 ## Code layout of the new systems
 
 | Path | Contents |
@@ -37,7 +41,7 @@ Blockbench is created by Jannis Petersen and contributors.
 
 ## Compatibility and development checks
 
-The `Blockbench` scripting API and `.bbmodel` file identifiers remain compatible with upstream projects and plugins. Upstream credits and documentation links are retained; application releases and issue reporting point to this fork. Desktop settings continue to use the existing `3DBench` data directory.
+The `Blockbench` scripting API and project JSON identifiers remain compatible with upstream projects and plugins. Upstream credits and documentation links are retained; application releases and issue reporting point to this fork. Desktop settings continue to use the existing `3DBench` data directory.
 
 Run `npm run test:humanoid-scene` to check the live modal, viewport updates and zoom, cancellation, scene creation, and undo/redo in Electron. Run `npm run test:humanoid` to check generated geometry, closed surfaces, winding, skin weights, symmetry, rig names and the triangle budget. Locally installed chibi templates also have geometry, UV, material and weight preservation checks.
 

@@ -98,12 +98,23 @@ function processCompatibility(model) {
 
 var codec = new Codec('project', {
 	name: '3D Bench Project',
-	extension: 'bbmodel',
+	extension: 'bench',
+	// Keep legacy projects readable; every subsequent save uses the new extension.
+	write(content, path) {
+		const bench_path = path.replace(/\.bbmodel$/i, '.bench');
+		if (path !== bench_path && fs.existsSync(bench_path)) {
+			// Let the native save dialog resolve a collision with an existing .bench project.
+			this.export();
+			return;
+		}
+		path = bench_path;
+		Blockbench.writeFile(path, {content}, saved_path => this.afterSave(saved_path));
+	},
 	remember: true,
 	support_partial_export: true,
 	load_filter: {
 		type: 'json',
-		extensions: ['bbmodel']
+		extensions: ['bench', 'bbmodel']
 	},
 	load(model, file) {
 		if (!model || !model.meta) {
@@ -421,7 +432,7 @@ var codec = new Codec('project', {
 		for (var key in ModelProject.properties) {
 			ModelProject.properties[key].merge(Project, model)
 		}
-		if (path && path != 'backup.bbmodel') {
+		if (path && !/^backup\.(bench|bbmodel)$/.test(path)) {
 			Project.name = pathToName(path, false);
 		}
 
@@ -821,21 +832,21 @@ BARS.defineActions(function() {
 		condition: isApp ? (() => Project && Project.save_path) : false,
 		click: function () {
 			saveTextures(true);
-			let projectTailRegex = /\.bbmodel$/;
-			let projectVerRegex = /([0-9]+)\.bbmodel$/;
+			let projectTailRegex = /\.(?:bench|bbmodel)$/i;
+			let projectVerRegex = /([0-9]+)\.(?:bench|bbmodel)$/i;
 			let projectVerMatch = projectVerRegex.exec(Project.save_path);
 
 			let file_path;
 			if (projectVerMatch) {
 				let projectVer = parseInt(projectVerMatch[1]); // Parse & store project ver int (capturing group 1)
-				file_path = Project.save_path.replace(projectVerRegex, `${projectVer + 1}.bbmodel`);
+				file_path = Project.save_path.replace(projectVerRegex, `${projectVer + 1}.bench`);
 			} else {
-				file_path = Project.save_path.replace(projectTailRegex, "_1.bbmodel");
+				file_path = Project.save_path.replace(projectTailRegex, "_1.bench");
 			}
 			let original_file_path = file_path;
 			let i = 1;
 			while (fs.existsSync(file_path) && i < 100) {
-				file_path = original_file_path.replace(projectTailRegex, `_alt_${i == 1 ? '' : i}.bbmodel`);
+				file_path = original_file_path.replace(projectTailRegex, `_alt_${i == 1 ? '' : i}.bench`);
 				i++;
 			}
 			codec.write(codec.compile(), file_path);
@@ -855,7 +866,7 @@ BARS.defineActions(function() {
 	new Action('export_legacy_project', {
 		icon: 'save',
 		name: 'Export Legacy Project',
-		description: 'Export bbmodel file for Blockbench 4',
+		description: 'Export project JSON compatible with Blockbench 4',
 		category: 'file',
 		condition: () => Project,
 		click: function () {

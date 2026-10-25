@@ -3,6 +3,7 @@ import { Blockbench } from '../api';
 import initializeEasing from './easing_peasy';
 import initializeOptimize from './optimize';
 import initializeGltf from './gltf_importer';
+import initializeTrees from '../../plugins/procedural_trees/src';
 
 /** Run bundled features after the editor UI and legacy API aliases are ready. */
 export function loadBuiltInPlugins() {
@@ -23,6 +24,7 @@ export function loadBuiltInPlugins() {
 	for (const [id, initialize] of [
 		['easing_peasy', initializeEasing],
 		['optimize', initializeOptimize],
+		['procedural_trees', initializeTrees],
 		...(isApp ? [['gltf_importer', initializeGltf]] : []),
 	] as [string, (pluginApi: typeof api) => void][]) {
 		if (Plugins.registered[id]?.source === 'builtin') continue;

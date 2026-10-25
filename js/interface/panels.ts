@@ -7,6 +7,8 @@ import { Vue } from "../lib/libs";
 import { Blockbench } from "../api";
 import { CustomMenuItem } from "./menu";
 
+const foldAnimations = new WeakMap<HTMLElement, Animation>();
+
 interface PanelPositionData {
 	slot: PanelSlot
 	float_position: [number, number]
@@ -681,6 +683,17 @@ export class Panel extends EventSystem {
 		this.toolbars.splice(position, 0, toolbar);
 	}
 	fold(state = !this.folded): this {
+		// Measure the visible state before cancelling so rapid reversals remain continuous.
+		const animate = state !== this.folded && this.container.isConnected
+			&& !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const containers = (this.slot == 'left_bar' || this.slot == 'right_bar')
+			? Array.from(this.container.parentElement.children).filter((node): node is HTMLElement => node instanceof HTMLElement && node.classList.contains('panel_container'))
+			: [this.container];
+		const heights = containers.map(node => node.getBoundingClientRect().height);
+		containers.forEach(node => {
+			foldAnimations.get(node)?.cancel();
+			node.classList.remove('bench_folding');
+		});
 		this.folded = !!state;
 		let new_icon = Blockbench.getIconNode(state ? 'expand_less' : 'expand_more');
 		$(this.tab_bar).find('> .panel_folding_button > .icon').replaceWith(new_icon);
@@ -692,6 +705,25 @@ export class Panel extends EventSystem {
 			resizeWindow();
 		}
 		this.update();
+		if (animate) {
+			const targets = containers.map(node => node.getBoundingClientRect().height);
+			containers.forEach((node, index) => {
+				if (!heights[index] || Math.abs(heights[index] - targets[index]) < 1) return;
+				node.classList.add('bench_folding');
+				const frame = (height: number) => ({height: height + 'px', minHeight: height + 'px', maxHeight: height + 'px', flexBasis: height + 'px', flexGrow: 0, flexShrink: 0});
+				const animation = node.animate([frame(heights[index]), frame(targets[index])], {
+					duration: 260, easing: 'cubic-bezier(.22, 1, .36, 1)'
+				});
+				foldAnimations.set(node, animation);
+				const finish = () => {
+					if (foldAnimations.get(node) !== animation) return;
+					foldAnimations.delete(node);
+					node.classList.remove('bench_folding');
+				};
+				animation.onfinish = finish;
+				animation.oncancel = finish;
+			});
+		}
 		this.dispatchEvent('fold', {});
 		return this;
 	}

@@ -1122,7 +1122,7 @@ class FormElementFile extends FormElement {
 		input_wrapper.append(input);
 		bar.append(input_wrapper[0]);
 		bar.classList.add('form_bar_file');
-		this.updateInput();
+		this.setValue(this.options.value);
 
 		switch (this.options.type) {
 			case 'file': 	input_wrapper.append('<i class="material-icons">insert_drive_file</i>'); break;
@@ -1137,6 +1137,7 @@ class FormElementFile extends FormElement {
 			delete this.content;
 			delete this.file;
 			this.updateInput();
+			scope.change();
 		})
 
 		const fileCB = (files) => {

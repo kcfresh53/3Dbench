@@ -391,6 +391,8 @@ export namespace Filesystem {
 					let type = 'text/plain;charset=utf-8';
 					if (file_name.endsWith('json')) {
 						type = 'application/json;charset=utf-8';
+					} else if (file_name.endsWith('.bench')) {
+						type = 'model/vnd.3dbench.bench';
 					} else if (file_name.endsWith('bbmodel')) {
 						type = 'model/vnd.blockbench.bbmodel';
 					}

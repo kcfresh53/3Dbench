@@ -30,6 +30,49 @@
 		margin-right: 4px;
 		margin-top: 4px;
 	}
+	#start_files > .start_screen_left {
+		flex-shrink: 0;
+		max-height: none;
+	}
+	#start_files .start_primary_action,
+	#start_files .start_open_action {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		width: 100%;
+		min-height: 40px;
+		margin: 8px 0;
+	}
+	#start_files .start_primary_action {
+		background: var(--color-accent);
+		color: var(--color-accent_text);
+	}
+	#start_files button:focus-visible,
+	#start_files summary:focus-visible {
+		outline: 2px solid var(--color-accent);
+		outline-offset: 3px;
+	}
+	#start_files .start_recent_empty {
+		color: var(--color-subtle_text);
+		line-height: 1.5;
+		margin: 16px 0;
+	}
+	#start_files .start_other_workflows {
+		margin: 20px 0;
+	}
+	#start_files .start_other_workflows summary::before {
+		content: '▸';
+		display: inline-block;
+		margin-right: 8px;
+	}
+	#start_files .start_other_workflows[open] summary::before {
+		transform: rotate(90deg);
+	}
+	#start_files .start_other_workflows summary {
+		cursor: pointer;
+		padding: 4px 0;
+	}
 	#start_screen .recent_project {
 		margin: 2px 0;
 		display: flex;
@@ -399,8 +442,8 @@
 
 
 	#start_files div.start_screen_left {
-		width: 300px;
-		padding: 20px 0 0px 0;
+		width: 340px;
+		padding: 24px;
 		position: relative;
 		display: flex;
 		flex-direction: column;
@@ -410,7 +453,7 @@
 		min-height: 250px;
 	}
 	#start_files div.start_screen_left h2 {
-		margin-left: 24px;
+		margin-left: 0;
 	}
 	#start_files div.start_screen_left > ul {
 		padding-bottom: 16px;
@@ -428,6 +471,12 @@
 		margin-top: 16px;
 		padding-left: 6px;
 		padding-right: 6px;
+	}
+	#start_files .start_screen_left > ul > .format_category {
+		padding: 0;
+	}
+	#start_files .start_screen_left > ul > .format_category > label {
+		margin-left: 0;
 	}
 	#start_files li.format_category > label {
 		color: var(--color-subtle_text);
@@ -523,6 +572,19 @@
 		vertical-align: bottom;
 		margin-right: 3px;
 		margin-bottom: 2px;
+	}
+
+	@media (max-width: 700px) {
+		#start_screen > content > #start_files {
+			flex-direction: column;
+		}
+		#start_files > div.start_screen_left,
+		#start_files > div.start_screen_right {
+			width: 100%;
+		}
+	}
+	#start_files.start_web_home > div.start_screen_left {
+		width: 100%;
 	}
 
 	#start_screen section#quick_setup {

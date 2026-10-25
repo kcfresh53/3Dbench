@@ -259,6 +259,13 @@ onVueSetup(async function() {
 			slideshow_autoplay: true
 		} as StartScreenComponentData},
 		methods: {
+			openModel() {
+				(BarItems.open_model as Action).trigger();
+			},
+			createModel() {
+				this.selected_format_id = '';
+				BarItems.new_model.trigger();
+			},
 			getDate(p) {
 				if (p.day) {
 					var diff = (365e10 + Blockbench.openTime.dayOfYear() - p.day) % 365;
@@ -353,7 +360,7 @@ onVueSetup(async function() {
 					categories[format.category].entries.push(format);
 				}
 				for (let key in this.formats) {
-					if (this.formats[key].show_on_start_screen != false) {
+					if (key !== 'free' && this.formats[key].show_on_start_screen != false) {
 						add(key, this.formats[key]);
 					}
 				}
@@ -379,7 +386,7 @@ onVueSetup(async function() {
 			},
 			confirmSetupScreen(this: StartScreenComponentData, format_entry) {
 				this.selected_format_id = '';
-				if (format_entry.onStart) format_entry.onStart();
+				if (!(format_entry instanceof ModelLoader) && format_entry.onStart) format_entry.onStart();
 				if (typeof format_entry.new == 'function') format_entry.new();
 			},
 
@@ -470,10 +477,18 @@ onVueSetup(async function() {
 						<i class="material-icons start_screen_close_button" @click="show_splash_screen = false">clear</i>
 					</section>
 
-					<section id="start_files" class="start_screen_section" section_id="start_files">
+					<section id="start_files" class="start_screen_section" :class="{start_web_home: !isApp && !selected_format_id}" section_id="start_files">
 
 						<div class="start_screen_left" v-if="!(selected_format_id && mobile_layout)">
-							<h2>${tl('mode.start.new')}</h2>
+							<h2>${tl('action.new_model')}</h2>
+							<button id="new_model_button" class="start_primary_action" @click="createModel()">
+								<i class="material-icons">add</i> ${tl('action.new_model')}
+							</button>
+							<button class="start_open_action" @click="openModel()">
+								<i class="material-icons">folder_open</i> ${tl('action.open_model')}
+							</button>
+							<details class="start_other_workflows" v-if="Object.keys(getFormatCategories()).length">
+								<summary>${tl('mode.start.other_workflows')}</summary>
 							<ul>
 								<li v-for="(category, key) in getFormatCategories()" class="format_category" :key="key">
 									<label>{{ category.name }}</label>
@@ -492,6 +507,9 @@ onVueSetup(async function() {
 										</li>
 									</ul>
 								</li>
+							</ul>
+							</details>
+							<ul>
 								<li class="format_category">
 									<label>${tl('mode.start.info')}</label>
 									<ul>
@@ -549,7 +567,7 @@ onVueSetup(async function() {
 							</template>
 						</div>
 
-						<div class="start_screen_right" v-else>
+						<div class="start_screen_right" v-else-if="isApp">
 							<h2 v-if="isApp">${tl('mode.start.recent')}</h2>
 							<div id="start_screen_view_menu" v-if="isApp && !redact_names">
 								<search-bar :hide="true" v-model="search_term"></search-bar>
@@ -575,7 +593,6 @@ onVueSetup(async function() {
 									<span class="recent_project_name">{{ redact_names ? redacted : project.name }}</span>
 									<span class="recent_project_date">{{ getDate(project) }}</span>
 								</li>
-								<div v-if="recent.length == 0">{{ tl('mode.start.no_recents') }}</div>
 							</ul>
 							<ul :class="{redact: redact_names, recent_list_grid: true}" v-else>
 								<li v-for="project in projects" :key="project.path"
@@ -592,9 +609,9 @@ onVueSetup(async function() {
 									</div>
 								</li>
 							</ul>
-							<div class="button_bar">
-								<button style="margin-top: 20px;" onclick="BarItems.open_model.trigger()">${tl('action.open_model')}</button>
-							</div>
+							<p class="start_recent_empty" v-if="isApp && !redact_names && !projects.length">
+								{{ tl(search_term ? 'mode.start.no_matching_recents' : 'mode.start.no_recents') }}
+							</p>
 						</div>
 
 					</section>

@@ -187,7 +187,7 @@ export const AutoBackup = {
 					try {
 						let parsed_content = JSON.parse(project.data);
 						setupProject(Formats[parsed_content.meta.model_format] || Formats.free, project.uuid);
-						Codecs.project.parse(parsed_content, 'backup.bbmodel');
+						Codecs.project.parse(parsed_content, 'backup.bench');
 						await new Promise(r => setTimeout(r, 40));
 					} catch(err) {
 						console.error(err);

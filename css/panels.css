@@ -238,6 +238,8 @@
 		margin: 0 8px;
 	}
 
+	.panel_container.bench_folding { overflow: hidden; }
+	.panel_container.bench_folding.folded > .panel { display: flex; }
 	.panel_container.folded {
 		min-height: auto;
 		flex-grow: 0;

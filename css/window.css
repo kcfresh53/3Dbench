@@ -1372,3 +1372,6 @@
 	}
 }
 
+
+/* Desktop macOS commands live in the system application menu. */
+body.native_macos_menu #menu_bar { display: none; }

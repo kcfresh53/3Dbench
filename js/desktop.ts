@@ -473,7 +473,7 @@ export function createBackup(init: boolean) {
 	let short_name = Project.name.replace(/[.]/g, '_').replace(/[^a-zA-Z0-9._-]/g, '').substring(0, 16);
 	if (short_name) short_name = '_' + short_name;
 	let file_name = 'backup_'+d.getDate()+'.'+(d.getMonth()+1)+'.'+(d.getFullYear()-2000)+'_'+d.getHours()+'.'+d.getMinutes() + short_name;
-	let file_path = folder_path+osfs+file_name+'.bbmodel';
+	let file_path = folder_path+osfs+file_name+'.bench';
 
 	fs.writeFile(file_path, model, function (err) {
 		if (err) {
@@ -502,7 +502,7 @@ BARS.defineActions(() => {
 				let entry = {
 					id: file,
 					path,
-					name: file.replace(/backup_\d+\.\d+\.\d+_\d+\.\d+_?/, '').replace(/\.bbmodel$/, '').replace(/_/g, ' ') || 'no name',
+					name: file.replace(/backup_\d+\.\d+\.\d+_\d+\.\d+_?/, '').replace(/\.(bench|bbmodel)$/, '').replace(/_/g, ' ') || 'no name',
 					date: stats.mtime.toLocaleDateString(),
 					time: stats.mtime.toLocaleTimeString().replace(/:\d+ /, ' '),
 					date_long: stats.mtime.toString(),

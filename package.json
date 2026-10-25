@@ -121,9 +121,9 @@
 		},
 		"fileAssociations": [
 			{
-				"ext": "bbmodel",
+				"ext": "bench",
 				"name": "3D Bench Project",
-				"mimeType": "model/vnd.3dbench.bbmodel",
+				"mimeType": "model/vnd.3dbench.bench",
 				"role": "Editor"
 			},
 			{
@@ -157,7 +157,11 @@
 		"test:humanoid-scene": "npm run build-electron && electron tests/humanoid_scene.cjs",
 		"test:ik_rig": "node --test tests/ik_rig.test.mjs",
 		"build:buildings": "node scripts/build_procedural_buildings.mjs",
-		"test:buildings": "node --test tests/procedural_buildings.test.mjs tests/flexibuilding.test.mjs tests/building-layout.test.mjs"
+		"test:buildings": "node --test tests/procedural_buildings.test.mjs tests/flexibuilding.test.mjs tests/building-layout.test.mjs",
+		"build:trees": "node scripts/build_procedural_trees.mjs",
+		"test:trees": "node scripts/test_procedural_trees.mjs",
+		"test:trees-scene": "npm run build-electron && electron tests/procedural_trees_scene.cjs",
+		"test:trees-visual": "npm run build-electron && electron tests/procedural_trees_visual.cjs"
 	},
 	"overrides": {
 		"three": "$three"

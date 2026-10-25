@@ -4,6 +4,7 @@ import url from 'url'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import fs from 'node:fs'
+import { initializeApplicationMenu } from './application_menu.js'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -16,6 +17,8 @@ app.setPath('userData', path.join(app.getPath('appData'), '3DBench'));
 const { autoUpdater } = require('electron-updater');
 const remote = require('@electron/remote/main')
 remote.initialize();
+
+initializeApplicationMenu();
 
 let all_wins = [];
 let orig_win;
@@ -99,71 +102,10 @@ function createWindow(second_instance, options = {}) {
 
 	if (process.platform === 'darwin') {
 
-		let template = [
-			{
-				"label": "3D Bench",
-				"submenu": [
-					{
-						"role": "hide"
-					},
-					{
-						"role": "hideothers"
-					},
-					{
-						"role": "unhide"
-					},
-					{
-						"type": "separator"
-					},
-					{
-                        "role": "quit"
-					}
-				]
-			},
-			{
-				"label": "Edit",
-				"submenu": [
-					{
-						"role": "cut"
-					},
-					{
-						"role": "copy"
-					},
-					{
-						"role": "paste"
-					},
-					{
-						"role": "selectall"
-					}
-				]
-			},
-			{
-				"label": "Window",
-				"role": "window",
-				"submenu": [
-					{
-						"label": "Toggle Full Screen",
-						"accelerator": "Ctrl+Command+F"
-					},
-					{
-						"role": "minimize"
-					},
-					{
-						"role": "close"
-					},
-					{
-						"type": "separator"
-					},
-					{
-						"role": "front"
-					}
-				]
-			}
-		]
-
-
-		var osxMenu = Menu.buildFromTemplate(template);
-		Menu.setApplicationMenu(osxMenu)
+		// Standard menus remain usable while the renderer loads its complete command tree.
+		Menu.setApplicationMenu(Menu.buildFromTemplate([
+			{role: 'appMenu'}, {role: 'editMenu'}, {role: 'windowMenu'}
+		]));
 	} else {
 		win.setMenu(null);
 	}
