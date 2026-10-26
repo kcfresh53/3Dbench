@@ -1886,7 +1886,7 @@ export class Preview {
 		$('#preview').append(wrapper)
 
 		this.node.querySelectorAll('.one_is_enough').forEach((child: HTMLElement) => {
-			child.style.display = 'block';
+			child.style.display = '';
 		})
 		this.node.querySelectorAll('.quad_view_only').forEach((child: HTMLElement) => {
 			child.style.display = 'none';
@@ -2005,7 +2005,7 @@ export class Preview {
 				Interface.preview.append(wrapper);
 
 				preview.node.querySelectorAll('.quad_view_only').forEach(child => {
-					child.style.display = 'block';
+					child.style.display = '';
 				})
 				if (preview !== main_preview) {
 					preview.node.querySelectorAll('.one_is_enough').forEach(child => {

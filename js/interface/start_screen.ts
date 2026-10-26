@@ -1,3 +1,5 @@
+import { ACCENT_PRESETS } from './theme/accent_presets';
+import { generateColorScheme } from './theme/color_scheme';
 import { Filesystem } from "../file_system";
 import { ModelLoader, ModelLoaderOptions } from "../io/model_loader";
 import { documentReady } from "../misc";
@@ -667,7 +669,11 @@ documentReady.then(() => {
 				languages: Language.options,
 				keymap: 'default',
 				keymap_changed: false,
-				theme: 'blockmorphism',
+				accent: AppTheme.settings.accent_preset,
+				accents: ACCENT_PRESETS.map(preset => {
+					const scheme = generateColorScheme({seed: preset.seed, dark: AppTheme.dark, variant: 'tonal_spot', contrast: 'standard', surface: 'graphite'});
+					return {id: preset.id, name: tl('appearance.accent.' + preset.id), fill: scheme['primary-container'], dot: scheme.primary, on: scheme['on-primary']};
+				}),
 				keymap_options: {
 					default: tl('action.load_keymap.default'),
 					mouse: tl('action.load_keymap.mouse'),
@@ -684,19 +690,9 @@ documentReady.then(() => {
 				reload() {
 					Blockbench.reload();
 				},
-				loadTheme(theme_id) {
-					this.theme = theme_id;
-					let theme = CustomTheme.themes.find(t => t.id == theme_id);
-					if (theme) CustomTheme.loadTheme(theme);
-				},
-				getThemeThumbnailStyle(theme_id) {
-					let theme = CustomTheme.themes.find(t => t.id == theme_id);
-					let style = {};
-					if (!theme) return style;
-					for (let key in theme.colors) {
-						style[`--color-${key}`] = theme.colors[key];
-					}
-					return style;
+				pickAccent(id) {
+					this.accent = id;
+					AppTheme.update({accent_source: 'preset', accent_preset: id});
 				},
 				openThemes() {
 					(BarItems.theme_window as Action).click();
@@ -733,11 +729,17 @@ documentReady.then(() => {
 					</div>
 					<div style="width: 640px;">
 						<label>${tl('dialog.settings.theme')}:</label>
-						<div class="quick_setup_theme" :class="{selected: theme == 'blockmorphism'}" @click="loadTheme('blockmorphism')"><div :style="getThemeThumbnailStyle('blockmorphism')"></div>Blockmorphism</div>
-						<div class="quick_setup_theme" :class="{selected: theme == 'default'}" @click="loadTheme('default')"><div :style="getThemeThumbnailStyle('default')"></div>Dark</div>
-						<div class="quick_setup_theme" :class="{selected: theme == 'default_light'}" @click="loadTheme('default_light')"><div :style="getThemeThumbnailStyle('default_light')"></div>Light</div>
-						<div class="quick_setup_theme" :class="{selected: theme == 'contrast'}" @click="loadTheme('contrast')"><div :style="getThemeThumbnailStyle('contrast')"></div>Contrast</div>
-						<div class="quick_setup_theme more_themes" @click="openThemes()"><div><i class="material-icons">more_horiz</i></div>{{ tl('mode.start.quick_setup.more_themes') }}</div>
+						<div class="accent_grid" role="radiogroup" aria-label="${tl('appearance.accent')}">
+							<button v-for="swatch in accents" :key="swatch.id" type="button" class="accent_swatch" role="radio"
+								:aria-checked="accent == swatch.id" :class="{selected: accent == swatch.id}"
+								:style="{'--swatch-fill': swatch.fill, '--swatch-dot': swatch.dot, '--swatch-on': swatch.on}"
+								:title="swatch.name" :aria-label="swatch.name" @click="pickAccent(swatch.id)">
+								<i class="material-icons">check</i>
+							</button>
+							<button type="button" class="accent_swatch" :title="tl('mode.start.quick_setup.more_themes')" :aria-label="tl('mode.start.quick_setup.more_themes')" @click="openThemes()">
+								<i class="material-icons">more_horiz</i>
+							</button>
+						</div>
 					</div>
 				</section>
 			`

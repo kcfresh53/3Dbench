@@ -24,6 +24,21 @@ type DialogLineOptions = (
 	| string
 )
 
+function appendDialogActions(buttons: HTMLButtonElement[], content: HTMLElement, bar: HTMLElement) {
+	// A choice dialog presents multiple outcomes in its content, retaining a
+	// single dismissive footer action. Callback indices remain unchanged.
+	if (buttons.length > 2) {
+		const choices = document.createElement('div');
+		choices.className = 'dialog_choices';
+		buttons.forEach(button => (button.classList.contains('cancel_btn') ? bar : choices).append(button));
+		content.append(choices);
+	} else {
+		buttons.filter(button => !button.classList.contains('confirm_btn'))
+			.concat(buttons.filter(button => button.classList.contains('confirm_btn')))
+			.forEach(button => bar.append(button));
+	}
+}
+
 function buildForm(dialog: Dialog) {
 	dialog.form?.delete();
 	dialog.form = new InputForm(dialog.form_config);
@@ -110,11 +125,12 @@ function makeDraggable(dialog: Dialog | MessageBox, handle: HTMLElement) {
 				start_y = dialog.object.offsetTop;
 			},
 			onMove(context) {
+				const margin = parseFloat(getComputedStyle(dialog.object).getPropertyValue('--dialog-safe-margin')) || 0;
 				let bounds = [
-					wrapper.offsetLeft+2,
-					wrapper.offsetTop+2,
-					wrapper.clientWidth + wrapper.offsetLeft+2,
-					wrapper.clientHeight + wrapper.offsetTop+2,
+					wrapper.offsetLeft+2+margin,
+					wrapper.offsetTop+2+margin,
+					wrapper.clientWidth + wrapper.offsetLeft+2-margin,
+					wrapper.clientHeight + wrapper.offsetTop+2-margin,
 				]
 				let x = Math.clamp(start_x + context.delta.x, bounds[0], bounds[2] - dialog.object.clientWidth);
 				let y = Math.clamp(start_y + context.delta.y, bounds[1], bounds[3] - dialog.object.clientHeight);
@@ -229,6 +245,7 @@ export class DialogSidebar {
 		}
 	}
 	setPage(page: string) {
+		const had_focus = this.dialog.object.contains(document.activeElement);
 		let allow;
 		if (this.onPageSwitch) allow = this.onPageSwitch(page);
 		if (allow === false) return;
@@ -236,7 +253,13 @@ export class DialogSidebar {
 		for (let key in this.page_menu) {
 			let li = this.page_menu[key];
 			li.classList.toggle('selected', key == this.page);
+			li.setAttribute('aria-current', key == this.page ? 'page' : 'false');
 		}
+		Vue.nextTick(() => {
+			if (had_focus && Dialog.open === this.dialog && !this.dialog.object.contains(document.activeElement)) {
+				(this.page_menu[this.page] || this.dialog.object).focus();
+			}
+		});
 	}
 }
 
@@ -507,6 +530,7 @@ export class Dialog {
 		return this.form?.getResult();
 	}
 	close(button: number = this.cancelIndex, event?: Event) {
+		if (button == this.confirmIndex && this.form && !this.form.validate()) return;
 		if (button == this.confirmIndex && typeof this.onConfirm == 'function') {
 			let formResult = this.getFormResult() ?? {};
 			let result = this.onConfirm(formResult, event);
@@ -617,15 +641,21 @@ export class Dialog {
 			buttons[this.cancelIndex] && buttons[this.cancelIndex].classList.add('cancel_btn')
 			let button_bar = $('<div class="dialog_bar button_bar"></div>');
 
-			buttons.forEach((button, i) => {
-				button_bar.append(button)
-			})
+			appendDialogActions(buttons, content, button_bar[0]);
 
 			wrapper.append(button_bar[0]);
 		}
 
 		let close_button = document.createElement('div');
 		close_button.classList.add('dialog_close_button');
+		close_button.setAttribute('role', 'button');
+		close_button.setAttribute('aria-label', tl('dialog.close'));
+		close_button.tabIndex = 0;
+		close_button.addEventListener('keydown', event => {
+			if (event.key !== 'Enter' && event.key !== ' ') return;
+			event.preventDefault(); event.stopPropagation();
+			if (!event.repeat) close_button.click();
+		});
 		close_button.innerHTML = '<i class="material-icons">clear</i>';
 		jq_dialog.append(close_button);
 		close_button.addEventListener('click', (e) => {
@@ -697,7 +727,11 @@ export class Dialog {
 			})
 		}
 		let sanitizePosition = () => {
-			if (this.object.clientHeight + this.object.offsetTop - 26 > Interface.page_wrapper.clientHeight) {
+			const margin = parseFloat(getComputedStyle(this.object).getPropertyValue('--dialog-safe-margin')) || 0;
+			if (margin) {
+				this.object.style.left = Math.clamp(this.object.offsetLeft, margin, Math.max(margin, window.innerWidth - this.object.offsetWidth - margin)) + 'px';
+				this.object.style.top = Math.clamp(this.object.offsetTop, margin, Math.max(margin, window.innerHeight - this.object.offsetHeight - margin)) + 'px';
+			} else if (this.object.clientHeight + this.object.offsetTop - 26 > Interface.page_wrapper.clientHeight) {
 				this.object.style.top = Math.max(Interface.page_wrapper.clientHeight - this.object.clientHeight + 26, 26) + 'px';
 			}
 		}
@@ -712,8 +746,46 @@ export class Dialog {
 		return this;
 	}
 	private resize_observer: ResizeObserver
+	private return_focus?: HTMLElement
+	private prepareAccessibility() {
+		if (this.object.dataset.dialogAccessible) return;
+		this.object.dataset.dialogAccessible = 'true';
+		this.object.tabIndex = -1;
+		this.object.setAttribute('role', 'dialog');
+		this.object.setAttribute('aria-modal', String(!(this instanceof ConfigDialog)));
+		const title = this.object.querySelector<HTMLElement>('.dialog_title, .config_dialog_title');
+		if (title) {
+			title.id = `${this.id || 'dialog'}_${guid()}_title`;
+			this.object.setAttribute('aria-labelledby', title.id);
+		} else {
+			this.object.setAttribute('aria-label', tl(this.title || 'generic.edit'));
+		}
+		// Shared by basic dialogs, message boxes and anchored configuration panels.
+		this.object.querySelectorAll<HTMLElement>('.dialog_close_button:not([tabindex]), .dialog_menu_button, .dialog_sidebar_menu_button, .dialog_sidebar li, .dialog_message_box_command').forEach(action => {
+			action.tabIndex = 0;
+			action.setAttribute('role', 'button');
+			if (action.classList.contains('dialog_close_button')) action.setAttribute('aria-label', tl('dialog.close'));
+			else if (action.classList.contains('dialog_menu_button') || action.classList.contains('dialog_sidebar_menu_button')) action.setAttribute('aria-label', tl('menu.view'));
+			action.addEventListener('keydown', event => {
+				if (event.key !== 'Enter' && event.key !== ' ') return;
+				event.preventDefault(); event.stopPropagation();
+				if (!event.repeat) action.click();
+			});
+		});
+		this.object.addEventListener('keydown', event => {
+			if (Dialog.open !== this || event.key !== 'Tab' || event.defaultPrevented) return;
+			const targets = Array.from(this.object.querySelectorAll<HTMLElement>('button, input, textarea, select, a[href], [tabindex], [contenteditable="plaintext-only"]'))
+				.filter(node => node.tabIndex >= 0 && !node.closest('[inert]') && !node.matches(':disabled, [aria-disabled=true]') && node.getClientRects().length > 0 && getComputedStyle(node).visibility !== 'hidden');
+			const first = targets[0], last = targets[targets.length - 1];
+			if (!first || (event.shiftKey && (document.activeElement === first || document.activeElement === this.object)) || (!event.shiftKey && document.activeElement === last)) {
+				event.preventDefault(); event.stopPropagation();
+				(event.shiftKey ? last : first)?.focus();
+			}
+		});
+	}
 
 	show(anchor?: HTMLElement): this {
+		if (!Dialog.stack.includes(this)) this.return_focus = document.activeElement as HTMLElement;
 		// Hide previous
 		// @ts-ignore Need to replace this variable still
 		if (window.open_interface && open_interface instanceof Dialog == false && typeof open_interface.hide == 'function') {
@@ -728,15 +800,18 @@ export class Dialog {
 		}
 
 		let jq_dialog = $(this.object);
+		this.prepareAccessibility();
+		this.object.classList.toggle('form_dialog', !!(this.form || this.component || this.sidebar));
 
 		document.getElementById('dialog_wrapper').append(this.object);
 		
 		if (this instanceof ShapelessDialog === false) {
 			this.object.style.display = 'flex';
-			this.object.style.top = limitNumber(window.innerHeight/2-this.object.clientHeight/2, 0, 100)+'px';
 			if (this.width) {
 				this.object.style.width = this.width+'px';
 			}
+			const margin = parseFloat(getComputedStyle(this.object).getPropertyValue('--dialog-safe-margin')) || 0;
+			this.object.style.top = Math.max(margin, (window.innerHeight - this.object.clientHeight) / 2)+'px';
 			if (this.draggable !== false) {
 				let x = Math.clamp((window.innerWidth-this.object.clientWidth)/2, 0, 2000)
 				this.object.style.left = x+'px';
@@ -753,6 +828,7 @@ export class Dialog {
 		}
 
 		this.focus();
+		if (!this.object.contains(document.activeElement)) this.object.focus();
 
 		setTimeout(() => {
 			this.object.style.setProperty('--dialog-height', this.object.clientHeight + 'px');
@@ -799,6 +875,7 @@ export class Dialog {
 		if (Dialog.stack.length) {
 			Dialog.stack.last().focus();
 		}
+		if (this.return_focus?.isConnected && (!Dialog.open || Dialog.open.object.contains(this.return_focus))) this.return_focus.focus();
 
 		return this;
 	}
@@ -1044,6 +1121,8 @@ export class MessageBox extends Dialog {
 					Interface.createElement('input', {type: 'checkbox', id: 'dialog_message_box_checkbox_'+id}),
 					Interface.createElement('label', {for: 'dialog_message_box_checkbox_'+id, checked: results[id]}, text)
 				])
+				const input = entry.firstElementChild as HTMLInputElement;
+				input.checked = results[id];
 				entry.firstElementChild.addEventListener('change', e => {
 					results[id] = (e.target as HTMLInputElement).checked;
 				})
@@ -1067,9 +1146,7 @@ export class MessageBox extends Dialog {
 			buttons[this.cancelIndex] && buttons[this.cancelIndex].classList.add('cancel_btn')
 			let button_bar = $('<div class="dialog_bar button_bar"></div>');
 
-			buttons.forEach((button, i) => {
-				button_bar.append(button)
-			})
+			appendDialogActions(buttons, content, button_bar[0]);
 
 			jq_dialog.append(button_bar[0]);
 		}
@@ -1113,13 +1190,14 @@ export class ConfigDialog extends Dialog {
 		this.anchor_tool?.classList.add('menu_open');
 
 		if (anchor instanceof HTMLElement) {
+			const margin = parseFloat(getComputedStyle(this.object).getPropertyValue('--dialog-safe-margin')) || 8;
 			let anchor_position = $(anchor).offset();
-			let left = Math.clamp(anchor_position.left - 30, 0, window.innerWidth-this.object.clientWidth - (this.title ? 0 : 30));
+			let left = Math.clamp(anchor_position.left, margin, Math.max(margin, window.innerWidth-this.object.clientWidth-margin));
 			let top = anchor_position.top+anchor.offsetHeight;
 			if (top > (Interface.work_screen.clientHeight - this.object.clientHeight)) {
 				top = anchor_position.top - this.object.clientHeight;
 			}
-			this.object.style.top = top + 'px';
+			this.object.style.top = Math.clamp(top, margin, Math.max(margin, window.innerHeight-this.object.clientHeight-margin)) + 'px';
 			this.object.style.left = left + 'px';
 		}
 		return this;
@@ -1175,6 +1253,14 @@ export class ConfigDialog extends Dialog {
 
 		let close_button = document.createElement('div');
 		close_button.classList.add('dialog_close_button');
+		close_button.setAttribute('role', 'button');
+		close_button.setAttribute('aria-label', tl('dialog.close'));
+		close_button.tabIndex = 0;
+		close_button.addEventListener('keydown', event => {
+			if (event.key !== 'Enter' && event.key !== ' ') return;
+			event.preventDefault(); event.stopPropagation();
+			if (!event.repeat) close_button.click();
+		});
 		close_button.innerHTML = '<i class="material-icons">clear</i>';
 		close_button.addEventListener('click', (e) => {
 			this.cancel();

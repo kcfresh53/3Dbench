@@ -32,8 +32,7 @@ export function initializeDesktopApp() {
 	});
 
 	if (Blockbench.startup_count <= 1 && electron.nativeTheme.inForcedColorsMode) {
-		let theme = CustomTheme.themes.find(t => t.id == 'contrast');
-		CustomTheme.loadTheme(theme);
+		AppTheme.update({contrast: 'high'});
 	}
 
 	function makeUtilFolder(name) {

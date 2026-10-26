@@ -57,9 +57,6 @@ export namespace ModelScaler {
 				if (dialog != Dialog.open) return;
 				dialog.cancel();
 			});
-			setTimeout(() => {
-				this.object.style.top = Interface.page_wrapper.offsetTop+'px';
-			}, 0);
 		},
 		onConfirm() {
 			updateScale(true);

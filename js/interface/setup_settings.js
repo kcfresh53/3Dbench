@@ -25,6 +25,15 @@ function setupSettings() {
 	}});
 
 	//Interface
+	new Setting('interface_density', {
+		category: 'interface', type: 'select', value: Blockbench.isTouch ? 'comfortable' : 'compact',
+		options: {comfortable: 'settings.interface_density.comfortable', compact: 'settings.interface_density.compact'},
+		onChange(value) {
+			document.body.dataset.uiDensity = value;
+			resizeWindow();
+		}
+	});
+	document.body.dataset.uiDensity = settings.interface_density.value;
 	new Setting('interface_mode', 		{category: 'interface', value: 'auto', requires_restart: true, type: 'select', options: {
 		'auto': tl('settings.interface_mode.auto'),
 		'desktop': tl('settings.interface_mode.desktop'),

@@ -126,7 +126,7 @@ export const Extruder = {
 			ctx.lineTo(Extruder.canvas.width + p, 0.5 + x + p);
 		}
 
-		ctx.strokeStyle = CustomTheme.data.colors.grid;
+		ctx.strokeStyle = AppTheme.colors.grid;
 		ctx.stroke();
 	},
 	startPreviewAnimation() {

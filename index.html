@@ -5,7 +5,7 @@
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="theme-color" content="#121418">
-	<meta name="color-scheme" content="dark">
+	<meta name="color-scheme" content="dark light">
 	<meta name="robots" content="noindex">
 	<link rel="manifest" href="manifest.webmanifest">
 	<link rel="shortcut icon" href="favicon.png" type="image/x-icon" />
@@ -21,22 +21,22 @@
 	<link rel="stylesheet" href="css/start_screen.css">
 	<link rel="stylesheet" href="css/panels.css">
 	<link rel="stylesheet" href="css/dialogs.css">
+	<link rel="stylesheet" href="css/material.css">
 	<style type="text/css" id="theme_css"></style>
-	<style type="text/css" id="theme_thumbnail_css"></style>
 </head>
 <body spellcheck="false" class="maximized">
 	<script>
 		if (typeof module === 'object') {window.module = module; module = undefined;}//jQuery Fix
 		
-		if (localStorage.getItem('theme')) {
-			try {
-				stored_theme = JSON.parse(localStorage.getItem('theme'));
-				let dark_color = stored_theme.colors.dark;
-				if (dark_color) {
-					document.getElementById('theme_css').textContent = `@layer theme {body {--color-dark: ${dark_color};}};`
-				}
-			} catch (err) {}
-		}
+		// Paint the last generated Material color scheme immediately, before the application bundle runs.
+		try {
+			const boot = JSON.parse(localStorage.getItem('appearance_boot') || 'null');
+			if (boot && boot.css) {
+				document.getElementById('theme_css').textContent = boot.css;
+				document.body.dataset.glass = boot.glass ? 'on' : 'off';
+				document.body.classList.toggle('light_mode', !boot.dark);
+			}
+		} catch (err) {}
 		window.ErrorLog = [];
 		window.onerror = (message, file, line) => {
 			if (message.includes('ResizeObserver loop completed with undelivered notifications')) return;
@@ -135,12 +135,12 @@
 					<dynamic-icon :icon="project.format ? project.format.icon : 'home'"></dynamic-icon>
 					<label class="project_tab_session_badge" v-if="project.EditSession"><i class="material-icons">group</i>{{ project.EditSession.client_count }}</label>
 					<label>{{ project.getDisplayName(false) }}<span v-if="project.getFileExtension?.()">.{{ project.getFileExtension() }}</span></label>
-					<div class="project_tab_close_button" :class="{unsaved: !project.saved}" :title="close_tab_label" @click="project.close()">
+					<div class="project_tab_close_button" :class="{unsaved: !project.saved}" :title="close_tab_label" role="button" tabindex="0" :aria-label="close_tab_label" @keydown.enter.stop.prevent="project.close()" @keydown.space.stop.prevent="project.close()" @click="project.close()">
 						<i class="material-icons close_icon">clear</i>
 						<i class="material-icons unsaved_icon" v-if="!project.saved">fiber_manual_record</i>
 					</div>
 				</div>
-				<div id="new_tab_button" v-if="!new_tab.visible" @click="openNewTab()" :title="new_tab.name">
+				<div id="new_tab_button" v-if="!new_tab.visible" @click="openNewTab()" :title="new_tab.name" role="button" tabindex="0" :aria-label="new_tab.name" @keydown.enter.prevent="openNewTab()" @keydown.space.prevent="openNewTab()">
 					<i class="material-icons">add</i>
 				</div>
 			</div>
@@ -164,10 +164,12 @@
 						v-for="mode in options"
 						v-if="Condition(mode.condition)"
 						v-bind:class="{selected: mode.selected}"
+						role="button" tabindex="0" :aria-label="mode.name" :aria-pressed="mode.selected" :title="mode.name"
+						@keydown.enter.prevent="mode.select()" @keydown.space.prevent="mode.select()"
 						v-on:mousedown="mode.select()"
 					>
 						<dynamic-icon :icon="mode.icon"></dynamic-icon>
-						{{ mode.name }}
+						<span class="mode_label">{{ mode.name }}</span>
 					</li>
 				</ul>
 			</div>

@@ -152,6 +152,8 @@
 		"generate-types": "tsc --project tsconfig.json && node ./scripts/convert_types.js",
 		"publish-types": "npm publish ./types",
 		"generate-docs": "npm run generate-types && npx typedoc --options typedoc.json",
+		"test:ui": "npm run build-electron && electron tests/material_ui.cjs",
+		"test:theme": "node --experimental-strip-types --import ./tests/support/resolve_bundler.mjs --test tests/md_color.test.mjs",
 		"test:builtins": "npm run build-electron && electron tests/built_in_plugins.cjs",
 		"test:humanoid": "node --test tests/humanoid.test.mjs",
 		"test:humanoid-scene": "npm run build-electron && electron tests/humanoid_scene.cjs",
@@ -204,7 +206,11 @@
 	},
 	"dependencies": {
 		"@electron/remote": "^2.1.2",
+		"@material/material-color-utilities": "^0.4.0",
 		"electron-color-picker": "^0.2.0",
 		"electron-updater": "^6.7.3"
+	},
+	"allowScripts": {
+		"node-gyp@12.4.0": true
 	}
 }

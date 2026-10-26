@@ -1362,7 +1362,9 @@ Interface.definePanels(function() {
 		}
 		return [OutlinerNode.uuids[target_node.id], target_node];
 	}
-	function getOrder(loc, obj) {
+	function getOrder(loc, obj, rowHeight = 28) {
+		// Normalize hit zones so themes can use accessible list row heights.
+		loc *= 28 / rowHeight;
 
 		if (!obj) {
 			return;
@@ -1603,7 +1605,7 @@ Interface.definePanels(function() {
 							[drop_target, drop_target_node] = eventTargetToNode(target);
 							if (drop_target) {
 								let location = e2.clientY - $(drop_target_node).offset().top;
-								order = getOrder(location, drop_target);
+								order = getOrder(location, drop_target, drop_target_node.querySelector('.outliner_object')?.getBoundingClientRect().height || 28);
 
 								let parent_target = order ? drop_target.parent : drop_target;
 								if (canAddOutlinerSelectionTo(parent_target, item)) {

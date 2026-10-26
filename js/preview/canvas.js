@@ -214,7 +214,7 @@ export const Canvas = {
 		if (!settings.grids.value) return;
 
 		three_grid.name = 'grid_group'
-		gizmo_colors.grid.set(parseInt('0x'+CustomTheme.data.colors.grid.replace('#', ''), 16));
+		gizmo_colors.grid.set(parseInt('0x'+AppTheme.colors.grid.replace('#', ''), 16));
 
 		const block_size = Format.block_size ?? 16;
 
@@ -1037,7 +1037,7 @@ export function initCanvas() {
 
 	Canvas.groundPlaneMaterial = new THREE.MeshBasicMaterial({
 		map: Canvas.emptyMaterials[0].uniforms.map.value,
-		color: CustomTheme.data.colors.back,
+		color: AppTheme.colors.back,
 		side: settings.ground_plane_double_side.value ? THREE.DoubleSide : THREE.FrontSide,
 		alphaTest: 0.2
 	})
@@ -1051,7 +1051,7 @@ export function initCanvas() {
 	scene.add(Canvas.ground_plane);
 	Canvas.gizmos.push(Canvas.ground_plane);
 
-	CustomTheme.updateColors();
+	AppTheme.updateColors();
 	resizeWindow();
 }
 

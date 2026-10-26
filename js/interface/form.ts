@@ -35,7 +35,7 @@ export enum FormInputType {
 export interface FormElementOptions {
 	label?: string
 	/**
-	 * Detailed description of the field, available behind the questionmark icon or on mouse hover
+	 * Persistent supporting text displayed below the field.
 	 */
 	description?: string
 	/**
@@ -52,6 +52,11 @@ export interface FormElementOptions {
 	full_width?: boolean
 	/** Set the input to read-only */
 	readonly?: boolean
+	/** Native text-field constraints, reported inline when confirming the form. */
+	required?: boolean
+	pattern?: string
+	min_length?: number
+	max_length?: number
 	/** Add buttons to allow copying and sharing the text or link */
 	share_text?: boolean
 	/**
@@ -244,6 +249,9 @@ export class InputForm extends EventSystem {
 		}
 	}
 	updateValues(context: {cause?: string, changed_keys?: string[]} = {}) {
+		this.node.querySelectorAll('.form_inline_select > li').forEach(option => {
+			option.setAttribute('aria-pressed', String(option.classList.contains('selected')));
+		});
 		let form_result = this.getResult();
 		this.update(form_result);
 		if (context.cause != 'setup') {
@@ -271,6 +279,7 @@ export class InputForm extends EventSystem {
 			if (values[form_id] != undefined && typeof input_config == 'object' && form_element.input_toggle && form_element.bar) {
 				form_element.input_toggle.checked = values[form_id];
 				form_element.bar.classList.toggle('form_toggle_disabled', !form_element.input_toggle.checked);
+				form_element.bar.querySelectorAll<HTMLElement>(':scope > :not(.form_input_toggle):not(label):not(.form_supporting_text)').forEach(control => control.inert = !form_element.input_toggle.checked);
 			}
 		}
 		if (update) this.updateValues({cause: 'update_toggle'});
@@ -289,6 +298,20 @@ export class InputForm extends EventSystem {
 			}
 		}
 		return result;
+	}
+	validate(): boolean {
+		let first_invalid: HTMLInputElement | HTMLTextAreaElement;
+		for (const element of Object.values(this.form_data)) {
+			if (!element.bar.offsetWidth || element.input_toggle?.checked === false) continue;
+			element.bar.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea').forEach(input => {
+				if (input.willValidate && !input.validity.valid) {
+					element.showValidation(input);
+					first_invalid ||= input;
+				}
+			});
+		}
+		first_invalid?.focus();
+		return !first_invalid;
 	}
 	static getDefaultValue(input_config: FormElementOptions): FormResultValue {
 		let set_value = input_config.value ?? input_config.default;
@@ -320,7 +343,7 @@ export class FormElement extends EventSystem {
 	build(bar: HTMLDivElement) {
 		this.bar = bar;
 		if (typeof this.options.label == 'string') {
-			let label = Interface.createElement('label', {class: 'name_space_left', for: this.id}, tl(this.options.label))
+			let label = Interface.createElement('label', {class: 'name_space_left', for: this.id}, tl(this.options.label) + (this.options.required ? ' (' + tl('form.required') + ')' : ''))
 			bar.append(label);
 			if (!this.options.full_width && this.condition !== false/*Weed out inputs where the condition is always false*/) {
 				this.label_width = getStringWidth(label.textContent);
@@ -329,7 +352,7 @@ export class FormElement extends EventSystem {
 		if (this.options.full_width) {
 			bar.classList.add('full_width_dialog_bar');
 		}
-		bar.setAttribute('form_type', this.options.type);
+		bar.setAttribute('form_type', this.options.type || 'text');
 		if (this.options.description) {
 			bar.setAttribute('title', tl(this.options.description));
 		}
@@ -351,17 +374,41 @@ export class FormElement extends EventSystem {
 		this.dispatchEvent('change', {changed_keys: [this.id]});
 		this.form.updateValues({cause: 'input', changed_keys: [this.id]});
 	}
+	showValidation(input: HTMLInputElement | HTMLTextAreaElement) {
+		const invalid = !input.validity.valid;
+		input.setAttribute('aria-invalid', String(invalid));
+		let supporting = this.bar.querySelector<HTMLElement>('.form_supporting_text');
+		if (!supporting) {
+			supporting = Interface.createElement('div', {class: 'form_supporting_text', id: `${this.form.uuid}_${this.id}_description`});
+			this.bar.append(supporting);
+		}
+		supporting.setAttribute('aria-live', 'polite');
+		supporting.textContent = invalid ? input.validationMessage : tl(this.options.description || '');
+		input.setAttribute('aria-describedby', supporting.id);
+	}
 	setup() {
+		this.bar.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input:not([type=checkbox]):not([type=radio]), textarea').forEach(input => {
+			if (this.options.required) input.required = true;
+			if (this.options.pattern && input instanceof HTMLInputElement) input.pattern = this.options.pattern;
+			if (this.options.min_length !== undefined) input.minLength = this.options.min_length;
+			if (this.options.max_length !== undefined) input.maxLength = this.options.max_length;
+			input.addEventListener('input', () => {
+				if (input.hasAttribute('aria-invalid')) this.showValidation(input);
+			});
+		});
 		if (this.options.readonly && 'input' in this) {
 			$(this.input).attr('readonly', 'readonly').removeClass('focusable_input');
 		}
+		if (this.options.readonly) this.bar.querySelectorAll('textarea').forEach(input => input.readOnly = true);
 		if (this.options.description) {
-			let icon = document.createElement('i');
-			icon.className = 'fa fa-question dialog_form_description';
-			icon.onclick = () => {
-				Blockbench.showQuickMessage(this.options.description, 3600);
-			}
-			this.bar.append(icon);
+			const description = Interface.createElement('div', {
+				class: 'form_supporting_text', id: `${this.form.uuid}_${this.id}_description`
+			}, tl(this.options.description));
+			this.bar.append(description);
+			this.bar.removeAttribute('title');
+			this.bar.querySelectorAll('input, textarea, .bb-select, .nslide').forEach(input => {
+				input.setAttribute('aria-describedby', description.id);
+			});
 		}
 		if (this.options.toggle_enabled) {
 			let toggle = Interface.createElement('input', {
@@ -370,11 +417,17 @@ export class FormElement extends EventSystem {
 				id: this.id + '_toggle',
 			}) as HTMLInputElement;
 			toggle.checked = this.options.toggle_default != false;
+			toggle.setAttribute('aria-label', tl(this.options.label || 'generic.enable'));
 			this.bar.append(toggle);
 			this.bar.classList.toggle('form_toggle_disabled', !toggle.checked);
+			const updateEnabled = () => {
+				this.bar.querySelectorAll<HTMLElement>(':scope > :not(.form_input_toggle):not(label):not(.form_supporting_text)').forEach(control => control.inert = !toggle.checked);
+			};
+			updateEnabled();
 			toggle.addEventListener('input', () => {
 				this.change();
 				this.bar.classList.toggle('form_toggle_disabled', !toggle.checked);
+				updateEnabled();
 			});
 			this.input_toggle = toggle;
 		}
@@ -397,6 +450,50 @@ export class FormElement extends EventSystem {
 			})
 			this.bar.append(extra_action);
 		}
+		if (this.input_toggle?.checked === false) {
+			this.bar.querySelectorAll<HTMLElement>(':scope > .form_extra_action').forEach(action => action.inert = true);
+		}
+		const label = this.bar.querySelector<HTMLLabelElement>(':scope > label');
+		if (label) {
+			label.id = `${this.form.uuid}_${this.id}_label`;
+			const inputs = this.bar.querySelectorAll<HTMLElement>('input:not(.form_input_toggle), textarea, .bb-select, .nslide');
+			inputs.forEach((input, index) => {
+				if (input.matches('[type=radio]')) return;
+				input.setAttribute('aria-label', `${label.textContent}${inputs.length > 1 ? ' ' + ('XYZW'[index] || index + 1) : ''}`);
+			});
+			const primary = inputs[0];
+			if (primary) {
+				label.htmlFor = primary.id;
+				// Labels associated with custom selects and editable numbers also move focus.
+				label.addEventListener('click', () => primary.focus());
+			}
+		}
+		this.bar.querySelectorAll<HTMLElement>('.form_extra_action, .form_input_tool, .linked_ratio_toggle').forEach(action => {
+			action.setAttribute('role', 'button');
+			action.tabIndex = 0;
+			action.setAttribute('aria-label', action.title || (action.classList.contains('linked_ratio_toggle') ? tl('form.link_dimensions') : tl('generic.edit')));
+			action.addEventListener('keydown', event => {
+				if (event.key !== 'Enter' && event.key !== ' ') return;
+				event.preventDefault(); event.stopPropagation();
+				if (!event.repeat) action.click();
+			});
+		});
+		this.bar.querySelectorAll<HTMLElement>('.form_inline_select > li').forEach(option => {
+			option.setAttribute('role', 'button');
+			option.tabIndex = 0;
+			option.addEventListener('keydown', event => {
+				if (!['Enter', ' ', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+				event.preventDefault(); event.stopPropagation();
+				if (event.key === 'Enter' || event.key === ' ') {
+					if (!event.repeat) option.click();
+				} else {
+					const options = Array.from(option.parentElement.children) as HTMLElement[];
+					const index = options.indexOf(option);
+					const next = event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + options.length) % options.length;
+					options[next].focus();
+				}
+			});
+		});
 	}
 	addShareButtons(bar: HTMLElement) {
 		let text = this.options.value?.toString() ?? '';
@@ -518,7 +615,7 @@ FormElement.types.info = class FormElementInfo extends FormElement {
 	build(bar: HTMLDivElement) {
 		this.bar = bar;
 		if (typeof this.options.label == 'string') {
-			let label = Interface.createElement('label', {class: 'name_space_left', for: this.id}, tl(this.options.label))
+			let label = Interface.createElement('label', {class: 'name_space_left', for: this.id}, tl(this.options.label) + (this.options.required ? ' (' + tl('form.required') + ')' : ''))
 			bar.append(label);
 			if (!this.options.full_width && this.condition !== false/*Weed out inputs where the condition is always false*/) {
 				this.label_width = getStringWidth(label.textContent);
@@ -569,7 +666,7 @@ FormElement.types.text = class FormElementText extends FormElement {
 
 			let password_toggle = Interface.createElement(
 				'div',
-				{class: 'password_toggle form_input_tool tool'},
+				{class: 'password_toggle form_input_tool tool', title: tl('form.show_password'), 'aria-pressed': 'false'},
 				Blockbench.getIconNode('fas.fa-eye-slash')
 			) as HTMLDivElement;
 			bar.append(password_toggle);
@@ -578,6 +675,8 @@ FormElement.types.text = class FormElementText extends FormElement {
 			password_toggle.addEventListener('click', e => {
 				hidden = !hidden;
 				input_element.setAttribute('type', hidden ? 'password' : 'text');
+				password_toggle.setAttribute('aria-pressed', String(!hidden));
+				password_toggle.setAttribute('aria-label', tl(hidden ? 'form.show_password' : 'form.hide_password'));
 				password_toggle.firstElementChild.className = hidden ? 'fas fa-eye-slash' : 'fas fa-eye';
 			})
 		}
@@ -635,6 +734,7 @@ FormElement.types.number = class FormElementNumber extends FormElement {
 		let scope = this;
 		this.numeric_input = new Interface.CustomElements.NumericInput(this.id, {
 			value: this.options.value,
+			readonly: this.options.readonly,
 			min: this.options.min, max: this.options.max, step: this.options.step,
 			onChange() {
 				scope.change();
@@ -799,6 +899,14 @@ FormElement.types.multi_select = class FormElementMultiSelect extends FormElemen
 			let text = this.options.options[key];
 			if (typeof text != 'string') text = text.name;
 			let remove_button = Blockbench.getIconNode('clear');
+			remove_button.setAttribute('role', 'button');
+			remove_button.setAttribute('aria-label', `${tl('generic.remove')}: ${tl(text)}`);
+			remove_button.tabIndex = 0;
+			remove_button.addEventListener('keydown', event => {
+				if (event.key !== 'Enter' && event.key !== ' ') return;
+				event.preventDefault(); event.stopPropagation();
+				if (!event.repeat) remove_button.click();
+			});
 			this.ul.append(Interface.createElement('li', {}, [
 				text,
 				remove_button
@@ -811,6 +919,14 @@ FormElement.types.multi_select = class FormElementMultiSelect extends FormElemen
 			})
 		}
 		let add = Interface.createElement('div', {class: 'tool'}, Blockbench.getIconNode('add'));
+		add.setAttribute('role', 'button');
+		add.setAttribute('aria-label', tl('generic.add'));
+		add.tabIndex = 0;
+		add.addEventListener('keydown', event => {
+			if (event.key !== 'Enter' && event.key !== ' ') return;
+			event.preventDefault(); event.stopPropagation();
+			if (!event.repeat) add.click();
+		});
 		this.ul.append(add);
 	}
 	getValue(): string[] {
@@ -874,25 +990,24 @@ FormElement.types.radio = class FormElementRadio extends FormElement {
 	input: HTMLInputElement
 	build(bar: HTMLDivElement) {
 		super.build(bar);
-		let el = $(`<div class="half form_part_radio" id="${this.id}"></div>`)
+		let el = Interface.createElement('div', {class: 'half form_part_radio', role: 'radiogroup', 'aria-label': tl(this.options.label || '')});
 		for (let key in this.options.options) {
 			let name = tl(typeof this.options.options[key] == 'string' ? this.options.options[key] : this.options.options[key].name)
-			el.append(`<div class="form_bar_radio">
-				<input type="radio" class="focusable_input" name="${this.id}_radio" id="${key}" ${(this.options.default || this.options.value) === key ? 'selected' : ''}>
-				<label for="${key}">${name}</label>
-			</div>`)
-			this.input = el.find(`input#${key}`)[0] as HTMLInputElement;
+			const id = `${this.form.uuid}_${this.id}_${key}`;
+			this.input = Interface.createElement('input', {type: 'radio', class: 'focusable_input', name: `${this.form.uuid}_${this.id}`, id, value: key});
+			this.input.checked = (this.options.value ?? this.options.default ?? this.getDefault()) === key;
+			el.append(Interface.createElement('div', {class: 'form_bar_radio'}, [this.input, Interface.createElement('label', {for: id}, name)]));
 			this.input.addEventListener('change', (args) => {
 				this.change();
 			})
 		}
-		bar.append(el[0]);
+		bar.append(el);
 	}
 	getValue(): string {
-		return $(this.bar).find('.form_part_radio#'+this.id+' input:checked').attr('id');
+		return this.bar.querySelector<HTMLInputElement>('.form_part_radio input:checked')?.value;
 	}
 	setValue(value: string) {
-		$(this.bar).find('.form_part_radio input#'+value).prop('checked', true);
+		this.bar.querySelectorAll<HTMLInputElement>('.form_part_radio input').forEach(input => input.checked = input.value === value);
 	}
 	getDefault() {
 		return Object.keys(this.options.options)[0] ?? '';
@@ -1115,10 +1230,18 @@ class FormElementFile extends FormElement {
 		this.value = this.options.value;
 		let scope = this;
 
-		let input = $(`<input class="dark_bordered half" class="focusable_input" type="text" id="${this.id}" style="pointer-events: none;" disabled>`);
+		let input = $(`<input class="dark_bordered half" type="text" id="${this.id}" style="pointer-events: none;" readonly tabindex="-1">`);
 		this.input = input[0] as HTMLInputElement;
 		let input_wrapper = $('<div class="input_wrapper"></div>');
 		this.input_wrapper = input_wrapper[0] as HTMLDivElement;
+		this.input_wrapper.setAttribute('role', 'button');
+		this.input_wrapper.setAttribute('aria-label', tl(this.options.label || 'generic.open'));
+		this.input_wrapper.tabIndex = 0;
+		this.input_wrapper.addEventListener('keydown', event => {
+			if (event.key !== 'Enter' && event.key !== ' ') return;
+			event.preventDefault(); event.stopPropagation();
+			if (!event.repeat) this.input_wrapper.click();
+		});
 		input_wrapper.append(input);
 		bar.append(input_wrapper[0]);
 		bar.classList.add('form_bar_file');
@@ -1129,7 +1252,8 @@ class FormElementFile extends FormElement {
 			case 'folder':	input_wrapper.append('<i class="material-icons">folder</i>'); break;
 			case 'save':	input_wrapper.append('<i class="material-icons">save</i>'); break;
 		}
-		let remove_button = $('<div class="tool" style="float: none; vertical-align: top;"><i class="material-icons">clear</i></div>');
+		let remove_button = $('<div class="tool form_extra_action" style="float: none; vertical-align: top;"><i class="material-icons">clear</i></div>');
+		remove_button.attr('title', tl('generic.clear'));
 		bar.append(remove_button[0]);
 		remove_button.on('click', e => {
 			e.stopPropagation();

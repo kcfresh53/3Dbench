@@ -1,6 +1,7 @@
 import { Blockbench } from "./api";
 import { updateStreamerModeNotification } from "./interface/setup_settings";
-import { loadThemes } from "./interface/themes";
+import "./interface/theme/app_theme";
+import "./interface/theme/appearance_dialog";
 import { translateUI } from "./languages";
 import { loadInstalledPlugins } from "./plugin_loader";
 import { loadBuiltInPlugins } from "./built_in_plugins";
@@ -18,7 +19,7 @@ Interface.right_bar = document.getElementById('right_bar');
 Interface.left_bar = document.getElementById('left_bar');
 Interface.preview = document.getElementById('preview');
 
-CustomTheme.setup();
+AppTheme.load();
 
 StateMemory.init('dialog_paths', 'object')
 
@@ -59,7 +60,6 @@ BARS.setupToolbars()
 BARS.setupVue()
 MenuBar.setup()
 translateUI()
-loadThemes()
 initReferenceImages()
 
 animate()

@@ -77,13 +77,14 @@ export function openMolangEditor(options: MolangEditorOptions, callback: ((resul
 		},
 		onOpen() {
 			let element = document.querySelector('#expression_editor_prism.molang_input') as HTMLElement;
-			element.style.height = Math.max(dialog.object.clientHeight - 148, 100) + 'px';
-			element.style.maxHeight = element.style.height;
+			element.style.height = '320px';
+			element.style.maxHeight = 'none';
 		},
 		onResize() {
 			let element = document.querySelector('#expression_editor_prism.molang_input') as HTMLElement;
-			element.style.height = (dialog.object.clientHeight - 148) + 'px';
-			element.style.maxHeight = element.style.height;
+			const content = dialog.object.querySelector<HTMLElement>('.dialog_content');
+			const toolbar = content.querySelector<HTMLElement>('.dialog_bar');
+			element.style.height = Math.max(120, content.clientHeight - toolbar.offsetHeight - 16) + 'px';
 		},
 		onConfirm() {
 			callback(dialog.content_vue.$data.text);

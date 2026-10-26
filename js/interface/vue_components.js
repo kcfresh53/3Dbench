@@ -1,12 +1,15 @@
 Vue.component('search-bar', {
 	props: {
 		value: String,
-		hide: Boolean
+		hide: Boolean,
+		label: String
 	},
 	data() {return {
 		hidden: this.hide
 	}},
 	methods: {
+		searchLabel() { return this.label || tl('generic.search'); },
+		actionLabel() { return tl(this.value ? 'generic.reset' : 'generic.search'); },
 		change(text) {
 			this.$emit('input', text)
 		},
@@ -21,8 +24,8 @@ Vue.component('search-bar', {
 	},
 	template: `
 		<div class="search_bar" :class="{folded: (!value && hidden)}">
-			<input type="text" inputmode="search" ref="input" class="dark_bordered" :value="value" @focusout="hidden = hide;" @input="change($event.target.value)">
-			<i class="material-icons" :class="{light_on_hover: !!value}" @click="clickIcon()">{{ value ? 'clear' : 'search' }}</i>
+			<input type="text" inputmode="search" ref="input" :aria-label="searchLabel()" class="dark_bordered" :value="value" @focusout="hidden = hide;" @input="change($event.target.value)">
+			<i class="material-icons" :class="{light_on_hover: !!value}" :role="hide || value ? 'button' : 'img'" :tabindex="hide || value ? 0 : -1" :aria-label="actionLabel()" @keydown.enter.prevent="clickIcon()" @keydown.space.prevent="clickIcon()" @click="clickIcon()">{{ value ? 'clear' : 'search' }}</i>
 		</div>`
 })
 
@@ -73,7 +76,7 @@ Vue.component('select-input', {
 		}
 	},
 	template: `
-		<div class="bb-select" @click="open($event)">
+		<div class="bb-select" role="button" tabindex="0" aria-haspopup="menu" @keydown.enter.prevent="open($event)" @keydown.space.prevent="open($event)" @click="open($event)">
 			{{ getNameFor(value) }}
 		</div>
 	`
@@ -135,7 +138,9 @@ Vue.component('numeric-input', {
 	},
 	template: `
 		<div class="numeric_input" @mousedown="$emit('mousedown', $event)">
-			<input class="dark_bordered focusable_input"
+			<input type="text" class="dark_bordered focusable_input"
+				@keydown.up.prevent.stop="change(resolved_value + (step || 1), true)"
+				@keydown.down.prevent.stop="change(resolved_value - (step || 1), true)"
 				:value="string_value" @input="change($event.target.value)"
 				:inputmode="min >= 0 ? 'decimal' : ''" lang="en"
 				@focusout="resolve($event)" @dblclick="resolve($event)"

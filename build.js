@@ -115,7 +115,6 @@ const config = {
         'electron',
     ],
     loader: {
-        '.bbtheme': 'text',
         '.png': 'dataurl'
     },
     plugins: [

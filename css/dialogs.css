@@ -2883,17 +2883,18 @@
 	}
 }
 
+@layer base {
 /* Isolated live humanoid preview, alongside the creation controls. */
 #create_humanoid .dialog_content {
 	display: grid;
-	grid-template-columns: minmax(280px, 1fr) 370px;
-	gap: 22px;
+	grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+	gap: 24px;
 	max-height: calc(100vh - 190px);
 	overflow: auto;
 }
 #create_humanoid .humanoid_view { min-width: 0; position: sticky; top: 0; align-self: start; }
 #create_humanoid .humanoid_heading { font-size: 11px; letter-spacing: 1px; color: var(--color-subtle_text); margin-bottom: 10px; }
-#create_humanoid canvas { width: 100%; height: min(570px, calc(100vh - 300px)); min-height: 260px; display: block; border-radius: 8px; touch-action: none; cursor: grab; }
+#create_humanoid canvas { width: 100%; height: min(440px, calc(100vh - 320px)); min-height: 200px; display: block; border-radius: 8px; touch-action: none; cursor: grab; }
 #create_humanoid canvas:active { cursor: grabbing; }
 #create_humanoid .humanoid_stats { margin: 12px 0 6px; font-size: 12px; }
 #create_humanoid .humanoid_hint { color: var(--color-subtle_text); font-size: 11px; }
@@ -2901,5 +2902,7 @@
 @media (max-width: 800px) {
 	#create_humanoid .dialog_content { grid-template-columns: 1fr; }
 	#create_humanoid .humanoid_view { position: static; }
-	#create_humanoid canvas { height: 310px; }
+	#create_humanoid canvas { height: clamp(128px, 24vh, 200px); min-height: 128px; }
+}
+
 }

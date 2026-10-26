@@ -245,7 +245,7 @@ new NodePreviewController(NullObject, {
 	updateSelection(element) {
 		let {mesh} = element;
 
-		mesh.material.color.set(element.selected ? gizmo_colors.outline : CustomTheme.data.colors.text);
+		mesh.material.color.set(element.selected ? gizmo_colors.outline : AppTheme.colors.text);
 		mesh.material.depthTest = !element.selected;
 		mesh.renderOrder = element.selected ? 100 : 0;
 		mesh.visible = !!Canvas.show_element_markers;

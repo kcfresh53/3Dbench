@@ -497,6 +497,9 @@
 		margin-right: auto;
 		margin-left: auto;
 	}
+	.toolbar.no_wrap > .content > .toolbar_overflow_hidden {
+		visibility: hidden;
+	}
 	.toolbar_overflow_popup {
 		background-color: var(--color-ui);
 		position: absolute;

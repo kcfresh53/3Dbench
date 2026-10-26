@@ -151,6 +151,22 @@ export abstract class BarItem extends EventSystem {
 			action = this;
 		}
 
+		if (action.node instanceof HTMLElement) {
+			action.node.setAttribute('aria-label', action.name);
+			if (action.node.classList.contains('tool') && !action.node.classList.contains('widget')) {
+				action.node.setAttribute('role', 'button');
+				action.node.tabIndex = 0;
+				// jQuery's cloned handlers preserve keyboard activation on toolbar copies.
+				$(action.node).off('keydown.material_button').on('keydown.material_button', event => {
+					if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
+					event.preventDefault();
+					event.stopPropagation();
+					const node = event.currentTarget as HTMLElement;
+					if (!(event.originalEvent as KeyboardEvent)?.repeat && !node.classList.contains('disabled') && node.getAttribute('aria-disabled') !== 'true') node.click();
+				});
+			}
+		}
+
 		if (in_bar) {
 			let label = document.createElement('label');
 			label.classList.add('f_left', 'toolbar_label')
@@ -160,6 +176,7 @@ export abstract class BarItem extends EventSystem {
 		} else {
 			let tooltip = document.createElement('div');
 			tooltip.className = 'tooltip';
+			tooltip.setAttribute('aria-hidden', 'true');
 			tooltip.innerText = action.name;
 			
 			let label = document.createElement('label');
@@ -1154,6 +1171,17 @@ export class NumSlider extends Widget {
 		])
 		this.jq_outer = $(this.node)
 		this.jq_inner = this.jq_outer.find('.nslide');
+		this.jq_inner.attr({tabindex: '0', role: 'textbox', 'aria-label': this.name, 'aria-multiline': 'false'});
+		this.jq_inner.on('keydown', event => {
+			if (this.jq_inner.hasClass('editing')) return;
+			if (event.key === 'Enter' || event.key === 'F2') {
+				event.preventDefault(); event.stopPropagation();
+				this.startInput();
+			} else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+				event.preventDefault(); event.stopPropagation();
+				this.arrow(event.key === 'ArrowUp' ? 1 : -1, event);
+			}
+		});
 
 		if (this.color) {
 			var css_color = 'uvwxyz'.includes(this.color.toString()) ? `var(--color-axis-${this.color})` : this.color;
@@ -1770,6 +1798,18 @@ export class BarSelect extends Widget {
 		this.nodes.push(this.node);
 		this.set(this.value);
 		this.addLabel()
+		this.node.querySelectorAll<HTMLElement>('.bb-select, .select_option').forEach(control => {
+			control.tabIndex = 0;
+			control.setAttribute('role', 'button');
+			control.setAttribute('aria-label', control.classList.contains('select_option') ? this.getNameFor(control.getAttribute('key')) : this.name);
+			if (control.classList.contains('bb-select')) control.setAttribute('aria-haspopup', 'menu');
+		});
+		// jQuery delegation is retained when toolbar widgets are cloned.
+		$(this.node).on('keydown', '.bb-select, .select_option', event => {
+			if (event.key !== 'Enter' && event.key !== ' ') return;
+			event.preventDefault(); event.stopPropagation();
+			if (!(event.originalEvent as KeyboardEvent)?.repeat) (event.currentTarget as HTMLElement).click();
+		});
 		if (typeof data.onChange === 'function') {
 			this.onChange = data.onChange
 		}
@@ -1902,6 +1942,7 @@ export class BarSelect extends Widget {
 				for (let key in this.options) {
 					let button = node.querySelector(`div.select_option[key=${key}]`);
 					button.classList.toggle('selected', this.value == key);
+						button.setAttribute('aria-pressed', String(this.value == key));
 				}
 			})
 		} else {
@@ -2020,6 +2061,24 @@ export class ColorPicker extends Widget {
 				scope.dispatchEvent('modify_color', {color: arg});
 			}
 		})
+		const replacement = this.node.querySelector<HTMLElement>('.sp-replacer');
+		if (replacement) {
+			replacement.tabIndex = 0;
+			replacement.setAttribute('role', 'button');
+			replacement.setAttribute('aria-label', this.name);
+			replacement.setAttribute('aria-haspopup', 'dialog');
+			replacement.addEventListener('keydown', event => {
+				if (event.key !== 'Enter' && event.key !== ' ') return;
+				event.preventDefault(); event.stopPropagation();
+				if (!event.repeat) this.jq.spectrum('show');
+			});
+		}
+		const popup = this.jq.spectrum('container')[0];
+		popup.setAttribute('role', 'dialog');
+		popup.setAttribute('aria-label', this.name);
+		const color_input = popup.querySelector<HTMLInputElement>('.sp-input');
+		color_input.id = `color_value_${guid()}`;
+		color_input.before(Interface.createElement('label', {for: color_input.id, class: 'sp-input-label'}, tl('data.color')));
 	}
 	change(color: tinycolor.Instance) {
 		if (this.onChange) {

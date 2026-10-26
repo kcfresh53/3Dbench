@@ -118,7 +118,7 @@ export function setupResizeLines() {
 	new ResizeLine('left', {
 		condition() {
 			if (Blockbench.isMobile) return false;
-			if (!Prop.show_left_bar) return false;
+			if (!Interface.left_bar_width) return false;
 			if (!Mode.selected) return false;
 			for (let p of Interface.getLeftPanels(false)) {
 				if (p && BARS.condition(p.condition) && p.slot == 'left_bar') {
@@ -154,7 +154,7 @@ export function setupResizeLines() {
 	new ResizeLine('right', {
 		condition() {
 			if (Blockbench.isMobile) return false;
-			if (!Prop.show_right_bar) return false;
+			if (!Interface.right_bar_width) return false;
 			if (!Mode.selected) return false;
 			for (let p of Interface.getRightPanels(false)) {
 				if (p && BARS.condition(p.condition) && p.slot == 'right_bar') {

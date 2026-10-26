@@ -75,43 +75,11 @@ export class MenuSeparator {
 }
 function handleMenuOverflow(node: HTMLElement) {
 	if (!node) return;
-	function offset(amount) {
-		let top = parseInt(node.style.top);
-		let offset = top - $(node).offset().top;
-		let top_gap = 26;
-		if (Blockbench.isMobile && Menu.open instanceof BarMenu) {
-			top_gap = window.innerHeight > 400 ? 106 : 56;
-		}
-		top = Math.clamp(
-			top + amount,
-			window.innerHeight - node.clientHeight + offset,
-			offset + top_gap
-		);
-		node.style.top = `${top}px`;
-	}
-	if (Blockbench.isTouch) {
-		node.addEventListener('touchstart', e1 => {
-			e1.stopPropagation();
-			convertTouchEvent(e1);
-			// @ts-expect-error
-			let last_y = e1.clientY;
-			let move = e2 => {
-				convertTouchEvent(e2);
-				offset(e2.clientY - last_y);
-				last_y = e2.clientY;
-			}
-			let stop = e2 => {
-				document.removeEventListener('touchmove', move);
-				document.removeEventListener('touchend', stop);
-			}
-			document.addEventListener('touchmove', move);
-			document.addEventListener('touchend', stop);
-		})
-	}
-	node.addEventListener('wheel', e => {
-		e.stopPropagation();
-		offset(-e.deltaY);
-	})
+	const top = Blockbench.isMobile && Menu.open instanceof BarMenu ? (window.innerHeight > 400 ? 106 : 56) : 16;
+	node.style.maxHeight = `${window.innerHeight - top - 16}px`;
+	node.style.overflowY = 'auto';
+	node.style.overscrollBehavior = 'contain';
+	node.style.scrollbarGutter = 'stable';
 }
 
 /**
@@ -128,6 +96,7 @@ export class Menu implements Deletable {
 	node: HTMLUListElement
 	highlight_action?: MenuItem
 	anchor_tool?: HTMLElement
+	private return_focus?: HTMLElement
 
 	public type = 'menu'
 
@@ -184,6 +153,8 @@ export class Menu implements Deletable {
 		$(Menu.open.node).find('li.opened').removeClass('opened')
 		var obj = $(node)
 		node.classList.add('focused')
+		this.node.setAttribute('aria-activedescendant', node.id);
+		if (node.parentElement.scrollHeight > node.parentElement.clientHeight) node.scrollIntoView({block: 'nearest'});
 		obj.parents('li.parent, li.hybrid_parent').addClass('opened')
 
 		if (obj.hasClass('parent') || (expand && obj.hasClass('hybrid_parent'))) {
@@ -191,53 +162,20 @@ export class Menu implements Deletable {
 
 			if (expand) node.classList.add('opened');
 
-			var p_width = obj.outerWidth()
-			childlist.css('left', p_width + 'px')
-			childlist.css('margin-top', '');
-			var el_width = childlist.width()
-			var offset = childlist.offset()
-			var el_height = childlist.height()
+			const submenu = childlist.get(0);
+			if (!submenu) return;
+			const trigger = node.getBoundingClientRect();
+			// Fixed positioning keeps a submenu visible outside a scrolling parent menu.
+			submenu.style.position = 'fixed';
+			submenu.style.margin = '0';
+			const width = submenu.offsetWidth;
+			const height = Math.min(submenu.scrollHeight, window.innerHeight - 32);
+			let left = trigger.right;
+			if (left + width > window.innerWidth - 8) left = trigger.left - width;
+			submenu.style.left = Math.clamp(left, 8, Math.max(8, window.innerWidth - width - 8)) + 'px';
+			submenu.style.top = Math.clamp(trigger.top - 8, 16, Math.max(16, window.innerHeight - height - 16)) + 'px';
+			if (submenu.scrollHeight > window.innerHeight - 32) handleMenuOverflow(submenu);
 
-			if (offset.left + el_width > window.innerWidth) {
-				let clamp_at_screen_edge = window.innerWidth - offset.left + p_width - el_width;
-				if (Blockbench.isMobile) {
-					// On mobile, overlay submenus
-					childlist.css('visibility', 'hidden');
-					setTimeout(() => {
-						childlist.css('left', 0);
-						childlist.css('visibility', 'visible');
-					}, 100);
-				} else if (expand) {
-					// In hybrid menu, offset below so the menu doesn't close
-					childlist.css('margin-top', (node.clientHeight-5) + 'px');
-					let clamp_at_button_overlap = p_width - (event.target as HTMLElement).clientWidth;
-					childlist.css('left', Math.min(clamp_at_screen_edge, clamp_at_button_overlap) + 'px');
-				} else if (el_width > offset.left - p_width) {
-					// If not enough space on the left, stick to the right screen edge
-					childlist.css('left', clamp_at_screen_edge + 'px');
-				} else {
-					// Display to the left of the menu
-					childlist.css('left', -el_width + 'px')
-				}
-			}
-
-			let top_gap = 26;
-			if (Blockbench.isMobile && this instanceof BarMenu) {
-				top_gap = window.innerHeight > 400 ? 106 : 56;
-			}
-			let window_height = window.innerHeight - top_gap;
-
-			if (el_height > window_height) {
-				childlist.css('margin-top', '0').css('top', '0')
-				childlist.css('top', (-childlist.offset().top + top_gap) + 'px')
-				handleMenuOverflow(childlist.get(0));
-
-			} else if (offset.top + el_height > window_height) {
-				childlist.css('margin-top', top_gap-childlist.height() + 'px')
-				if (childlist.offset().top < top_gap) {
-					childlist.offset({top: top_gap})
-				}
-			}
 		}
 	}
 	//reveal(path) {}
@@ -285,8 +223,16 @@ export class Menu implements Deletable {
 					MenuBar.menus[MenuBar.keys[index]].open()
 				}
 			} else {
-				obj.find('> li:first-child').addClass('focused')
+				const candidates = obj.find('> li:not(.menu_separator, .menu_search_bar)');
+				const first = (e.which === 38 ? candidates.last() : candidates.first()).get(0);
+				if (first) this.hover(first);
 			}
+			used = true;
+		} else if (e.which === 36 || e.which === 35) {
+			const parent = obj.find('li.focused').parent('ul');
+			const candidates = (parent.length ? parent : obj).children('li:not(.menu_separator, .menu_search_bar)');
+			const next = (e.which === 36 ? candidates.first() : candidates.last()).get(0);
+			if (next) this.hover(next);
 			used = true;
 		} else if (Keybinds.extra.confirm.keybind.isTriggered(e)) {
 			obj.find('li.focused').trigger('click');
@@ -317,7 +263,10 @@ export class Menu implements Deletable {
 		if (open_menu) {
 			open_menu.hide()
 		}
+		this.return_focus = document.activeElement as HTMLElement;
 		document.body.append(this.node);
+		ctxmenu.style.maxHeight = '';
+		ctxmenu.style.overflowY = '';
 
 		this.anchor_tool = position instanceof HTMLElement ? position.closest('.tool') : null;
 		this.anchor_tool?.classList.add('menu_open');
@@ -650,6 +599,16 @@ export class Menu implements Deletable {
 
 		let content_list = typeof this.structure == 'function' ? this.structure(context) : this.structure;
 		populateList(content_list, ctxmenu, this.options.searchable);
+		ctxmenu.setAttribute('role', 'menu');
+		ctxmenu.setAttribute('aria-label', this.id || tl('menu.view'));
+		ctxmenu.tabIndex = -1;
+		ctxmenu.querySelectorAll('ul').forEach(list => list.setAttribute('role', 'menu'));
+		ctxmenu.querySelectorAll('li').forEach((item, index) => {
+			item.id = `menu_${this.id}_${index}`;
+			item.setAttribute('role', item.classList.contains('menu_separator') ? 'separator' : 'menuitem');
+			if (item.classList.contains('parent')) item.setAttribute('aria-haspopup', 'menu');
+		});
+
 
 		let el_width = ctxmenu.clientWidth;
 		let el_height = ctxmenu.clientHeight;
@@ -731,6 +690,8 @@ export class Menu implements Deletable {
 		}
 		window.open_menu = this;
 		Menu.open = this;
+		const search = ctxmenu.querySelector<HTMLInputElement>('.menu_search_bar input');
+		(search || ctxmenu).focus({preventScroll: true});
 		return this;
 	}
 	/**
@@ -751,6 +712,7 @@ export class Menu implements Deletable {
 		this.node.remove()
 		window.open_menu = null;
 		Menu.open = null;
+		if (this.return_focus?.isConnected && (!Dialog.open || Dialog.open.object.contains(this.return_focus))) this.return_focus.focus({preventScroll: true});
 		return this;
 	}
 	/**

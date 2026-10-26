@@ -144,20 +144,30 @@ export class Toolbar {
 		if (this.no_wrap && !this.vertical) {
 			let toolbar_overflow_button = Interface.createElement('div', {
 				class: 'tool toolbar_overflow_button',
-				title: tl('menu.toolbar.overflow')
+				title: tl('menu.toolbar.overflow'), role: 'button', tabindex: '0', 'aria-label': tl('menu.toolbar.overflow')
 			}, Blockbench.getIconNode('expand_more'));
+			toolbar_overflow_button.addEventListener('keydown', event => {
+				if (event.key !== 'Enter' && event.key !== ' ') return;
+				event.preventDefault(); event.stopPropagation();
+				if (!event.repeat) toolbar_overflow_button.click();
+			});
+			const getOverflowedTools = () => {
+				const content = this.node.querySelector<HTMLElement>('.content');
+				if (!content) return [];
+				const bounds = content.getBoundingClientRect();
+				return Array.from(content.children).filter(tool => {
+					const rect = tool.getBoundingClientRect();
+					return rect.width > 0 && (rect.top - bounds.top > 12 || rect.right - bounds.right > 1);
+				});
+			};
 			toolbar_overflow_button.addEventListener('click', event => {
 
 				let content = this.node.querySelector('.content');
 				if (!content) return;
 				let menu_items = [];
-				for (let _tool of content.childNodes) {
-					let tool = _tool as HTMLElement;
-					if (tool.offsetTop) {
-						let item = BarItems[tool.getAttribute('toolbar_item')];
-						if (!item) continue;
-						menu_items.push(item);
-					}
+				for (const tool of getOverflowedTools()) {
+					const item = BarItems[tool.getAttribute('toolbar_item')];
+					if (item) menu_items.push(item);
 				}
 				new Menu('toolbar_overflow', menu_items, {class: 'toolbar_overflow_menu'}).show(toolbar_overflow_button);
 			})
@@ -165,9 +175,13 @@ export class Toolbar {
 
 			let updateOverflow = () => {
 				if (!this.node.isConnected) return;
-				let last_child = this.node.querySelector('.content')?.lastElementChild as HTMLElement;
-				let show = last_child?.offsetTop > 12;
-				toolbar_overflow_button.style.display = show ? 'block' : 'none';
+				const show = getOverflowedTools().length > 0;
+				toolbar_overflow_button.style.display = show ? '' : 'none';
+				// Measure again after reserving space for the overflow button.
+				const overflowed = new Set(getOverflowedTools());
+				this.node.querySelector('.content')?.childNodes.forEach(tool => {
+					if (tool instanceof HTMLElement) tool.classList.toggle('toolbar_overflow_hidden', overflowed.has(tool));
+				});
 			}
 			updateOverflow();
 			new ResizeObserver(updateOverflow).observe(this.node);

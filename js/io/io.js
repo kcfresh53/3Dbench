@@ -40,13 +40,6 @@ export function setupDragHandlers() {
 		}
 	)
 	Blockbench.addDragHandler(
-		'style',
-		{extensions: ['bbtheme']},
-		function(files) {
-			CustomTheme.import(files[0]);
-		}
-	)
-	Blockbench.addDragHandler(
 		'settings',
 		{extensions: ['bbsettings']},
 		function(files) {

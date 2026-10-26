@@ -15,17 +15,39 @@ export const Interface = {
 		start_screen_width: 1000,
 		modes: {},
 	},
-	get left_bar_width() {
-		if (Prop.show_left_bar && Interface.getLeftPanels(false).length) { 
-			return Interface.getModeData()?.left_bar_width ?? Interface.data.left_bar_width;
+	// Fit supporting panes around a usable canvas without changing saved widths.
+	// Reading the same fitted values everywhere keeps resize handles and UV
+	// canvases aligned with the grid, including after a window resize.
+	compact_sidebar: 'right',
+	getSidebarWidths() {
+		const mode = Interface.getModeData();
+		let left = Prop.show_left_bar && Interface.getLeftPanels(false).length
+			? (mode?.left_bar_width ?? Interface.data.left_bar_width) : 0;
+		let right = Prop.show_right_bar && Interface.getRightPanels(false).length
+			? (mode?.right_bar_width ?? Interface.data.right_bar_width) : 0;
+		if (!Blockbench.isMobile && window.innerWidth < 1200 && left && right) {
+			if (Interface.compact_sidebar === 'left') right = 0;
+			else left = 0;
 		}
-		return 0;
+		const work = Interface.work_screen;
+		if (work?.clientWidth && !Blockbench.isMobile) {
+			const style = getComputedStyle(work);
+			const chrome = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
+				+ 2 * (parseFloat(style.columnGap) || 0);
+			const available = Math.max(0, work.clientWidth - chrome - 320);
+			if (left + right > available) {
+				const ratio = available / (left + right);
+				left = Math.floor(left * ratio / 4) * 4;
+				right = Math.floor(right * ratio / 4) * 4;
+			}
+		}
+		return {left, right};
+	},
+	get left_bar_width() {
+		return Interface.getSidebarWidths().left;
 	},
 	get right_bar_width() {
-		if (Prop.show_right_bar && Interface.getRightPanels(false).length) { 
-			return Interface.getModeData()?.right_bar_width ?? Interface.data.right_bar_width;
-		}
-		return 0;
+		return Interface.getSidebarWidths().right;
 	},
 	get top_panel_height() {
 		return 1;
@@ -122,7 +144,8 @@ export const Interface = {
 		return el;
 	},
 	toggleSidebar(side, status) {
-		if (status == undefined) status = !Prop[`show_${side}_bar`];
+		if (status == undefined) status = !(side === 'left' ? Interface.left_bar_width : Interface.right_bar_width);
+		if (status && window.innerWidth < 1200) Interface.compact_sidebar = side;
 		Prop[`show_${side}_bar`] = !!status;
 		resizeWindow();
 	}
@@ -400,10 +423,14 @@ export function resizeWindow(event) {
 	}
 	var dialog = $('dialog#'+open_dialog)
 	if (dialog.length) {
-		if (dialog.outerWidth() + dialog.offset().left > window.innerWidth) {
+		const margin = parseFloat(getComputedStyle(dialog[0]).getPropertyValue('--dialog-safe-margin')) || 0;
+		if (margin) {
+			dialog.css('left', Math.clamp(dialog.offset().left, margin, Math.max(margin, window.innerWidth - dialog.outerWidth() - margin)) + 'px');
+			dialog.css('top', Math.clamp(dialog.offset().top, margin, Math.max(margin, window.innerHeight - dialog.outerHeight() - margin)) + 'px');
+		} else if (dialog.outerWidth() + dialog.offset().left > window.innerWidth) {
 			dialog.css('left', limitNumber(window.innerWidth-dialog.outerWidth(), 0, 4e3) + 'px')
 		}
-		if (dialog.outerHeight() + dialog.offset().top > window.innerHeight) {
+		if (!margin && dialog.outerHeight() + dialog.offset().top > window.innerHeight) {
 			dialog.css('top', limitNumber(window.innerHeight-dialog.outerHeight(), 0, 4e3) + 'px')
 		}
 	}
@@ -512,6 +539,14 @@ Interface.CustomElements.SelectInput = function(id, data) {
 	let options = typeof data.options == 'function' ? data.options() : data.options;
 	let value = data.value || data.default || Object.keys(options).find(key => options[key]);
 	let select = Interface.createElement('div', {id, class: 'bb-select half', value: value}, getNameFor(options[value]));
+	select.setAttribute('role', 'button');
+	select.setAttribute('aria-haspopup', 'menu');
+	select.tabIndex = 0;
+	select.addEventListener('keydown', event => {
+		if (!['Enter', ' ', 'ArrowDown', 'ArrowUp'].includes(event.key)) return;
+		event.preventDefault(); event.stopPropagation();
+		if (!event.repeat) select.click();
+	});
 	if (data.display_icon && options[value]) {
 		let icon_string = options[value].icon ?? '';
 		select.prepend(Blockbench.getIconNode(icon_string, options[value]?.color));
@@ -564,7 +599,7 @@ Interface.CustomElements.SelectInput = function(id, data) {
 	this.set = setKey;
 }
 Interface.CustomElements.NumericInput = function(id, data) {
-	let input = Interface.createElement('input', {id, class: 'dark_bordered focusable_input', value: data.value || 0, inputmode: data.min >= 0 ? 'decimal' : ''});
+	let input = Interface.createElement('input', {id, type: 'text', class: 'dark_bordered focusable_input', value: data.value || 0, inputmode: data.min >= 0 ? 'decimal' : ''});
 	let slider = Interface.createElement('div', {class: 'tool numeric_input_slider'}, Blockbench.getIconNode('code'));
 	this.node = Interface.createElement('div', {class: 'numeric_input'}, [
 		input, slider
@@ -611,6 +646,12 @@ Interface.CustomElements.NumericInput = function(id, data) {
 	input.addEventListener('input', (event) => {
 		if (data.onChange) data.onChange(Math.clamp(NumSlider.MolangParser.parse(input.value), data.min, data.max), event);
 	})
+	input.addEventListener('keydown', event => {
+		if (data.readonly || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+		event.preventDefault(); event.stopPropagation();
+		this.value = Math.clamp(this.value + (event.key === 'ArrowUp' ? 1 : -1) * (data.step || 1), data.min, data.max);
+		if (data.onChange) data.onChange(this.value, event);
+	});
 }
 
 export function openTouchKeyboardModifierMenu(node) {

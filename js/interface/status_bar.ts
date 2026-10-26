@@ -7,6 +7,7 @@ onVueSetup(function() {
 		el: '#status_bar',
 		data: {
 			Prop,
+			pane_visibility: {left: Prop.show_left_bar, right: Prop.show_right_bar},
 			isMobile: Blockbench.isMobile,
 			streamer_mode: settings.streamer_mode.value,
 			selection_info: '',
@@ -95,8 +96,8 @@ onVueSetup(function() {
 		},
 		template: `
 			<div id="status_bar" @contextmenu="showContextMenu($event)">
-				<div class="sidebar_toggle_button" v-if="!isMobile" @click="toggleSidebar('left')" title="${tl('status_bar.toggle_sidebar')}">
-					<i class="material-icons">{{Prop.show_left_bar ? 'chevron_left' : 'chevron_right'}}</i>
+				<div class="sidebar_toggle_button" v-if="!isMobile" @click="toggleSidebar('left')" role="button" tabindex="0" aria-label="${tl('status_bar.toggle_sidebar')}" @keydown.enter.prevent="toggleSidebar('left')" @keydown.space.prevent="toggleSidebar('left')" title="${tl('status_bar.toggle_sidebar')}">
+					<i class="material-icons">{{pane_visibility.left ? 'chevron_left' : 'chevron_right'}}</i>
 				</div>
 				
 				<div class="f_left" v-if="streamer_mode"
@@ -147,8 +148,8 @@ onVueSetup(function() {
 					{{ Prop.fps }} FPS
 				</div>
 
-				<div class="sidebar_toggle_button" v-if="!isMobile" @click="toggleSidebar('right')" title="${tl('status_bar.toggle_sidebar')}">
-					<i class="material-icons">{{Prop.show_right_bar ? 'chevron_right' : 'chevron_left'}}</i>
+				<div class="sidebar_toggle_button" v-if="!isMobile" @click="toggleSidebar('right')" role="button" tabindex="0" aria-label="${tl('status_bar.toggle_sidebar')}" @keydown.enter.prevent="toggleSidebar('right')" @keydown.space.prevent="toggleSidebar('right')" title="${tl('status_bar.toggle_sidebar')}">
+					<i class="material-icons">{{pane_visibility.right ? 'chevron_right' : 'chevron_left'}}</i>
 				</div>
 
 				<div id="status_progress" v-if="Prop.progress" v-bind:style="{width: Prop.progress*100+'%'}"></div>

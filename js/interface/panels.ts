@@ -227,8 +227,13 @@ export class Panel extends EventSystem {
 
 		if (!Blockbench.isMobile) {
 			if (data.expand_button) {
-				let expand_button = Interface.createElement('div', {class: 'tool panel_control panel_expanding_button'}, Blockbench.getIconNode('fullscreen'))
+				let expand_button = Interface.createElement('div', {class: 'tool panel_control panel_expanding_button', role: 'button', tabindex: '0', 'aria-label': tl('menu.preview.maximize') + ' – ' + this.name}, Blockbench.getIconNode('fullscreen'))
 				this.tab_bar.append(expand_button);
+				expand_button.addEventListener('keydown', event => {
+					if (event.key !== 'Enter' && event.key !== ' ') return;
+					event.preventDefault(); event.stopPropagation();
+					if (!event.repeat) expand_button.click();
+				});
 				expand_button.addEventListener('click', (e) => {
 					if (this.slot == 'float') {
 						this.moveTo(this.previous_slot);
@@ -239,8 +244,13 @@ export class Panel extends EventSystem {
 				})
 			}
 
-			let menu_button = Interface.createElement('div', {class: 'light_on_hover panel_menu_button'}, Blockbench.getIconNode('more_vert'))
+			let menu_button = Interface.createElement('div', {class: 'light_on_hover panel_menu_button', role: 'button', tabindex: '0', 'aria-label': this.name + ' – ' + tl('data.toolbar')}, Blockbench.getIconNode('more_vert'))
 			this.handle.append(menu_button);
+			menu_button.addEventListener('keydown', event => {
+				if (event.key !== 'Enter' && event.key !== ' ') return;
+				event.preventDefault(); event.stopPropagation();
+				if (!event.repeat) { menu_was_open = false; menu_button.click(); }
+			});
 			let menu_was_open = false;
 			menu_button.addEventListener('mousedown', () => {
 				menu_was_open = panel_menu_anchor == menu_button && open_menu == this.snap_menu;
@@ -251,8 +261,13 @@ export class Panel extends EventSystem {
 				this.snap_menu.open(menu_button, this);
 			})
 
-			let fold_button = Interface.createElement('div', {class: 'tool panel_control panel_folding_button'}, Blockbench.getIconNode('expand_more'))
+			let fold_button = Interface.createElement('div', {class: 'tool panel_control panel_folding_button', role: 'button', tabindex: '0', 'aria-label': tl('menu.panel.fold') + ' – ' + this.name, 'aria-expanded': 'true'}, Blockbench.getIconNode('expand_more'))
 			this.tab_bar.append(fold_button);
+			fold_button.addEventListener('keydown', event => {
+				if (event.key !== 'Enter' && event.key !== ' ') return;
+				event.preventDefault(); event.stopPropagation();
+				if (!event.repeat) fold_button.click();
+			});
 			fold_button.addEventListener('click', (e) => {
 				this.fold();
 			})
@@ -695,6 +710,7 @@ export class Panel extends EventSystem {
 			node.classList.remove('bench_folding');
 		});
 		this.folded = !!state;
+		this.tab_bar.querySelector('.panel_folding_button')?.setAttribute('aria-expanded', String(!this.folded));
 		let new_icon = Blockbench.getIconNode(state ? 'expand_less' : 'expand_more');
 		$(this.tab_bar).find('> .panel_folding_button > .icon').replaceWith(new_icon);
 		this.container.classList.toggle('folded', state);
@@ -707,12 +723,15 @@ export class Panel extends EventSystem {
 		this.update();
 		if (animate) {
 			const targets = containers.map(node => node.getBoundingClientRect().height);
+			const motion = getComputedStyle(this.container);
+			const duration = parseFloat(motion.getPropertyValue('--md-motion-default')) || 260;
+			const easing = motion.getPropertyValue('--md-motion-spatial-easing').trim() || 'cubic-bezier(.22, 1, .36, 1)';
 			containers.forEach((node, index) => {
 				if (!heights[index] || Math.abs(heights[index] - targets[index]) < 1) return;
 				node.classList.add('bench_folding');
 				const frame = (height: number) => ({height: height + 'px', minHeight: height + 'px', maxHeight: height + 'px', flexBasis: height + 'px', flexGrow: 0, flexShrink: 0});
 				const animation = node.animate([frame(heights[index]), frame(targets[index])], {
-					duration: 260, easing: 'cubic-bezier(.22, 1, .36, 1)'
+					duration, easing
 				});
 				foldAnimations.set(node, animation);
 				const finish = () => {
@@ -1027,7 +1046,7 @@ export class Panel extends EventSystem {
 					let opposite_panel = slot == 'top' ? Interface.getBottomPanel() : Interface.getTopPanel();
 					this.height = Math.clamp(this.position_data.height, 30, center_screen.clientHeight - (opposite_panel ? opposite_panel.height : 0));
 					if (this.folded) this.height = this.tab_bar.clientHeight;
-					this.width = Interface.work_screen.clientWidth - Interface.left_bar_width - Interface.right_bar_width;
+					this.width = center_screen.clientWidth;
 				}
 				this.container.style.width = this.width + 'px';
 				this.container.style.height = this.height + 'px';
@@ -1311,8 +1330,13 @@ export function makeSidebarFilled(target: Panel[] | 'left_bar' | 'right_bar', ex
 export function updateInterfacePanels() {
 
 	if (!Blockbench.isMobile) {
-		Interface.left_bar.style.display = Prop.show_left_bar ? 'flex' : 'none';
-		Interface.right_bar.style.display = Prop.show_right_bar ? 'flex' : 'none';
+		const widths = Interface.getSidebarWidths();
+		Interface.left_bar.style.display = widths.left ? 'flex' : 'none';
+		Interface.right_bar.style.display = widths.right ? 'flex' : 'none';
+		if (Interface.status_bar?.vue) {
+			Interface.status_bar.vue.pane_visibility.left = !!widths.left;
+			Interface.status_bar.vue.pane_visibility.right = !!widths.right;
+		}
 
 		Interface.work_screen.style.setProperty(
 			'grid-template-columns',

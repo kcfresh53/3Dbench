@@ -865,7 +865,7 @@ Interface.definePanels(() => {
 				isDarkColor(hex) {
 					if (hex) {
 						let color_val = new tinycolor(hex).getBrightness();
-						let bg_val = new tinycolor(CustomTheme.data.colors.back).getBrightness();
+						let bg_val = new tinycolor(AppTheme.colors.back).getBrightness();
 						return Math.abs(color_val - bg_val) <= 50;
 					}
 				},
