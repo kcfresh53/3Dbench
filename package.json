@@ -164,6 +164,9 @@
 		"build:roadscape": "node scripts/build_roadscape.mjs",
 		"test:roadscape": "node scripts/test_roadscape.mjs",
 		"test:roadscape-scene": "npm run build-electron && electron tests/roadscape_scene.cjs",
+		"build:citybuilder": "node scripts/build_citybuilder.mjs",
+		"test:citybuilder": "node scripts/test_citybuilder.mjs",
+		"test:citybuilder-scene": "npm run build:citybuilder && npm run build-electron && electron tests/citybuilder_scene.cjs",
 		"test:trees": "node scripts/test_procedural_trees.mjs",
 		"test:trees-scene": "npm run build-electron && electron tests/procedural_trees_scene.cjs",
 		"test:trees-visual": "npm run build-electron && electron tests/procedural_trees_visual.cjs"

@@ -1,0 +1,145 @@
+import { composeCity } from '../core/city/compose';
+import type { CityPlan } from '../core/city/compose';
+import { deserializeCity, serializeCity } from '../core/city/serialize';
+import { mergeSettings } from '../core/city/settings';
+import type { CitySettings } from '../core/city/settings';
+import { CityState } from '../core/city/state';
+import { emptyRoadSet } from '../core/roads/corridor';
+import type { RoadSet } from '../core/roads/corridor';
+import { generateTerrain } from '../core/terrain/generate';
+import type { TerrainPreset } from '../core/terrain/generate';
+import { CityHistory } from './history';
+import { PROJECT_KEY } from './ids';
+import { RoadBridge } from './roads_bridge';
+import { Signal } from './signal';
+
+export type StoreChange = 'loaded' | 'edited' | 'composed' | 'cleared';
+
+type Stored = Record<string, string>;
+
+/**
+ * Owns the open project's city: the editable state, the road set read from Roadscape, and the
+ * composed plan. Everything else (display, tools, panel) listens to `changed`.
+ */
+export class CityStore {
+	state: CityState | null = null;
+	plan: CityPlan | null = null;
+	roads: RoadSet = emptyRoadSet();
+	/** Bumps each time a new plan is ready. */
+	planRevision: number = 0;
+	/** Bumps on every edit, even before the plan is recomposed. */
+	editRevision: number = 0;
+	composeMs: number = 0;
+	readonly changed: Signal<StoreChange> = new Signal<StoreChange>();
+	readonly bridge: RoadBridge = new RoadBridge();
+	readonly history: CityHistory;
+	private timer: number | null = null;
+	private roadSignature: string = '';
+	private poll: number | null = null;
+	private composing: boolean = false;
+
+	constructor() {
+		this.history = new CityHistory(
+			(): CityState | null => this.state,
+			(): void => this.edited(0),
+		);
+		this.poll = window.setInterval((): void => this.checkRoads(), 700);
+	}
+
+	get unitsPerMeter(): number {
+		return this.state?.settings.unitsPerMeter ?? 1;
+	}
+
+	has(): boolean {
+		return this.state !== null;
+	}
+
+	/** Reads the city saved in the current project, if any. */
+	load(): void {
+		this.cancelTimers();
+		this.plan = null;
+		this.roadSignature = '';
+		const raw: string = (typeof Project !== 'undefined' && Project ? (Project as unknown as Stored)[PROJECT_KEY] : '') ?? '';
+		this.state = raw ? deserializeCity(raw) : null;
+		this.changed.emit(this.state ? 'loaded' : 'cleared');
+		if (this.state) this.recomposeNow();
+	}
+
+	/** Writes the city into the project so it is saved with it. */
+	flush(): void {
+		if (!this.state || typeof Project === 'undefined' || !Project) return;
+		(Project as unknown as Stored)[PROJECT_KEY] = serializeCity(this.state);
+	}
+
+	create(partial: Partial<CitySettings>, preset: TerrainPreset): void {
+		this.state = new CityState(mergeSettings(partial));
+		generateTerrain(this.state.terrain, { preset, seed: this.state.settings.seed });
+		if (Project) Project.saved = false;
+		this.flush();
+		this.changed.emit('loaded');
+		this.recomposeNow();
+	}
+
+	remove(): void {
+		this.cancelTimers();
+		this.state = null;
+		this.plan = null;
+		if (typeof Project !== 'undefined' && Project) (Project as unknown as Stored)[PROJECT_KEY] = '';
+		this.changed.emit('cleared');
+	}
+
+	/** Call after changing the state. Saves into the project at once, then recomposes after `delay` ms of quiet. */
+	edited(delay: number = 250): void {
+		this.editRevision++;
+		if (typeof Project !== 'undefined' && Project) Project.saved = false;
+		// Project properties are copied when the project is saved, so the document must always be current.
+		this.flush();
+		this.changed.emit('edited');
+		this.invalidate(delay);
+	}
+
+	invalidate(delay: number = 250): void {
+		if (this.timer !== null) clearTimeout(this.timer);
+		this.timer = window.setTimeout((): void => this.recomposeNow(), delay);
+	}
+
+	recomposeNow(): void {
+		if (this.timer !== null) {
+			clearTimeout(this.timer);
+			this.timer = null;
+		}
+		const state: CityState | null = this.state;
+		if (!state || this.composing) return;
+		this.composing = true;
+		try {
+			const started: number = performance.now();
+			this.roads = this.bridge.collect(state, state.settings.unitsPerMeter);
+			this.roadSignature = this.bridge.signature(state.settings.unitsPerMeter);
+			this.plan = composeCity(state, this.roads);
+			this.composeMs = Math.round(performance.now() - started);
+			this.planRevision++;
+			this.changed.emit('composed');
+		} finally {
+			this.composing = false;
+		}
+	}
+
+	private checkRoads(): void {
+		const state: CityState | null = this.state;
+		if (!state || this.timer !== null) return;
+		const next: string = this.bridge.signature(state.settings.unitsPerMeter);
+		if (next !== this.roadSignature) this.invalidate(150);
+	}
+
+	private cancelTimers(): void {
+		if (this.timer !== null) clearTimeout(this.timer);
+		this.timer = null;
+	}
+
+	dispose(): void {
+		this.flush();
+		this.cancelTimers();
+		if (this.poll !== null) clearInterval(this.poll);
+		this.poll = null;
+	}
+}

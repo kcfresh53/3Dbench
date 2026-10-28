@@ -1,0 +1,228 @@
+import { Raster } from '../raster';
+import { TILE_PX } from '../buildings/tiles';
+import type { PixelRect, TileRef } from '../buildings/tiles';
+import { tileKind, tilePalette } from '../buildings/tiles';
+import { tileRaster } from '../../texture/tile_painters';
+import type { FacadeRow, FacadeRun } from '../buildings/types';
+import type { MeshPart, PropMesh, Vec2, Vec3 } from '../types';
+import { FACADE_MATERIAL, TILE_MATERIAL } from '../buildings/mesh';
+
+/** Shelf packer: fills rows from the top, tallest items first. */
+export class ShelfPacker {
+	private x: number = 0;
+	private y: number = 0;
+	private rowHeight: number = 0;
+
+	constructor(
+		readonly size: number,
+		readonly gutter: number,
+	) {}
+
+	place(w: number, h: number): PixelRect | null {
+		const bw: number = w + 2 * this.gutter;
+		const bh: number = h + 2 * this.gutter;
+		if (bw > this.size || bh > this.size) return null;
+		if (this.x + bw > this.size) {
+			this.y += this.rowHeight;
+			this.x = 0;
+			this.rowHeight = 0;
+		}
+		if (this.y + bh > this.size) return null;
+		const rect: PixelRect = { x: this.x + this.gutter, y: this.y + this.gutter, w, h };
+		this.x += bw;
+		this.rowHeight = Math.max(this.rowHeight, bh);
+		return rect;
+	}
+
+	get usedHeight(): number {
+		return this.y + this.rowHeight;
+	}
+}
+
+/** One distinct wall texture. Walls with identical rows share it. */
+interface FacadeItem {
+	key: string;
+	run: FacadeRun;
+	tileW: number;
+	rowPx: number[];
+	w: number;
+	h: number;
+	y0: number;
+	y1: number;
+	rect: PixelRect | null;
+}
+
+interface TileItem {
+	ref: TileRef;
+	rect: PixelRect | null;
+}
+
+export interface BuildingInput {
+	/** Unique name of the building mesh. */
+	name: string;
+	runs: FacadeRun[];
+	/** Meshes per level of detail, with `facade:` and `tile:` materials. */
+	lods: PropMesh[];
+}
+
+export interface PackedBuilding {
+	name: string;
+	/** One part per level of detail, UVs resolved against the packed atlas. */
+	lods: MeshPart[];
+}
+
+export interface AtlasResult {
+	raster: Raster;
+	size: number;
+	texelsPerMeter: number;
+	facadeCount: number;
+	tileCount: number;
+	buildings: PackedBuilding[];
+	/** Fraction of the atlas height that holds content. */
+	fill: number;
+}
+
+function runKey(run: FacadeRun): string {
+	return `${run.bays}:${run.bayWidth}:${run.rows.map((r: FacadeRow): string => `${r.y0.toFixed(3)},${r.height.toFixed(3)},${r.tiles.join('.')}`).join(';')}`;
+}
+
+function facadeItem(run: FacadeRun, ppm: number): FacadeItem {
+	const tileW: number = Math.max(2, Math.round(run.bayWidth * ppm));
+	const rowPx: number[] = run.rows.map((r: FacadeRow): number => Math.max(1, Math.round(r.height * ppm)));
+	const last: FacadeRow = run.rows[run.rows.length - 1];
+	return {
+		key: runKey(run),
+		run,
+		tileW,
+		rowPx,
+		w: tileW * run.bays,
+		h: rowPx.reduce((a: number, b: number): number => a + b, 0),
+		y0: run.rows[0].y0,
+		y1: last.y0 + last.height,
+		rect: null,
+	};
+}
+
+/** Writes edge pixels into the gutter so bilinear filtering and mipmaps never pull in neighbours. */
+function extrude(raster: Raster, r: PixelRect, gutter: number): void {
+	for (let g: number = 1; g <= gutter; g++) {
+		for (let x: number = -g + 1; x < r.w + g; x++) {
+			const sx: number = Math.min(r.w - 1, Math.max(0, x));
+			raster.set(r.x + x, r.y - g, raster.get(r.x + sx, r.y));
+			raster.set(r.x + x, r.y + r.h - 1 + g, raster.get(r.x + sx, r.y + r.h - 1));
+		}
+		for (let y: number = -g; y < r.h + g; y++) {
+			const sy: number = Math.min(r.h - 1, Math.max(0, y));
+			raster.set(r.x - g, r.y + sy, raster.get(r.x, r.y + sy));
+			raster.set(r.x + r.w - 1 + g, r.y + sy, raster.get(r.x + r.w - 1, r.y + sy));
+		}
+	}
+}
+
+function tileOf(material: string): TileRef {
+	return Number(material.slice(TILE_MATERIAL.length));
+}
+
+function facadeOf(material: string): number {
+	return Number(material.slice(FACADE_MATERIAL.length));
+}
+
+function tryPack(
+	size: number,
+	gutter: number,
+	ppm: number,
+	buildings: BuildingInput[],
+	tiles: TileItem[],
+): { facades: Map<string, FacadeItem>; used: number } | null {
+	const facades: Map<string, FacadeItem> = new Map<string, FacadeItem>();
+	for (const b of buildings) {
+		for (const run of b.runs) {
+			const item: FacadeItem = facadeItem(run, ppm);
+			if (!facades.has(item.key)) facades.set(item.key, item);
+		}
+	}
+	const packer: ShelfPacker = new ShelfPacker(size, gutter);
+	const queue: Array<{ w: number; h: number; assign: (r: PixelRect) => void }> = [];
+	for (const f of facades.values()) queue.push({ w: f.w, h: f.h, assign: (r: PixelRect): void => void (f.rect = r) });
+	for (const t of tiles) queue.push({ w: TILE_PX, h: TILE_PX, assign: (r: PixelRect): void => void (t.rect = r) });
+	queue.sort((a, b): number => b.h - a.h || b.w - a.w);
+	for (const q of queue) {
+		const rect: PixelRect | null = packer.place(q.w, q.h);
+		if (rect === null) return null;
+		q.assign(rect);
+	}
+	return { facades, used: packer.usedHeight };
+}
+
+/**
+ * Bakes every wall of every building into one texture and rewrites the meshes to use it. When the
+ * walls do not fit, the resolution is lowered step by step until they do.
+ */
+export function packBuildings(buildings: BuildingInput[], size: number, gutter: number, texelsPerMeter: number): AtlasResult {
+	const tileRefs: Set<TileRef> = new Set<TileRef>();
+	for (const b of buildings) {
+		for (const mesh of b.lods) {
+			for (const face of mesh.faces) if (face.material.startsWith(TILE_MATERIAL)) tileRefs.add(tileOf(face.material));
+		}
+	}
+	const tiles: TileItem[] = [...tileRefs].sort((a: number, b: number): number => a - b).map((ref: TileRef): TileItem => ({ ref, rect: null }));
+
+	let ppm: number = texelsPerMeter;
+	let packed: ReturnType<typeof tryPack> = null;
+	while (ppm >= 1) {
+		packed = tryPack(size, gutter, ppm, buildings, tiles);
+		if (packed !== null) break;
+		ppm = Math.floor(ppm * 0.85 * 100) / 100;
+	}
+	if (packed === null) throw new Error('Building textures do not fit the atlas even at the lowest resolution; raise the atlas size or lower the prefab budget.');
+
+	const raster: Raster = new Raster(size, size);
+	raster.fill([255, 0, 255]);
+	for (const t of tiles) {
+		const rect: PixelRect = t.rect as PixelRect;
+		raster.blit(tileRaster(tileKind(t.ref), tilePalette(t.ref)), 0, 0, TILE_PX, TILE_PX, rect.x, rect.y, TILE_PX, TILE_PX);
+		extrude(raster, rect, gutter);
+	}
+	for (const f of packed.facades.values()) {
+		const rect: PixelRect = f.rect as PixelRect;
+		let top: number = rect.y + f.h;
+		f.run.rows.forEach((row: FacadeRow, i: number): void => {
+			const rh: number = f.rowPx[i];
+			top -= rh;
+			row.tiles.forEach((ref: TileRef, bay: number): void => {
+				raster.blit(tileRaster(tileKind(ref), tilePalette(ref)), 0, 0, TILE_PX, TILE_PX, rect.x + bay * f.tileW, top, f.tileW, rh);
+			});
+		});
+		extrude(raster, rect, gutter);
+	}
+
+	const tileByRef: Map<TileRef, TileItem> = new Map<TileRef, TileItem>(tiles.map((t: TileItem): [TileRef, TileItem] => [t.ref, t]));
+	const inv: number = 1 / size;
+	const out: PackedBuilding[] = buildings.map((b: BuildingInput): PackedBuilding => {
+		const itemByRun: Map<number, FacadeItem> = new Map<number, FacadeItem>();
+		for (const run of b.runs) itemByRun.set(run.id, packed.facades.get(runKey(run)) as FacadeItem);
+		const lods: MeshPart[] = b.lods.map((mesh: PropMesh, lod: number): MeshPart => ({
+			name: lod === 0 ? b.name : `${b.name}_lod${lod}`,
+			atlas: 'city',
+			positions: mesh.positions,
+			faces: mesh.faces.map((face) => {
+				if (face.material.startsWith(FACADE_MATERIAL)) {
+					const item: FacadeItem = itemByRun.get(facadeOf(face.material)) as FacadeItem;
+					const rect: PixelRect = item.rect as PixelRect;
+					const span: number = Math.max(1e-6, item.y1 - item.y0);
+					const uvs: Vec2[] = face.indices.map((vi: number, k: number): Vec2 => {
+						const p: Vec3 = mesh.positions[vi];
+						const t: number = Math.min(1, Math.max(0, (p[1] - item.y0) / span));
+						return [(rect.x + face.uvs[k][0] * rect.w) * inv, (rect.y + (1 - t) * rect.h) * inv];
+					});
+					return { indices: face.indices, uvs };
+				}
+				const rect: PixelRect = (tileByRef.get(tileOf(face.material)) as TileItem).rect as PixelRect;
+				const uvs: Vec2[] = face.uvs.map((uv: Vec2): Vec2 => [(rect.x + 0.5 + uv[0] * (rect.w - 1)) * inv, (rect.y + 0.5 + uv[1] * (rect.h - 1)) * inv]);
+				return { indices: face.indices, uvs };
+			}),
+		}));
+		return { name: b.name, lods };
+	});
+	return { raster, size, texelsPerMeter: ppm, facadeCount: packed.facades.size, tileCount: tiles.length, buildings: out, fill: packed.used / size };
+}
