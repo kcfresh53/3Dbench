@@ -110,6 +110,12 @@ function methods(): Record<string, (this: PanelInstance, ...args: never[]) => un
 		draw(): void {
 			guard(this, (): void => this.session.startDrawing());
 		},
+		finishRoad(): void { this.session.draw?.finish(); },
+		editPoints(): void { guard(this, () => this.session.editRoads()); },
+		editEdges(): void { guard(this, () => this.session.editRoads('edge')); },
+		cancelDrawing(): void { this.session.draw?.cancel(); this.session.changed?.(); this.status = 'Drawing cancelled.'; },
+		insertPoint(): void { guard(this, () => this.session.insertPoint()); },
+		removePoint(): void { guard(this, () => this.session.removePoint()); },
 		autoSetup(): void {
 			guard(this, (): void => {
 				const mesh: Mesh | null = this.session.manager.selected();
@@ -118,10 +124,10 @@ function methods(): Record<string, (this: PanelInstance, ...args: never[]) => un
 				this.status = created > 0 ? `Created ${created} junction${created === 1 ? '' : 's'}.` : 'No new intersections found.';
 			});
 		},
-		bake(): void {
+		bake(): Promise<void> | undefined {
 			const mesh: Mesh | null = this.session.manager.selected();
 			if (!mesh) return;
-			this.session.manager.bake(mesh).catch((error: Error): void => {
+			return this.session.manager.bake(mesh).catch((error: Error): void => {
 				this.status = error.message;
 			});
 		},
@@ -134,11 +140,17 @@ function methods(): Record<string, (this: PanelInstance, ...args: never[]) => un
 
 const TEMPLATE: string = `<div class="rs_panel">
 	<div class="rs_row">
-		<button class="rs_primary" @click="draw">Draw Road</button>
-		<button :disabled="!snap.hasRoad" @click="autoSetup" title="Split and join every place roads meet or cross">Auto-setup junctions</button>
-		<button :disabled="!snap.hasRoad" @click="bake" title="Replace the live road with ordinary meshes for export">Bake</button>
+		<button class="rs_primary" :disabled="snap.drawing" @click="draw">Draw Road</button>
+		<button :disabled="!snap.hasRoad || snap.drawing" @click="autoSetup" title="Split and join every place roads meet or cross">Auto-setup junctions</button>
+		<button :disabled="!snap.hasRoad || snap.drawing" @click="bake" title="Replace the live road with ordinary meshes for export">Bake</button>
 	</div>
-	<p class="rs_status">{{status}}</p>
+	<div class="rs_row">
+  <button v-if="snap.drawing" :disabled="snap.draftPoints < 2" @click="finishRoad">Finish Road</button>
+  <button v-if="snap.hasRoad || snap.draftPoints >= 2" @click="editPoints">{{snap.drawing ? 'Finish & Edit Points' : 'Edit Points'}}</button>
+  <button v-if="snap.drawing" @click="cancelDrawing">Cancel Drawing</button>
+ </div>
+ <p class="rs_hint" v-if="snap.drawing">Drawing · {{snap.draftPoints}} draft points. Road type changes affect the next road.</p>
+ <p class="rs_status" role="status">{{status}}</p>
 	<p v-if="snap.error" class="rs_warn">{{snap.error}}</p>
 
 	<div v-if="snap.stats" class="rs_stats">
@@ -152,7 +164,7 @@ const TEMPLATE: string = `<div class="rs_panel">
 	</div>
 	<p v-else-if="!snap.hasRoad" class="rs_hint">Click Draw Road, then click in the viewport. Click on an existing road to connect to it; crossings become junctions automatically.</p>
 
-	<rs-section :title="snap.hasRoad && snap.selectedSegments ? 'Road type (' + snap.selectedSegments + ' selected)' : 'Road type'">
+	<rs-section :title="snap.drawing ? 'Drawing road type' : snap.hasRoad && snap.selectedSegments ? 'Road type (' + snap.selectedSegments + ' selected)' : 'Road type'">
 		<label class="rs_field"><span>Type</span>
 			<select :value="snap.profileId" @change="pickProfile($event.target.value)">
 				<optgroup label="Library"><option v-for="p in snap.profiles" v-if="!p.custom" :key="p.id" :value="p.id">{{p.name}}</option></optgroup>
@@ -160,7 +172,7 @@ const TEMPLATE: string = `<div class="rs_panel">
 			</select>
 		</label>
 		<p class="rs_hint" v-if="snap.profile.builtin">Library road types are copied the moment you change them.</p>
-		<p class="rs_hint" v-else>Used by {{snap.usage}} road{{snap.usage === 1 ? '' : 's'}}. Changes apply to all of them.</p>
+		<p class="rs_hint" v-else-if="!snap.drawing">Used by {{snap.usage}} road{{snap.usage === 1 ? '' : 's'}}. Changes apply to all of them.</p>
 		<div class="rs_row">
 			<button @click="duplicateProfile" title="Give the selected roads their own copy of this type">Make own copy</button>
 		</div>
@@ -181,7 +193,8 @@ const TEMPLATE: string = `<div class="rs_panel">
 			@add-strip="t => addStrip('right', t)" @add-lining="t => addLining('right', t)"></rs-side-stack>
 	</rs-section>
 
-	<rs-section title="Selected roads and points" :open="false" v-if="snap.hasRoad">
+	<rs-section title="Selected roads and points" :open="false" v-if="snap.hasRoad && !snap.drawing">
+  <div class="rs_row"><button @click="editEdges">Select Road Edges</button><button @click="insertPoint" :disabled="!snap.segment">Insert Point</button><button @click="removePoint" :disabled="!snap.node">Remove Point</button></div>
 		<p class="rs_hint" v-if="!snap.segment && !snap.node">Select road points in vertex mode to change them.</p>
 		<template v-if="snap.segment">
 			<rs-toggle label="Smooth curve" :value="snap.segment.smooth" @input="v => setSegment({smooth: v})"></rs-toggle>

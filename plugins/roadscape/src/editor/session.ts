@@ -11,6 +11,7 @@ import type { IdFactory } from '../core/network_edit';
 import { DrawTool } from './draw_tool';
 import type { DrawHost, DrawOptions } from './draw_tool';
 import { lookupProfile, selectedSegments } from './network_mesh';
+import { selectMoveTool, setSelectionMode } from './bb_access';
 
 export interface ProfileOption {
 	id: string;
@@ -32,6 +33,8 @@ export interface Stats {
 /** Everything the panel shows, rebuilt whenever the selection or the road changes. */
 export interface Snapshot {
 	hasRoad: boolean;
+	drawing: boolean;
+	draftPoints: number;
 	profileId: string;
 	profile: RoadProfile;
 	profiles: ProfileOption[];
@@ -53,6 +56,13 @@ function uniqueProfileId(known: Iterable<string>): string {
 	let n: number = 1;
 	while (used.has(`custom-${n}`)) n++;
 	return `custom-${n}`;
+}
+
+/** Show a type actually used by the network when its old default is unused. */
+function defaultProfileId(network: RoadNetwork): string {
+ const preferred = network.settings.defaultProfile;
+ if ([...network.segments.values()].some(s => s.profile === preferred)) return preferred;
+ return network.segments.values().next().value?.profile ?? preferred;
 }
 
 /** Runs a profile edit: built-in profiles are forked first so the library never changes. */
@@ -79,6 +89,18 @@ export class RoadSession implements DrawHost {
 	readonly draftProfileMap: Map<string, RoadProfile> = new Map();
 	settingsForNew: Partial<NetworkSettings> = mergeSettings(undefined);
 	message: ((text: string) => void) | null = null;
+	changed: (() => void) | null = null;
+
+	drawingChanged(): void { this.changed?.(); }
+
+	private editingMesh(): Mesh | null { return this.draw?.active ? null : this.manager.selected(); }
+
+	private draftNetwork(): RoadNetwork {
+		const target = this.draw?.target;
+		const network = target ? this.manager.networkOf(target) : createNetwork(this.settingsForNew);
+		for (const [id, profile] of this.draftProfileMap) network.profiles.set(id, profile);
+		return network;
+	}
 
 	constructor(manager: LiveRoads) {
 		this.manager = manager;
@@ -109,12 +131,14 @@ export class RoadSession implements DrawHost {
 	// ---- reading -----------------------------------------------------------------------
 
 	snapshot(mesh: Mesh | null, state: LiveState | undefined): Snapshot {
-		const draftNetwork: RoadNetwork = createNetwork(this.settingsForNew);
-		for (const [id, p] of this.draftProfileMap) draftNetwork.profiles.set(id, p);
-		const network: RoadNetwork = mesh ? this.manager.networkOf(mesh) : draftNetwork;
-		const segments: RoadSegment[] = mesh ? selectedSegments(mesh, network) : [];
+		const drawing = !!this.draw?.active;
+		mesh = drawing ? this.draw?.target ?? null : mesh;
+		state = mesh ? this.manager.states.get(mesh) : undefined;
+		const draftNetwork: RoadNetwork = this.draftNetwork();
+		const network: RoadNetwork = drawing ? draftNetwork : mesh ? this.manager.networkOf(mesh) : draftNetwork;
+		const segments: RoadSegment[] = mesh && !drawing ? selectedSegments(mesh, network) : [];
 		const first: RoadSegment | undefined = segments[0];
-		const profileId: string = first ? first.profile : mesh ? network.settings.defaultProfile : this.drawProfile;
+		const profileId: string = drawing ? this.drawProfile : first ? first.profile : mesh ? defaultProfileId(network) : this.drawProfile;
 		const profile: RoadProfile = lookupProfile(network, profileId) ?? (builtinProfile('street') as RoadProfile);
 		const profiles: ProfileOption[] = [
 			...BUILTIN_PROFILES.map((p: RoadProfile): ProfileOption => ({ id: p.id, name: p.name, custom: false })),
@@ -122,10 +146,12 @@ export class RoadSession implements DrawHost {
 		];
 		let usage: number = 0;
 		for (const s of network.segments.values()) if (s.profile === profileId) usage++;
-		const nodeIds: string[] = mesh ? mesh.getSelectedVertices() : [];
+		const nodeIds: string[] = mesh && !drawing ? mesh.getSelectedVertices() : [];
 		const result: GenerateResult | null = state?.result ?? null;
 		return {
 			hasRoad: !!mesh,
+			drawing,
+			draftPoints: this.draw?.pointCount ?? 0,
 			profileId,
 			profile,
 			profiles,
@@ -157,30 +183,34 @@ export class RoadSession implements DrawHost {
 
 	/** Chooses the road type for selected segments, or for roads drawn next when nothing is selected. */
 	pickProfile(id: string): void {
-		const mesh: Mesh | null = this.manager.selected();
+		const mesh: Mesh | null = this.editingMesh();
 		const network: RoadNetwork | null = mesh ? this.manager.networkOf(mesh) : null;
 		const segments: RoadSegment[] = mesh && network ? selectedSegments(mesh, network) : [];
-		if (mesh && segments.length > 0) {
+		if (mesh && network) {
+			const targets = segments.length > 0 ? segments : [...network.segments.values()].filter(s => s.profile === defaultProfileId(network));
 			this.manager.edit(mesh, 'Change road type', (net: RoadNetwork): void => {
-				for (const s of segments) (net.segments.get(s.key) as RoadSegment).profile = id;
+				for (const s of targets) (net.segments.get(s.key) as RoadSegment).profile = id;
+				if (segments.length === 0) net.settings.defaultProfile = id;
 			});
-		} else this.drawProfile = id;
+		} else { this.drawProfile = id; this.changed?.(); this.draw?.refresh(); }
 	}
 
 	/** Edits the shown road type. `copy` gives the selected segments their own copy first. */
 	editProfile(edit: ProfileEdit, copy: boolean = false, label: string = 'Edit road type'): void {
-		const mesh: Mesh | null = this.manager.selected();
+		const mesh: Mesh | null = this.editingMesh();
 		if (!mesh) {
-			const draft: RoadNetwork = createNetwork(this.settingsForNew);
-			for (const [id, p] of this.draftProfileMap) draft.profiles.set(id, p);
-			const id: string = applyProfileEdit(draft, [], this.drawProfile, edit, copy);
+			const draft: RoadNetwork = this.draftNetwork();
+			const target = this.draw?.target;
+			const shared = target ? this.manager.networkOf(target).profiles.has(this.drawProfile) : false;
+			const id: string = applyProfileEdit(draft, [], this.drawProfile, edit, copy || shared);
 			for (const [key, p] of draft.profiles) this.draftProfileMap.set(key, p);
 			this.drawProfile = id;
+			this.changed?.(); this.draw?.refresh();
 			return;
 		}
 		this.manager.edit(mesh, label, (net: RoadNetwork): void => {
 			const segments: RoadSegment[] = selectedSegments(mesh, net);
-			const base: string = segments[0]?.profile ?? net.settings.defaultProfile;
+			const base: string = segments[0]?.profile ?? defaultProfileId(net);
 			const targets: RoadSegment[] = segments.length > 0 ? segments : [...net.segments.values()].filter((s: RoadSegment): boolean => s.profile === base);
 			const id: string = applyProfileEdit(net, targets, base, edit, copy);
 			if (segments.length === 0) net.settings.defaultProfile = id;
@@ -188,20 +218,21 @@ export class RoadSession implements DrawHost {
 	}
 
 	previewProfile(edit: ProfileEdit): void {
-		const mesh: Mesh | null = this.manager.selected();
+		const mesh: Mesh | null = this.editingMesh();
 		if (!mesh) return;
 		this.manager.preview(mesh, (net: RoadNetwork): void => {
 			const segments: RoadSegment[] = selectedSegments(mesh, net);
-			const base: string = segments[0]?.profile ?? net.settings.defaultProfile;
+			const base: string = segments[0]?.profile ?? defaultProfileId(net);
 			const targets: RoadSegment[] = segments.length > 0 ? segments : [...net.segments.values()].filter((s: RoadSegment): boolean => s.profile === base);
 			applyProfileEdit(net, targets, base, edit, false);
 		});
 	}
 
 	setSettings(patch: SettingsPatch): void {
-		const mesh: Mesh | null = this.manager.selected();
+		const mesh: Mesh | null = this.draw?.active ? this.draw.target : this.manager.selected();
 		if (!mesh) {
 			this.settingsForNew = applySettingsPatch(this.settingsForNew as NetworkSettings, patch);
+			this.changed?.(); this.draw?.refresh();
 			return;
 		}
 		this.manager.edit(mesh, 'Change road settings', (net: RoadNetwork): void => {
@@ -210,13 +241,13 @@ export class RoadSession implements DrawHost {
 	}
 
 	previewSettings(patch: SettingsPatch): void {
-		const mesh: Mesh | null = this.manager.selected();
+		const mesh: Mesh | null = this.draw?.active ? this.draw.target : this.manager.selected();
 		if (mesh) this.manager.preview(mesh, (net: RoadNetwork): void => void (net.settings = applySettingsPatch(net.settings, patch)));
 	}
 
 	/** Changes flags on the selected segments (smooth, structure) or resets their curve handles. */
 	setSegments(patch: Partial<SegmentData>, label: string = 'Change road segments'): void {
-		const mesh: Mesh | null = this.manager.selected();
+		const mesh: Mesh | null = this.editingMesh();
 		if (!mesh) return;
 		const segments: RoadSegment[] = selectedSegments(mesh, this.manager.networkOf(mesh));
 		if (segments.length === 0) throw new Error('Select road points in vertex mode first.');
@@ -226,7 +257,7 @@ export class RoadSession implements DrawHost {
 	}
 
 	setNodes(patch: Partial<NodeOptions>): void {
-		const mesh: Mesh | null = this.manager.selected();
+		const mesh: Mesh | null = this.editingMesh();
 		if (!mesh) return;
 		const ids: string[] = mesh.getSelectedVertices();
 		if (ids.length === 0) throw new Error('Select road points in vertex mode first.');
@@ -247,7 +278,7 @@ export class RoadSession implements DrawHost {
 	}
 
 	insertPoint(): void {
-		const mesh: Mesh | null = this.manager.selected();
+		const mesh: Mesh | null = this.editingMesh();
 		if (!mesh) throw new Error('Select a road network first.');
 		const segments: RoadSegment[] = selectedSegments(mesh, this.manager.networkOf(mesh));
 		if (segments.length === 0) throw new Error('Select a road point, or both ends of a road, in vertex mode.');
@@ -257,7 +288,7 @@ export class RoadSession implements DrawHost {
 	}
 
 	removePoint(): void {
-		const mesh: Mesh | null = this.manager.selected();
+		const mesh: Mesh | null = this.editingMesh();
 		if (!mesh) throw new Error('Select a road network first.');
 		const picked: string[] = mesh.getSelectedVertices();
 		if (picked.length === 0) throw new Error('Select road points in vertex mode first.');
@@ -269,6 +300,31 @@ export class RoadSession implements DrawHost {
 	// ---- drawing -----------------------------------------------------------------------
 
 	startDrawing(): void {
+		if (!this.manager.library) {
+			this.status('Loading road library…');
+			const owner = Project;
+			void this.manager.ready.then(() => { if (Project === owner && this.draw?.tool === BarItems.roadscape_draw) this.startDrawing(); }, error => this.status((error as Error).message));
+			return;
+		}
+		const mesh = this.manager.selected();
+		if (mesh) {
+			const network = this.manager.networkOf(mesh);
+			this.drawProfile = selectedSegments(mesh, network)[0]?.profile ?? defaultProfileId(network);
+			this.settingsForNew = network.settings;
+			for (const [id, p] of network.profiles) this.draftProfileMap.set(id, p);
+		}
 		this.draw?.start();
+		this.changed?.();
+	}
+
+	/** Finish a draft, then restore native point editing without losing the network. */
+	editRoads(mode: 'vertex' | 'edge' = 'vertex'): void {
+		if (this.draw?.active && this.draw.pointCount > 0 && !this.draw.finish()) return;
+		const mesh = this.draw?.target ?? this.manager.selected();
+		this.draw?.cancel();
+		mesh?.select();
+		setSelectionMode(mode); selectMoveTool(); updateSelection();
+		this.changed?.();
+		this.status('Select and drag road points. Use edge mode to select a single road.');
 	}
 }

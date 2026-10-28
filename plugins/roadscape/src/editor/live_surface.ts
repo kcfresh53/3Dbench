@@ -23,6 +23,7 @@ export class LiveSurface {
 	private readonly material: THREE.Material | THREE.Material[];
 	private readonly raycast: Raycastable['raycast'];
 	private active: boolean = false;
+	private readonly edgeProxy: THREE.LineSegments & { vertex_order?: string[] };
 
 	constructor(
 		readonly mesh: Mesh,
@@ -31,6 +32,9 @@ export class LiveSurface {
 		this.object = mesh.mesh as PreviewObject;
 		this.material = this.object.material;
 		this.raycast = (this.object as unknown as Raycastable).raycast;
+		this.edgeProxy = new THREE.LineSegments(new THREE.BufferGeometry(), materials.outline);
+		(this.edgeProxy as unknown as { no_export: boolean }).no_export = true;
+		this.object.add(this.edgeProxy);
 	}
 
 	/** True while the control mesh still owns the Three.js object this surface was built for. */
@@ -65,9 +69,36 @@ export class LiveSurface {
 			body.updateWorldMatrix(true, false);
 			const found: THREE.Intersection[] = [];
 			for (const child of body.children) child.raycast(raycaster, found);
-			for (const hit of found) {
+			found.sort((a, b) => a.distance - b.distance);
+			for (const hit of found.slice(0, 1)) {
 				hit.object = this;
 				hit.faceIndex = 0;
+				// Native Mesh face picking cannot resolve a graph made of two-point
+				// faces. Return a real control-point/edge hit instead of a fake face.
+				if (surface.mesh.selected && selectionMode() === 'vertex') {
+					const keys: string[] = Object.keys(surface.mesh.vertices);
+					let best: number = Infinity;
+					keys.forEach((key: string, index: number): void => {
+						const point = surface.object.localToWorld(new THREE.Vector3(...surface.mesh.vertices[key]));
+						const distance = point.distanceToSquared(hit.point);
+						if (distance < best) { best = distance; hit.index = index; }
+					});
+					hit.object = surface.object.vertex_points;
+				} else if (surface.mesh.selected && selectionMode() === 'edge') {
+					let best: number = Infinity;
+					let picked: string[] = [];
+					for (const face of Object.values(surface.mesh.faces)) {
+						if (face.vertices.length !== 2) continue;
+						const [a, b] = face.vertices.map(key => surface.object.localToWorld(new THREE.Vector3(...surface.mesh.vertices[key])));
+						const closest = new THREE.Line3(a, b).closestPointToPoint(hit.point, true, new THREE.Vector3());
+						const distance = closest.distanceToSquared(hit.point);
+						if (distance < best) { best = distance; picked = face.vertices.slice(); }
+					}
+					if (picked.length !== 2) continue;
+					surface.edgeProxy.vertex_order = picked;
+					hit.object = surface.edgeProxy;
+					hit.index = 0;
+				}
 				hits.push(hit);
 			}
 		};
@@ -92,6 +123,8 @@ export class LiveSurface {
 	dispose(): void {
 		disposeBody(this.body);
 		this.body = null;
+		this.edgeProxy.removeFromParent();
+		this.edgeProxy.geometry.dispose();
 		this.deactivate(false);
 	}
 }

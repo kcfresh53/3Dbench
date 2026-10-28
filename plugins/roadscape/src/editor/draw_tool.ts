@@ -34,6 +34,7 @@ export interface DrawHost {
 	/** Project profiles edited before any road existed. */
 	draftProfiles(): Map<string, RoadProfile>;
 	status(message: string): void;
+	drawingChanged?(): void;
 }
 
 const MAX_POINTS: number = 128;
@@ -45,8 +46,11 @@ export class DrawTool {
 	readonly tool: Tool;
 	private anchors: DraftAnchor[] = [];
 	private hover: DraftAnchor | null = null;
+	private targetMesh: Mesh | null = null;
+	private snapRadius: number = 0.05;
 	private owner: typeof Project | null = null;
 	private ghost: THREE.Group | null = null;
+	private hiddenBody: { body: THREE.Group; visible: boolean } | null = null;
 	private timer: number | null = null;
 	private readonly cache: GenerationCache = new GenerationCache();
 	private readonly lineMaterial: THREE.LineBasicMaterial = new THREE.LineBasicMaterial({ color: 0x54c5ff, depthTest: false });
@@ -72,9 +76,11 @@ export class DrawTool {
 			cursor: 'crosshair',
 			onSelect: (): void => {
 				this.owner = Project;
+				this.targetMesh ??= this.host.manager.target();
+				this.host.drawingChanged?.();
 				this.host.status('Click to place points. Shift locks an axis. Enter or double-click finishes; Esc cancels.');
 			},
-			onUnselect: (): void => this.reset(),
+			onUnselect: (): void => { this.reset(); this.targetMesh = null; queueMicrotask(() => this.host.drawingChanged?.()); },
 			onCanvasClick: (data: { event?: MouseEvent }): void => this.canvasClick(data.event),
 			onCanvasRightClick: (): boolean => {
 				this.finish();
@@ -83,13 +89,14 @@ export class DrawTool {
 		} as never) as Tool;
 		document.addEventListener('pointermove', this.onMove);
 		document.addEventListener('keydown', this.onKey, true);
-		this.subscriptions.push(listen(Blockbench, 'unselect_project', (): void => this.reset()));
+		this.subscriptions.push(listen(Blockbench, 'unselect_project', (): void => { this.reset(); this.targetMesh = null; this.owner = null; if (this.active) selectMoveTool(); }));
 	}
 
 	/** Starts drawing: clears the selection and activates the tool. */
 	start(): void {
 		this.reset();
 		this.owner = Project;
+		this.targetMesh = this.host.manager.target();
 		unselectAllElements();
 		updateSelection();
 		this.tool.select();
@@ -99,13 +106,20 @@ export class DrawTool {
 		return Toolbox.selected === this.tool;
 	}
 
+	get target(): Mesh | null {
+		return this.targetMesh && Mesh.all.includes(this.targetMesh) && Project === this.owner ? this.targetMesh : null;
+	}
+
 	get pointCount(): number {
 		return this.anchors.length;
 	}
 
 	cancel(): void {
+		const target = this.target;
 		this.reset();
 		if (this.active) selectMoveTool();
+		if (target) { target.select(); updateSelection(); }
+		this.host.drawingChanged?.();
 	}
 
 	refresh(): void {
@@ -123,18 +137,21 @@ export class DrawTool {
 	private clearGhost(): void {
 		disposeBody(this.ghost);
 		this.ghost = null;
+		if (this.hiddenBody) this.hiddenBody.body.visible = this.hiddenBody.visible;
+		this.hiddenBody = null;
 	}
 
 	private networkForSnapping(): RoadNetwork | null {
-		const target: Mesh | null = this.host.manager.target();
+		const target: Mesh | null = this.target;
 		return target && this.host.options().connect ? this.host.manager.networkOf(target) : null;
 	}
 
 	private radiusFor(preview: Preview, point: Vec3): number {
 		const camera: THREE.Camera = preview.camera;
+		if (camera instanceof THREE.OrthographicCamera) return Math.max(Math.abs(camera.top - camera.bottom) / camera.zoom * SNAP_PIXELS, 0.05);
 		const distance: number = camera.position.distanceTo(new THREE.Vector3(point[0], point[1], point[2]));
 		const fov: number = (camera as THREE.PerspectiveCamera).fov ?? 40;
-		const view: number = 2 * distance * Math.tan((fov * Math.PI) / 360);
+		const view: number = 2 * distance * Math.tan((fov * Math.PI) / 360) / ((camera as THREE.PerspectiveCamera).zoom || 1);
 		return Math.max(view * SNAP_PIXELS, 0.05);
 	}
 
@@ -151,17 +168,28 @@ export class DrawTool {
 		else point = preview.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -Number(options.height || 0)), new THREE.Vector3());
 		if (!point) return null;
 		const grid: number = Number(options.snap) || 0;
-		if (grid > 0) {
+		if (grid > 0 && !event.altKey) {
 			point.x = Math.round(point.x / grid) * grid;
 			point.z = Math.round(point.z / grid) * grid;
 		}
 		const last: DraftAnchor | undefined = this.anchors[this.anchors.length - 1];
-		if (event.shiftKey && last) {
-			if (Math.abs(point.x - last.position[0]) > Math.abs(point.z - last.position[2])) point.z = last.position[2];
-			else point.x = last.position[0];
+		const target: Mesh | null = this.target;
+		if (target) target.mesh.updateWorldMatrix(true, false);
+		const previous: THREE.Vector3 | null = last ? new THREE.Vector3(...last.position) : null;
+		if (previous && target) target.mesh.localToWorld(previous);
+		if (event.shiftKey && previous) {
+			if (Math.abs(point.x - previous.x) > Math.abs(point.z - previous.z)) point.z = previous.z;
+			else point.x = previous.x;
+		}
+		const worldRadius: number = this.radiusFor(preview, [point.x, point.y, point.z]);
+		let radius: number = worldRadius;
+		if (target) {
+			const scale = target.mesh.getWorldScale(new THREE.Vector3());
+			radius /= Math.max(0.00001, Math.min(Math.abs(scale.x), Math.abs(scale.y), Math.abs(scale.z)));
+			target.mesh.worldToLocal(point);
 		}
 		let position: Vec3 = [point.x, point.y, point.z];
-		const radius: number = this.radiusFor(preview, position);
+		this.snapRadius = radius;
 		const network: RoadNetwork | null = this.networkForSnapping();
 		let snap: SnapResult = { snap: { type: 'free' }, position };
 		if (network && !event.altKey) {
@@ -197,11 +225,12 @@ export class DrawTool {
 		}
 		this.anchors.push(anchor);
 		this.hover = null;
+		this.host.drawingChanged?.();
 		this.showGhost();
 	}
 
 	/** Commits the drawing as one undo step and keeps the tool ready for the next road. */
-	finish(closed: boolean = false, radius: number = 1): boolean {
+	finish(closed: boolean = false, radius: number = this.snapRadius): boolean {
 		if (this.anchors.length < 2) {
 			this.host.status('Click at least two points before finishing.');
 			return false;
@@ -209,11 +238,12 @@ export class DrawTool {
 		try {
 			if (Project !== this.owner) throw new Error('The drawing project is no longer open.');
 			const manager: LiveRoads = this.host.manager;
-			const target: Mesh | null = manager.target();
-			manager.commitDraft(target, this.anchors, this.host.segmentData(), closed, Math.max(radius, 0.05), this.host.newSettings(), this.host.draftProfiles());
+			const target: Mesh | null = this.target;
+			this.targetMesh = manager.commitDraft(target, this.anchors, this.host.segmentData(), closed, Math.max(radius, 0.05), this.host.newSettings(), this.host.draftProfiles());
 			this.anchors = [];
 			this.hover = null;
 			this.clearGhost();
+			this.host.drawingChanged?.();
 			this.host.status('Road added. Keep clicking to draw another, or press Esc to stop.');
 			return true;
 		} catch (error) {
@@ -241,9 +271,12 @@ export class DrawTool {
 		if (event.key === 'Enter') this.finish();
 		else if (event.key === 'Backspace') {
 			this.anchors.pop();
+			this.hover = null;
+			this.host.drawingChanged?.();
 			this.showGhost();
 		} else if (this.anchors.length > 0) {
 			this.reset();
+			this.host.drawingChanged?.();
 			this.host.status('Drawing cancelled. Press Esc again to stop drawing roads.');
 		} else {
 			this.cancel();
@@ -263,7 +296,7 @@ export class DrawTool {
 		this.clearGhost();
 		if (samples.length === 0) return;
 		const manager: LiveRoads = this.host.manager;
-		const target: Mesh | null = manager.target();
+		const target: Mesh | null = this.target;
 		const group: THREE.Group = new THREE.Group();
 		(group as unknown as { no_export: boolean }).no_export = true;
 		(target?.mesh ?? scene).add(group);
@@ -284,15 +317,20 @@ export class DrawTool {
 		for (const o of group.children) (o as unknown as { no_export: boolean }).no_export = true;
 		if (samples.length < 2 || !manager.library) return;
 		try {
-			const base: RoadNetwork = target ? manager.networkOf(target) : createNetwork();
+			const base: RoadNetwork = target ? manager.networkOf(target) : createNetwork(this.host.newSettings());
+			for (const [id, profile] of this.host.draftProfiles()) if (!base.profiles.has(id)) base.profiles.set(id, profile);
 			if (base.nodes.size > GHOST_NODE_LIMIT) {
 				this.host.status(`${this.anchors.length} points. Press Enter to finish.`);
 				return;
 			}
-			const draft: RoadNetwork = applyDraft(base, samples, counterIds('~g'), this.host.segmentData(), false, this.radiusFor(Preview.selected, samples[0].position)).network;
+			const draft: RoadNetwork = applyDraft(base, samples, counterIds('~g'), this.host.segmentData(), false, this.snapRadius).network;
 			const result: GenerateResult = generateNetwork(draft, manager.context(), this.cache);
 			const body: THREE.Group | null = manager.body(result);
-			if (body) group.add(body);
+			if (body) {
+				group.add(body);
+				const current = target ? manager.states.get(target)?.surface.body : null;
+				if (current) { this.hiddenBody = { body: current, visible: current.visible }; current.visible = false; }
+			}
 			this.host.status(`${this.anchors.length} points · ${result.triangles.toLocaleString()} triangles in the network`);
 		} catch (error) {
 			this.host.status((error as Error).message);

@@ -13,7 +13,11 @@ Load **`plugins/roadscape.js`** through **File → Plugins → Load Plugin from 
 3. **Enter**, double-click or right-click finishes and keeps the tool active for the next road. **Esc** cancels the draft, and **Esc** again leaves the tool. **Backspace** removes the last point. **Shift** locks an axis, **Alt** turns snapping off for one click, and clicking the first point again closes a loop.
 4. **Auto-setup junctions** in the sidebar connects any roads that now touch or cross (for example after moving points by hand).
 
-Each road network is one small native mesh: points are vertices, roads are edges. Use the normal **Move** tool in vertex mode to reshape it; the road follows live. Extruding an edge makes a new road of the same type. **Insert Road Point** / **Remove Road Point** (Tools menu or context menu) add or delete points; removing a point from the middle of a road joins its neighbours. **Tools → Use Selected Spline as Road** turns a native spline into a road.
+**Finish Road** commits a draft and keeps drawing active. **Finish & Edit Points** commits it and switches directly to the Move tool with that network selected. **Cancel Drawing** discards the draft and returns to editing. The sidebar identifies drawing mode, so choosing a road type while drawing changes the next road rather than restyling an existing one.
+
+Drawing stays attached to the network you selected, even when several networks exist. Moved, rotated and scaled networks use the correct local coordinates for both the ghost and finished road. Snapping remains consistent in orthographic views; Alt bypasses both grid and road snapping for the current click.
+
+Each road network is one small native mesh: points are vertices, roads are edges. Use **Edit Points** and the normal **Move** tool to reshape it; the road follows live. Clicking a surface selects its network; another click in vertex mode selects the nearest control point. **Select Road Edges** lets you pick a single road directly from its surface, without also editing other roads between selected points. Extruding an edge makes a new road of the same type. **Insert Road Point** / **Remove Road Point** (Tools menu or context menu) add or delete points; removing a point from the middle of a road joins its neighbours. **Tools → Use Selected Spline as Road** turns a native spline into a road.
 
 ## Road types and roadsides
 
@@ -26,9 +30,11 @@ A road type is a carriageway (lanes, lane width, median, markings, crossings, su
 | Guardrail, hedge, fence, wall | Continuous: swept along the curve. |
 | Concrete barrier | Pieces stretched to fit end to end. |
 
-Pick a library type (street, tree-lined street, avenue with median, highway, bridge road, tunnel road, race track, trail, country road) for the selected roads, or change anything: the first edit copies a library type into the project so the library itself never changes. A project type is shared by every road that uses it, so one edit restyles a whole city street; **Make own copy** splits it off for the selected roads.
+Pick a library type (street, tree-lined street, avenue with median, highway, bridge road, tunnel road, race track, trail, country road) for the selected roads, or change anything: the first edit copies a library type into the project so the library itself never changes. When no points or edges are selected, choosing a type updates the network default and roads using that default. A project type is shared by every road that uses it, so one edit restyles a whole city street; **Make own copy** splits it off for the selected roads.
 
 Select road points in vertex mode to change a road's type, its smoothing, whether it is built as a bridge or tunnel, or to force a node to be (or never be) a junction.
+
+Numeric inputs keep partially typed values while the viewport regenerates. Enter or leaving the field commits one undo step; Escape restores the saved value. Empty or invalid input does not become zero.
 
 ## Junctions
 

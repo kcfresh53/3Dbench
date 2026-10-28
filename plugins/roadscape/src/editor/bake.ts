@@ -35,9 +35,9 @@ function addPart(part: MeshPart, group: Group, source: Mesh, texture: Texture, s
 		vertices: {},
 		shading: 'flat',
 	} as never)
-		.addTo(group)
-		.init() as Mesh;
+		.addTo(group) as Mesh;
 	created.push(mesh);
+	mesh.init();
 	const keys: string[] = part.positions.map((p: Vec3): string => mesh.addVertices(p)[0]);
 	// Large buffers go through in slices so no single argument list becomes huge.
 	for (let start: number = 0; start < part.faces.length; start += 2000) {
@@ -59,7 +59,7 @@ function addPart(part: MeshPart, group: Group, source: Mesh, texture: Texture, s
  * One undo step; undoing restores the editable network.
  */
 export function bakeRoad(result: GenerateResult, library: RoadLibrary, lookup: (key: string) => TreeAtlas | undefined, source: Mesh): Group {
-	Undo.initEdit({ outliner: true, elements: [source], selection: true } as never);
+	Undo.initEdit({ outliner: true, elements: [source], groups: [], textures: [], selection: true } as never);
 	const elements: Mesh[] = [];
 	const groups: Group[] = [];
 	const textures: Texture[] = [];

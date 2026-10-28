@@ -4,6 +4,7 @@ import { edgeKey } from '../core/model';
 import { addNode, addSegment, createNetwork, renameNodes } from '../core/network';
 import { BUILTIN_PROFILES } from '../core/profile_library';
 import { documentFromNetwork, segmentDefaults } from './document';
+import { selectionMode } from './bb_access';
 
 /** An edge of the control mesh is a face that has only two vertices. */
 function isEdge(face: MeshFace): boolean {
@@ -97,6 +98,12 @@ export function writeNetwork(mesh: Mesh, network: RoadNetwork): WriteResult {
 	if (edges.length > 0) mesh.addFaces(...edges);
 	const selected: string[] = mesh.getSelectedVertices(true);
 	for (let i: number = selected.length - 1; i >= 0; i--) if (!mesh.vertices[selected[i]]) selected.splice(i, 1);
+	const pickedEdges = mesh.getSelectedEdges?.(true);
+	if (pickedEdges) {
+		for (let i = pickedEdges.length - 1; i >= 0; i--) if (!finalNetwork.segments.has(edgeKey(...pickedEdges[i]))) pickedEdges.splice(i, 1);
+	}
+	const pickedFaces = mesh.getSelectedFaces?.(true);
+	if (pickedFaces) pickedFaces.splice(0, pickedFaces.length, ...pickedFaces.filter(key => !!mesh.faces[key]));
 	return { doc: documentFromNetwork(finalNetwork), network: finalNetwork, ids };
 }
 
@@ -106,7 +113,12 @@ export function lookupProfile(network: RoadNetwork, id: string): RoadProfile | u
 }
 
 /** Segments touched by the current vertex selection: edges with both ends selected, else all around a point. */
-export function selectedSegments(mesh: Mesh, network: RoadNetwork): RoadSegment[] {
+export function selectedSegments(mesh: Mesh, network: RoadNetwork, mode: string = typeof BarItems === 'undefined' ? 'vertex' : selectionMode()): RoadSegment[] {
+	const explicit: Array<[string, string]> = mesh.getSelectedEdges?.() ?? [];
+	if (mode === 'edge' && explicit.length > 0) {
+		const keys = new Set(explicit.map(([a, b]) => edgeKey(a, b)));
+		return [...network.segments.values()].filter(s => keys.has(s.key));
+	}
 	const picked: Set<string> = new Set(mesh.getSelectedVertices());
 	if (picked.size === 0) return [];
 	const both: RoadSegment[] = [...network.segments.values()].filter((s: RoadSegment): boolean => picked.has(s.a) && picked.has(s.b));

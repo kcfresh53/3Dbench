@@ -15,7 +15,7 @@
   var NETWORK_KEY = "roadscape_net";
   var LEGACY_LIVE_KEY = "roadscape_live";
   var BAKED_KEY = "roadscape";
-  var INSTANCE_KEY = Symbol.for("3dbench.roadscape.instance");
+  var INSTANCE_KEY = /* @__PURE__ */ Symbol.for("3dbench.roadscape.instance");
   var LIVE_BODY_NAME = "Roadscape live surface";
 
   // plugins/roadscape/src/core/types.ts
@@ -2446,6 +2446,17 @@
     return next;
   }
 
+  // plugins/roadscape/src/editor/bb_access.ts
+  function setSelectionMode(mode) {
+    BarItems.selection_mode.set(mode);
+  }
+  function selectionMode() {
+    return BarItems.selection_mode.value;
+  }
+  function selectMoveTool() {
+    BarItems.move_tool.select();
+  }
+
   // plugins/roadscape/src/editor/network_mesh.ts
   function isEdge(face) {
     return face.vertices.length === 2;
@@ -2517,12 +2528,23 @@
     if (edges.length > 0) mesh.addFaces(...edges);
     const selected = mesh.getSelectedVertices(true);
     for (let i = selected.length - 1; i >= 0; i--) if (!mesh.vertices[selected[i]]) selected.splice(i, 1);
+    const pickedEdges = mesh.getSelectedEdges?.(true);
+    if (pickedEdges) {
+      for (let i = pickedEdges.length - 1; i >= 0; i--) if (!finalNetwork.segments.has(edgeKey(...pickedEdges[i]))) pickedEdges.splice(i, 1);
+    }
+    const pickedFaces = mesh.getSelectedFaces?.(true);
+    if (pickedFaces) pickedFaces.splice(0, pickedFaces.length, ...pickedFaces.filter((key) => !!mesh.faces[key]));
     return { doc: documentFromNetwork(finalNetwork), network: finalNetwork, ids };
   }
   function lookupProfile(network, id) {
     return network.profiles.get(id) ?? BUILTIN_PROFILES.find((p) => p.id === id);
   }
-  function selectedSegments(mesh, network) {
+  function selectedSegments(mesh, network, mode = typeof BarItems === "undefined" ? "vertex" : selectionMode()) {
+    const explicit = mesh.getSelectedEdges?.() ?? [];
+    if (mode === "edge" && explicit.length > 0) {
+      const keys = new Set(explicit.map(([a, b]) => edgeKey(a, b)));
+      return [...network.segments.values()].filter((s) => keys.has(s.key));
+    }
     const picked = new Set(mesh.getSelectedVertices());
     if (picked.size === 0) return [];
     const both = [...network.segments.values()].filter((s) => picked.has(s.a) && picked.has(s.b));
@@ -2593,9 +2615,9 @@
   }
   var MaterialPool = class {
     constructor(library, lookup, onLoaded) {
-      this.library = library;
-      this.lookup = lookup;
-      this.onLoaded = onLoaded;
+      __publicField(this, "library", library);
+      __publicField(this, "lookup", lookup);
+      __publicField(this, "onLoaded", onLoaded);
       __publicField(this, "materials", /* @__PURE__ */ new Map());
       __publicField(this, "textures", /* @__PURE__ */ new Map());
     }
@@ -2648,30 +2670,23 @@
     body.removeFromParent();
   }
 
-  // plugins/roadscape/src/editor/bb_access.ts
-  function setSelectionMode(mode) {
-    BarItems.selection_mode.set(mode);
-  }
-  function selectionMode() {
-    return BarItems.selection_mode.value;
-  }
-  function selectMoveTool() {
-    BarItems.move_tool.select();
-  }
-
   // plugins/roadscape/src/editor/live_surface.ts
   var LiveSurface = class {
     constructor(mesh, materials) {
-      this.mesh = mesh;
-      this.materials = materials;
+      __publicField(this, "mesh", mesh);
+      __publicField(this, "materials", materials);
       __publicField(this, "body", null);
       __publicField(this, "object");
       __publicField(this, "material");
       __publicField(this, "raycast");
       __publicField(this, "active", false);
+      __publicField(this, "edgeProxy");
       this.object = mesh.mesh;
       this.material = this.object.material;
       this.raycast = this.object.raycast;
+      this.edgeProxy = new THREE.LineSegments(new THREE.BufferGeometry(), materials.outline);
+      this.edgeProxy.no_export = true;
+      this.object.add(this.edgeProxy);
     }
     /** True while the control mesh still owns the Three.js object this surface was built for. */
     valid() {
@@ -2701,9 +2716,40 @@
         body.updateWorldMatrix(true, false);
         const found = [];
         for (const child of body.children) child.raycast(raycaster, found);
-        for (const hit of found) {
+        found.sort((a, b) => a.distance - b.distance);
+        for (const hit of found.slice(0, 1)) {
           hit.object = this;
           hit.faceIndex = 0;
+          if (surface.mesh.selected && selectionMode() === "vertex") {
+            const keys = Object.keys(surface.mesh.vertices);
+            let best = Infinity;
+            keys.forEach((key, index) => {
+              const point = surface.object.localToWorld(new THREE.Vector3(...surface.mesh.vertices[key]));
+              const distance2 = point.distanceToSquared(hit.point);
+              if (distance2 < best) {
+                best = distance2;
+                hit.index = index;
+              }
+            });
+            hit.object = surface.object.vertex_points;
+          } else if (surface.mesh.selected && selectionMode() === "edge") {
+            let best = Infinity;
+            let picked = [];
+            for (const face of Object.values(surface.mesh.faces)) {
+              if (face.vertices.length !== 2) continue;
+              const [a, b] = face.vertices.map((key) => surface.object.localToWorld(new THREE.Vector3(...surface.mesh.vertices[key])));
+              const closest = new THREE.Line3(a, b).closestPointToPoint(hit.point, true, new THREE.Vector3());
+              const distance2 = closest.distanceToSquared(hit.point);
+              if (distance2 < best) {
+                best = distance2;
+                picked = face.vertices.slice();
+              }
+            }
+            if (picked.length !== 2) continue;
+            surface.edgeProxy.vertex_order = picked;
+            hit.object = surface.edgeProxy;
+            hit.index = 0;
+          }
           hits.push(hit);
         }
       };
@@ -2725,6 +2771,8 @@
     dispose() {
       disposeBody(this.body);
       this.body = null;
+      this.edgeProxy.removeFromParent();
+      this.edgeProxy.geometry.dispose();
       this.deactivate(false);
     }
   };
@@ -3719,7 +3767,7 @@
     }
   }
 
-  // stub:bundled-stub
+  // stub:stub
   var BUNDLED_TEXTURES = { bark: "", pineBark: "", leaf: "", needle: "" };
 
   // plugins/procedural_trees/src/texture/painters_image.ts
@@ -4148,7 +4196,7 @@
   }
   var ProceduralTreeProvider = class {
     constructor(onReady) {
-      this.onReady = onReady;
+      __publicField(this, "onReady", onReady);
       __publicField(this, "revision", 0);
       __publicField(this, "entries", /* @__PURE__ */ new Map());
       __publicField(this, "pending", /* @__PURE__ */ new Set());
@@ -4225,8 +4273,9 @@
       scale: [...source.scale ?? [1, 1, 1]],
       vertices: {},
       shading: "flat"
-    }).addTo(group).init();
+    }).addTo(group);
     created.push(mesh);
+    mesh.init();
     const keys = part.positions.map((p) => mesh.addVertices(p)[0]);
     for (let start = 0; start < part.faces.length; start += 2e3) {
       mesh.addFaces(
@@ -4242,7 +4291,7 @@
     }
   }
   function bakeRoad(result, library, lookup, source) {
-    Undo.initEdit({ outliner: true, elements: [source], selection: true });
+    Undo.initEdit({ outliner: true, elements: [source], groups: [], textures: [], selection: true });
     const elements = [];
     const groups = [];
     const textures = [];
@@ -4285,7 +4334,7 @@
   var DEBOUNCE_MS = 35;
   var LiveRoads = class {
     constructor(load, changed) {
-      this.changed = changed;
+      __publicField(this, "changed", changed);
       __publicField(this, "states", /* @__PURE__ */ new Map());
       __publicField(this, "ready");
       __publicField(this, "library", null);
@@ -4534,12 +4583,15 @@
   var SNAP_PIXELS = 0.022;
   var DrawTool = class {
     constructor(host) {
-      this.host = host;
+      __publicField(this, "host", host);
       __publicField(this, "tool");
       __publicField(this, "anchors", []);
       __publicField(this, "hover", null);
+      __publicField(this, "targetMesh", null);
+      __publicField(this, "snapRadius", 0.05);
       __publicField(this, "owner", null);
       __publicField(this, "ghost", null);
+      __publicField(this, "hiddenBody", null);
       __publicField(this, "timer", null);
       __publicField(this, "cache", new GenerationCache());
       __publicField(this, "lineMaterial", new THREE.LineBasicMaterial({ color: 5555711, depthTest: false }));
@@ -4563,9 +4615,15 @@
         cursor: "crosshair",
         onSelect: () => {
           this.owner = Project;
+          this.targetMesh ?? (this.targetMesh = this.host.manager.target());
+          this.host.drawingChanged?.();
           this.host.status("Click to place points. Shift locks an axis. Enter or double-click finishes; Esc cancels.");
         },
-        onUnselect: () => this.reset(),
+        onUnselect: () => {
+          this.reset();
+          this.targetMesh = null;
+          queueMicrotask(() => this.host.drawingChanged?.());
+        },
         onCanvasClick: (data) => this.canvasClick(data.event),
         onCanvasRightClick: () => {
           this.finish();
@@ -4574,12 +4632,18 @@
       });
       document.addEventListener("pointermove", this.onMove);
       document.addEventListener("keydown", this.onKey, true);
-      this.subscriptions.push(listen(Blockbench, "unselect_project", () => this.reset()));
+      this.subscriptions.push(listen(Blockbench, "unselect_project", () => {
+        this.reset();
+        this.targetMesh = null;
+        this.owner = null;
+        if (this.active) selectMoveTool();
+      }));
     }
     /** Starts drawing: clears the selection and activates the tool. */
     start() {
       this.reset();
       this.owner = Project;
+      this.targetMesh = this.host.manager.target();
       unselectAllElements();
       updateSelection();
       this.tool.select();
@@ -4587,12 +4651,21 @@
     get active() {
       return Toolbox.selected === this.tool;
     }
+    get target() {
+      return this.targetMesh && Mesh.all.includes(this.targetMesh) && Project === this.owner ? this.targetMesh : null;
+    }
     get pointCount() {
       return this.anchors.length;
     }
     cancel() {
+      const target = this.target;
       this.reset();
       if (this.active) selectMoveTool();
+      if (target) {
+        target.select();
+        updateSelection();
+      }
+      this.host.drawingChanged?.();
     }
     refresh() {
       this.showGhost();
@@ -4607,16 +4680,19 @@
     clearGhost() {
       disposeBody(this.ghost);
       this.ghost = null;
+      if (this.hiddenBody) this.hiddenBody.body.visible = this.hiddenBody.visible;
+      this.hiddenBody = null;
     }
     networkForSnapping() {
-      const target = this.host.manager.target();
+      const target = this.target;
       return target && this.host.options().connect ? this.host.manager.networkOf(target) : null;
     }
     radiusFor(preview, point) {
       const camera = preview.camera;
+      if (camera instanceof THREE.OrthographicCamera) return Math.max(Math.abs(camera.top - camera.bottom) / camera.zoom * SNAP_PIXELS, 0.05);
       const distance2 = camera.position.distanceTo(new THREE.Vector3(point[0], point[1], point[2]));
       const fov = camera.fov ?? 40;
-      const view = 2 * distance2 * Math.tan(fov * Math.PI / 360);
+      const view = 2 * distance2 * Math.tan(fov * Math.PI / 360) / (camera.zoom || 1);
       return Math.max(view * SNAP_PIXELS, 0.05);
     }
     locate(event) {
@@ -4631,17 +4707,28 @@
       else point = preview.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -Number(options.height || 0)), new THREE.Vector3());
       if (!point) return null;
       const grid = Number(options.snap) || 0;
-      if (grid > 0) {
+      if (grid > 0 && !event.altKey) {
         point.x = Math.round(point.x / grid) * grid;
         point.z = Math.round(point.z / grid) * grid;
       }
       const last = this.anchors[this.anchors.length - 1];
-      if (event.shiftKey && last) {
-        if (Math.abs(point.x - last.position[0]) > Math.abs(point.z - last.position[2])) point.z = last.position[2];
-        else point.x = last.position[0];
+      const target = this.target;
+      if (target) target.mesh.updateWorldMatrix(true, false);
+      const previous = last ? new THREE.Vector3(...last.position) : null;
+      if (previous && target) target.mesh.localToWorld(previous);
+      if (event.shiftKey && previous) {
+        if (Math.abs(point.x - previous.x) > Math.abs(point.z - previous.z)) point.z = previous.z;
+        else point.x = previous.x;
+      }
+      const worldRadius = this.radiusFor(preview, [point.x, point.y, point.z]);
+      let radius = worldRadius;
+      if (target) {
+        const scale3 = target.mesh.getWorldScale(new THREE.Vector3());
+        radius /= Math.max(1e-5, Math.min(Math.abs(scale3.x), Math.abs(scale3.y), Math.abs(scale3.z)));
+        target.mesh.worldToLocal(point);
       }
       let position = [point.x, point.y, point.z];
-      const radius = this.radiusFor(preview, position);
+      this.snapRadius = radius;
       const network = this.networkForSnapping();
       let snap = { snap: { type: "free" }, position };
       if (network && !event.altKey) {
@@ -4675,10 +4762,11 @@
       }
       this.anchors.push(anchor);
       this.hover = null;
+      this.host.drawingChanged?.();
       this.showGhost();
     }
     /** Commits the drawing as one undo step and keeps the tool ready for the next road. */
-    finish(closed = false, radius = 1) {
+    finish(closed = false, radius = this.snapRadius) {
       if (this.anchors.length < 2) {
         this.host.status("Click at least two points before finishing.");
         return false;
@@ -4686,11 +4774,12 @@
       try {
         if (Project !== this.owner) throw new Error("The drawing project is no longer open.");
         const manager2 = this.host.manager;
-        const target = manager2.target();
-        manager2.commitDraft(target, this.anchors, this.host.segmentData(), closed, Math.max(radius, 0.05), this.host.newSettings(), this.host.draftProfiles());
+        const target = this.target;
+        this.targetMesh = manager2.commitDraft(target, this.anchors, this.host.segmentData(), closed, Math.max(radius, 0.05), this.host.newSettings(), this.host.draftProfiles());
         this.anchors = [];
         this.hover = null;
         this.clearGhost();
+        this.host.drawingChanged?.();
         this.host.status("Road added. Keep clicking to draw another, or press Esc to stop.");
         return true;
       } catch (error) {
@@ -4716,9 +4805,12 @@
       if (event.key === "Enter") this.finish();
       else if (event.key === "Backspace") {
         this.anchors.pop();
+        this.hover = null;
+        this.host.drawingChanged?.();
         this.showGhost();
       } else if (this.anchors.length > 0) {
         this.reset();
+        this.host.drawingChanged?.();
         this.host.status("Drawing cancelled. Press Esc again to stop drawing roads.");
       } else {
         this.cancel();
@@ -4737,7 +4829,7 @@
       this.clearGhost();
       if (samples.length === 0) return;
       const manager2 = this.host.manager;
-      const target = manager2.target();
+      const target = this.target;
       const group = new THREE.Group();
       group.no_export = true;
       (target?.mesh ?? scene).add(group);
@@ -4758,15 +4850,23 @@
       for (const o of group.children) o.no_export = true;
       if (samples.length < 2 || !manager2.library) return;
       try {
-        const base = target ? manager2.networkOf(target) : createNetwork();
+        const base = target ? manager2.networkOf(target) : createNetwork(this.host.newSettings());
+        for (const [id, profile] of this.host.draftProfiles()) if (!base.profiles.has(id)) base.profiles.set(id, profile);
         if (base.nodes.size > GHOST_NODE_LIMIT) {
           this.host.status(`${this.anchors.length} points. Press Enter to finish.`);
           return;
         }
-        const draft = applyDraft(base, samples, counterIds("~g"), this.host.segmentData(), false, this.radiusFor(Preview.selected, samples[0].position)).network;
+        const draft = applyDraft(base, samples, counterIds("~g"), this.host.segmentData(), false, this.snapRadius).network;
         const result = generateNetwork(draft, manager2.context(), this.cache);
         const body = manager2.body(result);
-        if (body) group.add(body);
+        if (body) {
+          group.add(body);
+          const current = target ? manager2.states.get(target)?.surface.body : null;
+          if (current) {
+            this.hiddenBody = { body: current, visible: current.visible };
+            current.visible = false;
+          }
+        }
         this.host.status(`${this.anchors.length} points \xB7 ${result.triangles.toLocaleString()} triangles in the network`);
       } catch (error) {
         this.host.status(error.message);
@@ -4793,6 +4893,11 @@
     while (used.has(`custom-${n}`)) n++;
     return `custom-${n}`;
   }
+  function defaultProfileId(network) {
+    const preferred = network.settings.defaultProfile;
+    if ([...network.segments.values()].some((s) => s.profile === preferred)) return preferred;
+    return network.segments.values().next().value?.profile ?? preferred;
+  }
   function applyProfileEdit(network, segments, baseId, edit, copy) {
     const base = lookupProfile(network, baseId) ?? builtinProfile("street");
     let working = base;
@@ -4815,7 +4920,20 @@
       __publicField(this, "draftProfileMap", /* @__PURE__ */ new Map());
       __publicField(this, "settingsForNew", mergeSettings(void 0));
       __publicField(this, "message", null);
+      __publicField(this, "changed", null);
       this.manager = manager2;
+    }
+    drawingChanged() {
+      this.changed?.();
+    }
+    editingMesh() {
+      return this.draw?.active ? null : this.manager.selected();
+    }
+    draftNetwork() {
+      const target = this.draw?.target;
+      const network = target ? this.manager.networkOf(target) : createNetwork(this.settingsForNew);
+      for (const [id, profile] of this.draftProfileMap) network.profiles.set(id, profile);
+      return network;
     }
     // ---- DrawHost ----------------------------------------------------------------------
     options() {
@@ -4835,12 +4953,14 @@
     }
     // ---- reading -----------------------------------------------------------------------
     snapshot(mesh, state) {
-      const draftNetwork = createNetwork(this.settingsForNew);
-      for (const [id, p] of this.draftProfileMap) draftNetwork.profiles.set(id, p);
-      const network = mesh ? this.manager.networkOf(mesh) : draftNetwork;
-      const segments = mesh ? selectedSegments(mesh, network) : [];
+      const drawing = !!this.draw?.active;
+      mesh = drawing ? this.draw?.target ?? null : mesh;
+      state = mesh ? this.manager.states.get(mesh) : void 0;
+      const draftNetwork = this.draftNetwork();
+      const network = drawing ? draftNetwork : mesh ? this.manager.networkOf(mesh) : draftNetwork;
+      const segments = mesh && !drawing ? selectedSegments(mesh, network) : [];
       const first = segments[0];
-      const profileId = first ? first.profile : mesh ? network.settings.defaultProfile : this.drawProfile;
+      const profileId = drawing ? this.drawProfile : first ? first.profile : mesh ? defaultProfileId(network) : this.drawProfile;
       const profile = lookupProfile(network, profileId) ?? builtinProfile("street");
       const profiles = [
         ...BUILTIN_PROFILES.map((p) => ({ id: p.id, name: p.name, custom: false })),
@@ -4848,10 +4968,12 @@
       ];
       let usage = 0;
       for (const s of network.segments.values()) if (s.profile === profileId) usage++;
-      const nodeIds = mesh ? mesh.getSelectedVertices() : [];
+      const nodeIds = mesh && !drawing ? mesh.getSelectedVertices() : [];
       const result = state?.result ?? null;
       return {
         hasRoad: !!mesh,
+        drawing,
+        draftPoints: this.draw?.pointCount ?? 0,
         profileId,
         profile,
         profiles,
@@ -4877,48 +4999,59 @@
     // ---- editing -----------------------------------------------------------------------
     /** Chooses the road type for selected segments, or for roads drawn next when nothing is selected. */
     pickProfile(id) {
-      const mesh = this.manager.selected();
+      const mesh = this.editingMesh();
       const network = mesh ? this.manager.networkOf(mesh) : null;
       const segments = mesh && network ? selectedSegments(mesh, network) : [];
-      if (mesh && segments.length > 0) {
+      if (mesh && network) {
+        const targets = segments.length > 0 ? segments : [...network.segments.values()].filter((s) => s.profile === defaultProfileId(network));
         this.manager.edit(mesh, "Change road type", (net) => {
-          for (const s of segments) net.segments.get(s.key).profile = id;
+          for (const s of targets) net.segments.get(s.key).profile = id;
+          if (segments.length === 0) net.settings.defaultProfile = id;
         });
-      } else this.drawProfile = id;
+      } else {
+        this.drawProfile = id;
+        this.changed?.();
+        this.draw?.refresh();
+      }
     }
     /** Edits the shown road type. `copy` gives the selected segments their own copy first. */
     editProfile(edit, copy = false, label = "Edit road type") {
-      const mesh = this.manager.selected();
+      const mesh = this.editingMesh();
       if (!mesh) {
-        const draft = createNetwork(this.settingsForNew);
-        for (const [id2, p] of this.draftProfileMap) draft.profiles.set(id2, p);
-        const id = applyProfileEdit(draft, [], this.drawProfile, edit, copy);
+        const draft = this.draftNetwork();
+        const target = this.draw?.target;
+        const shared = target ? this.manager.networkOf(target).profiles.has(this.drawProfile) : false;
+        const id = applyProfileEdit(draft, [], this.drawProfile, edit, copy || shared);
         for (const [key, p] of draft.profiles) this.draftProfileMap.set(key, p);
         this.drawProfile = id;
+        this.changed?.();
+        this.draw?.refresh();
         return;
       }
       this.manager.edit(mesh, label, (net) => {
         const segments = selectedSegments(mesh, net);
-        const base = segments[0]?.profile ?? net.settings.defaultProfile;
+        const base = segments[0]?.profile ?? defaultProfileId(net);
         const targets = segments.length > 0 ? segments : [...net.segments.values()].filter((s) => s.profile === base);
         const id = applyProfileEdit(net, targets, base, edit, copy);
         if (segments.length === 0) net.settings.defaultProfile = id;
       });
     }
     previewProfile(edit) {
-      const mesh = this.manager.selected();
+      const mesh = this.editingMesh();
       if (!mesh) return;
       this.manager.preview(mesh, (net) => {
         const segments = selectedSegments(mesh, net);
-        const base = segments[0]?.profile ?? net.settings.defaultProfile;
+        const base = segments[0]?.profile ?? defaultProfileId(net);
         const targets = segments.length > 0 ? segments : [...net.segments.values()].filter((s) => s.profile === base);
         applyProfileEdit(net, targets, base, edit, false);
       });
     }
     setSettings(patch) {
-      const mesh = this.manager.selected();
+      const mesh = this.draw?.active ? this.draw.target : this.manager.selected();
       if (!mesh) {
         this.settingsForNew = applySettingsPatch(this.settingsForNew, patch);
+        this.changed?.();
+        this.draw?.refresh();
         return;
       }
       this.manager.edit(mesh, "Change road settings", (net) => {
@@ -4926,12 +5059,12 @@
       });
     }
     previewSettings(patch) {
-      const mesh = this.manager.selected();
+      const mesh = this.draw?.active ? this.draw.target : this.manager.selected();
       if (mesh) this.manager.preview(mesh, (net) => void (net.settings = applySettingsPatch(net.settings, patch)));
     }
     /** Changes flags on the selected segments (smooth, structure) or resets their curve handles. */
     setSegments(patch, label = "Change road segments") {
-      const mesh = this.manager.selected();
+      const mesh = this.editingMesh();
       if (!mesh) return;
       const segments = selectedSegments(mesh, this.manager.networkOf(mesh));
       if (segments.length === 0) throw new Error("Select road points in vertex mode first.");
@@ -4940,7 +5073,7 @@
       });
     }
     setNodes(patch) {
-      const mesh = this.manager.selected();
+      const mesh = this.editingMesh();
       if (!mesh) return;
       const ids = mesh.getSelectedVertices();
       if (ids.length === 0) throw new Error("Select road points in vertex mode first.");
@@ -4958,7 +5091,7 @@
       this.setSegments({ handleA: null, handleB: null }, "Reset road curves");
     }
     insertPoint() {
-      const mesh = this.manager.selected();
+      const mesh = this.editingMesh();
       if (!mesh) throw new Error("Select a road network first.");
       const segments = selectedSegments(mesh, this.manager.networkOf(mesh));
       if (segments.length === 0) throw new Error("Select a road point, or both ends of a road, in vertex mode.");
@@ -4967,7 +5100,7 @@
       });
     }
     removePoint() {
-      const mesh = this.manager.selected();
+      const mesh = this.editingMesh();
       if (!mesh) throw new Error("Select a road network first.");
       const picked = mesh.getSelectedVertices();
       if (picked.length === 0) throw new Error("Select road points in vertex mode first.");
@@ -4977,7 +5110,35 @@
     }
     // ---- drawing -----------------------------------------------------------------------
     startDrawing() {
+      if (!this.manager.library) {
+        this.status("Loading road library\u2026");
+        const owner = Project;
+        void this.manager.ready.then(() => {
+          if (Project === owner && this.draw?.tool === BarItems.roadscape_draw) this.startDrawing();
+        }, (error) => this.status(error.message));
+        return;
+      }
+      const mesh = this.manager.selected();
+      if (mesh) {
+        const network = this.manager.networkOf(mesh);
+        this.drawProfile = selectedSegments(mesh, network)[0]?.profile ?? defaultProfileId(network);
+        this.settingsForNew = network.settings;
+        for (const [id, p] of network.profiles) this.draftProfileMap.set(id, p);
+      }
       this.draw?.start();
+      this.changed?.();
+    }
+    /** Finish a draft, then restore native point editing without losing the network. */
+    editRoads(mode = "vertex") {
+      if (this.draw?.active && this.draw.pointCount > 0 && !this.draw.finish()) return;
+      const mesh = this.draw?.target ?? this.manager.selected();
+      this.draw?.cancel();
+      mesh?.select();
+      setSelectionMode(mode);
+      selectMoveTool();
+      updateSelection();
+      this.changed?.();
+      this.status("Select and drag road points. Use edge mode to select a single road.");
     }
   };
 
@@ -4991,13 +5152,40 @@
   var NumberField = {
     name: "rs-number",
     props: ["label", "value", "min", "max", "step", "suffix"],
+    data: () => ({ focused: false, draft: "" }),
     template: `<label class="rs_field">
-		<span>{{label}}<em v-if="suffix"> {{suffix}}</em></span>
-		<input type="number" :min="min" :max="max" :step="step" :value="value"
-			@input="$emit('preview', Number($event.target.value))"
-			@change="$emit('input', clamp(Number($event.target.value)))">
-	</label>`,
-    methods: { clamp: clampValue }
+  <span>{{label}}<em v-if="suffix"> {{suffix}}</em></span>
+  <input type="number" :min="min" :max="max" :step="step" :value="focused ? draft : value"
+   @focus="begin" @input="preview($event.target.value)" @change="commit($event.target.value)" @blur="focused = false"
+   @keydown.enter.prevent="$event.target.blur()" @keydown.esc.stop.prevent="cancel($event.target)">
+ </label>`,
+    methods: {
+      begin() {
+        this.focused = true;
+        this.draft = String(this.value);
+      },
+      preview(text) {
+        this.focused = true;
+        this.draft = text;
+        if (text.trim() && Number.isFinite(Number(text))) this.$emit("preview", clampValue.call(this, Number(text)));
+      },
+      commit(text) {
+        if (!text.trim() || !Number.isFinite(Number(text))) {
+          this.draft = String(this.value);
+          this.$emit("preview", this.value);
+          return;
+        }
+        const value = clampValue.call(this, Number(text));
+        this.draft = String(value);
+        if (value !== Number(this.value)) this.$emit("input", value);
+      },
+      cancel(input) {
+        this.draft = String(this.value);
+        input.value = this.draft;
+        this.$emit("preview", this.value);
+        input.blur();
+      }
+    }
   };
   var SelectField = {
     name: "rs-select",
@@ -5279,6 +5467,26 @@
       draw() {
         guard(this, () => this.session.startDrawing());
       },
+      finishRoad() {
+        this.session.draw?.finish();
+      },
+      editPoints() {
+        guard(this, () => this.session.editRoads());
+      },
+      editEdges() {
+        guard(this, () => this.session.editRoads("edge"));
+      },
+      cancelDrawing() {
+        this.session.draw?.cancel();
+        this.session.changed?.();
+        this.status = "Drawing cancelled.";
+      },
+      insertPoint() {
+        guard(this, () => this.session.insertPoint());
+      },
+      removePoint() {
+        guard(this, () => this.session.removePoint());
+      },
       autoSetup() {
         guard(this, () => {
           const mesh = this.session.manager.selected();
@@ -5290,7 +5498,7 @@
       bake() {
         const mesh = this.session.manager.selected();
         if (!mesh) return;
-        this.session.manager.bake(mesh).catch((error) => {
+        return this.session.manager.bake(mesh).catch((error) => {
           this.status = error.message;
         });
       },
@@ -5302,11 +5510,17 @@
   }
   var TEMPLATE = `<div class="rs_panel">
 	<div class="rs_row">
-		<button class="rs_primary" @click="draw">Draw Road</button>
-		<button :disabled="!snap.hasRoad" @click="autoSetup" title="Split and join every place roads meet or cross">Auto-setup junctions</button>
-		<button :disabled="!snap.hasRoad" @click="bake" title="Replace the live road with ordinary meshes for export">Bake</button>
+		<button class="rs_primary" :disabled="snap.drawing" @click="draw">Draw Road</button>
+		<button :disabled="!snap.hasRoad || snap.drawing" @click="autoSetup" title="Split and join every place roads meet or cross">Auto-setup junctions</button>
+		<button :disabled="!snap.hasRoad || snap.drawing" @click="bake" title="Replace the live road with ordinary meshes for export">Bake</button>
 	</div>
-	<p class="rs_status">{{status}}</p>
+	<div class="rs_row">
+  <button v-if="snap.drawing" :disabled="snap.draftPoints < 2" @click="finishRoad">Finish Road</button>
+  <button v-if="snap.hasRoad || snap.draftPoints >= 2" @click="editPoints">{{snap.drawing ? 'Finish & Edit Points' : 'Edit Points'}}</button>
+  <button v-if="snap.drawing" @click="cancelDrawing">Cancel Drawing</button>
+ </div>
+ <p class="rs_hint" v-if="snap.drawing">Drawing \xB7 {{snap.draftPoints}} draft points. Road type changes affect the next road.</p>
+ <p class="rs_status" role="status">{{status}}</p>
 	<p v-if="snap.error" class="rs_warn">{{snap.error}}</p>
 
 	<div v-if="snap.stats" class="rs_stats">
@@ -5320,7 +5534,7 @@
 	</div>
 	<p v-else-if="!snap.hasRoad" class="rs_hint">Click Draw Road, then click in the viewport. Click on an existing road to connect to it; crossings become junctions automatically.</p>
 
-	<rs-section :title="snap.hasRoad && snap.selectedSegments ? 'Road type (' + snap.selectedSegments + ' selected)' : 'Road type'">
+	<rs-section :title="snap.drawing ? 'Drawing road type' : snap.hasRoad && snap.selectedSegments ? 'Road type (' + snap.selectedSegments + ' selected)' : 'Road type'">
 		<label class="rs_field"><span>Type</span>
 			<select :value="snap.profileId" @change="pickProfile($event.target.value)">
 				<optgroup label="Library"><option v-for="p in snap.profiles" v-if="!p.custom" :key="p.id" :value="p.id">{{p.name}}</option></optgroup>
@@ -5328,7 +5542,7 @@
 			</select>
 		</label>
 		<p class="rs_hint" v-if="snap.profile.builtin">Library road types are copied the moment you change them.</p>
-		<p class="rs_hint" v-else>Used by {{snap.usage}} road{{snap.usage === 1 ? '' : 's'}}. Changes apply to all of them.</p>
+		<p class="rs_hint" v-else-if="!snap.drawing">Used by {{snap.usage}} road{{snap.usage === 1 ? '' : 's'}}. Changes apply to all of them.</p>
 		<div class="rs_row">
 			<button @click="duplicateProfile" title="Give the selected roads their own copy of this type">Make own copy</button>
 		</div>
@@ -5349,7 +5563,8 @@
 			@add-strip="t => addStrip('right', t)" @add-lining="t => addLining('right', t)"></rs-side-stack>
 	</rs-section>
 
-	<rs-section title="Selected roads and points" :open="false" v-if="snap.hasRoad">
+	<rs-section title="Selected roads and points" :open="false" v-if="snap.hasRoad && !snap.drawing">
+  <div class="rs_row"><button @click="editEdges">Select Road Edges</button><button @click="insertPoint" :disabled="!snap.segment">Insert Point</button><button @click="removePoint" :disabled="!snap.node">Remove Point</button></div>
 		<p class="rs_hint" v-if="!snap.segment && !snap.node">Select road points in vertex mode to change them.</p>
 		<template v-if="snap.segment">
 			<rs-toggle label="Smooth curve" :value="snap.segment.smooth" @input="v => setSegment({smooth: v})"></rs-toggle>
@@ -5451,7 +5666,7 @@
   }
 
   // plugins/roadscape/src/index.ts
-  var VERSION = "3.0.0";
+  var VERSION = "3.0.1";
   var ABOUT = "Build roads the way a city builder does. Tools \u2192 Draw Road: click points in the viewport; click an existing road to branch from it, and crossings become junctions automatically. Pick a road type in the sidebar and stack any number of strips (curb, sidewalk, grass verge, bike lane \u2026) and linings (lamps, procedural trees, guardrails, hedges, walls \u2026) on each side. Bridges and tunnels are chosen from height. Drag road points with the normal Move tool; the road follows. Bake Roadscape to Meshes before export. Source artwork: Roadscape 4.13.10 by Baptiste Mollicone and SLX. GPL-3.0-or-later.";
   var manager = null;
   var session = null;
@@ -5516,7 +5731,12 @@
     const spline = Outliner.selected[0];
     if (!isSpline(spline)) throw new Error("Select one native spline.");
     const { anchors, closed } = splineAnchors(spline);
-    manager.commitDraft(manager.target(), anchors, session.segmentData(), closed, 0.05, session.newSettings(), session.draftProfiles());
+    const target = manager.target();
+    if (target) {
+      target.mesh.updateWorldMatrix(true, false);
+      for (const anchor of anchors) anchor.position = target.mesh.worldToLocal(new THREE.Vector3(...anchor.position)).toArray();
+    }
+    manager.commitDraft(target, anchors, session.segmentData(), closed, 0.05, session.newSettings(), session.draftProfiles());
   }
   function initializeRoadscape(api) {
     globalThis[INSTANCE_KEY]?.();
@@ -5541,6 +5761,7 @@
         manager = new LiveRoads(() => loadLibrary(packedLibrary), refreshPanel);
         manager.ready.catch(report);
         session = new RoadSession(manager);
+        session.changed = () => refreshPanel(manager?.selected() ?? null, manager?.selected() ? manager.states.get(manager.selected()) : void 0);
         drawTool = new DrawTool(session);
         session.draw = drawTool;
         session.message = (text) => {
@@ -5569,9 +5790,7 @@
           "Edit Roadscape Network",
           () => {
             panel?.fold(false);
-            setSelectionMode("vertex");
-            selectMoveTool();
-            updateSelection();
+            session?.editRoads();
           },
           true
         );

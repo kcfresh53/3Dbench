@@ -9,13 +9,12 @@ import type { Snapshot } from './editor/session';
 import { buildPanelComponent } from './editor/panel/road_panel';
 import type { PanelInstance } from './editor/panel/road_panel';
 import { isSpline, splineAnchors } from './editor/spline_import';
-import { selectMoveTool, setSelectionMode } from './editor/bb_access';
 
 interface Handle {
 	delete(): void;
 }
 
-const VERSION: string = '3.0.0';
+const VERSION: string = '3.0.1';
 const ABOUT: string =
 	'Build roads the way a city builder does. Tools → Draw Road: click points in the viewport; click an existing road to branch from it, and crossings become junctions automatically. ' +
 	'Pick a road type in the sidebar and stack any number of strips (curb, sidewalk, grass verge, bike lane …) and linings (lamps, procedural trees, guardrails, hedges, walls …) on each side. ' +
@@ -91,7 +90,12 @@ function fromSpline(): void {
 	const spline: unknown = Outliner.selected[0];
 	if (!isSpline(spline)) throw new Error('Select one native spline.');
 	const { anchors, closed } = splineAnchors(spline);
-	manager.commitDraft(manager.target(), anchors, session.segmentData(), closed, 0.05, session.newSettings(), session.draftProfiles());
+	const target = manager.target();
+	if (target) {
+		target.mesh.updateWorldMatrix(true, false);
+		for (const anchor of anchors) anchor.position = target.mesh.worldToLocal(new THREE.Vector3(...anchor.position)).toArray() as [number, number, number];
+	}
+	manager.commitDraft(target, anchors, session.segmentData(), closed, 0.05, session.newSettings(), session.draftProfiles());
 }
 
 export default function initializeRoadscape(api: typeof BBPlugin): void {
@@ -117,6 +121,7 @@ export default function initializeRoadscape(api: typeof BBPlugin): void {
 			manager = new LiveRoads((): Promise<never> => loadLibrary(packedLibrary) as Promise<never>, refreshPanel);
 			manager.ready.catch(report);
 			session = new RoadSession(manager);
+			session.changed = (): void => refreshPanel(manager?.selected() ?? null, manager?.selected() ? manager.states.get(manager.selected() as Mesh) : undefined);
 			drawTool = new DrawTool(session);
 			session.draw = drawTool;
 			session.message = (text: string): void => {
@@ -145,9 +150,7 @@ export default function initializeRoadscape(api: typeof BBPlugin): void {
 				'Edit Roadscape Network',
 				(): void => {
 					panel?.fold(false);
-					setSelectionMode('vertex');
-					selectMoveTool();
-					updateSelection();
+					session?.editRoads();
 				},
 				true,
 			);

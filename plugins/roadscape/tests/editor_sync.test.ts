@@ -3,9 +3,12 @@ import assert from 'node:assert/strict';
 import type { RoadNetwork } from '../src/core/model';
 import { applyDraft, counterIds } from '../src/core/network_edit';
 import type { DraftAnchor } from '../src/core/network_edit';
-import { readNetwork, writeNetwork } from '../src/editor/network_mesh';
+import { readNetwork, writeNetwork, selectedSegments } from '../src/editor/network_mesh';
 import { documentFromNetwork } from '../src/editor/document';
 import { network } from './helpers';
+import { RoadSession } from '../src/editor/session';
+import type { LiveRoads } from '../src/editor/live_manager';
+import type { DrawTool } from '../src/editor/draw_tool';
 
 /** Just enough of Blockbench's Mesh for the sync code. */
 class FakeFace {
@@ -19,6 +22,8 @@ class FakeMesh {
 	vertices: Record<string, [number, number, number]> = {};
 	faces: Record<string, FakeFace> = {};
 	selected: string[] = [];
+	edges: Array<[string, string]> = [];
+	getSelectedEdges(): Array<[string, string]> { return this.edges; }
 	private counter: number = 0;
 	addVertices(...points: Array<[number, number, number]>): string[] {
 		return points.map((p): string => {
@@ -86,4 +91,41 @@ test('deleting a point removes its roads and stale selection', () => {
 	assert.equal(Object.values(mesh.faces).length, 1);
 	assert.deepEqual(mesh.selected, []);
 	assert.equal(Object.keys(documentFromNetwork(back).segments).length, 1);
+});
+
+
+test('explicit road edge selection does not edit other roads between selected points', () => {
+ const mesh = new FakeMesh(); mesh.selected = ['a', 'b', 'c']; mesh.edges = [['b', 'c']];
+ const net = network('street', [['a',[0,0,0]],['b',[20,0,0]],['c',[40,0,20]]], [['a','b'],['b','c'],['a','c']]);
+ assert.deepEqual(selectedSegments(asMesh(mesh), net, 'edge').map(s=>[s.a,s.b]), [['b','c']]);
+ assert.equal(selectedSegments(asMesh(mesh), net, 'vertex').length,3,'Old edge selection must not override vertex selection');
+});
+
+test('road type and custom draft changes immediately appear without editing an existing road', () => {
+ const mesh = new FakeMesh(); const net = network('street', [['a',[0,0,0]],['b',[20,0,0]]], [['a','b']]);
+ let edits = 0, refreshes = 0;
+ const manager = { selected:()=>asMesh(mesh), networkOf:()=>net, states:new Map(), edit:()=>{edits++;} } as unknown as LiveRoads;
+ const session = new RoadSession(manager);
+ session.draw = { active:true, target:asMesh(mesh), pointCount:0, refresh:()=>{} } as unknown as DrawTool;
+ session.changed = ()=>{refreshes++;};
+ session.pickProfile('highway');
+ assert.equal(session.snapshot(asMesh(mesh),undefined).profileId,'highway');
+ session.editProfile(p=>({...p,carriageway:{...p.carriageway,laneWidth:4.25}}));
+ const snap = session.snapshot(asMesh(mesh),undefined);
+ assert.equal(snap.profile.carriageway.laneWidth,4.25);
+ assert.equal(snap.profile.builtin,false);
+ assert.equal(edits,0); assert.equal(refreshes,2);
+ assert.equal([...net.segments.values()][0].profile,'street');
+});
+
+test('choosing a type with the whole network selected updates its default roads consistently', () => {
+ const mesh = new FakeMesh(), net = network('street', [['a',[0,0,0]],['b',[20,0,0]]], [['a','b']]);
+ const manager = { selected:()=>asMesh(mesh), networkOf:()=>net, states:new Map(), edit:(_mesh:unknown,_label:string,mutate:(net:RoadNetwork)=>void)=>mutate(net) } as unknown as LiveRoads;
+ const session = new RoadSession(manager); session.pickProfile('highway');
+ assert.equal(session.snapshot(asMesh(mesh),undefined).profileId,'highway');
+ assert.equal([...net.segments.values()][0].profile,'highway');
+ net.settings.defaultProfile='street';
+ assert.equal(session.snapshot(asMesh(mesh),undefined).profileId,'highway','An unused default must not hide the type actually used');
+ session.pickProfile('trail');
+ assert.equal([...net.segments.values()][0].profile,'trail');
 });
