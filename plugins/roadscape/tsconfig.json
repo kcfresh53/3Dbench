@@ -1,0 +1,17 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"lib": ["ES2023", "DOM", "DOM.Iterable"],
+		"strict": true,
+		"noImplicitAny": true,
+		"noUnusedLocals": true,
+		"noImplicitReturns": true,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"allowUmdGlobalAccess": true,
+		"types": ["node"]
+	},
+	"include": ["src", "tests", "plugin.ts", "../../types/index.d.ts", "../procedural_trees/src"]
+}

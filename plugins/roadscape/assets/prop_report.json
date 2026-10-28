@@ -1,0 +1,90 @@
+[
+	{
+		"trianglesBefore": 60,
+		"trianglesAfter": 18,
+		"verticesBefore": 32,
+		"verticesAfter": 14,
+		"collapses": 18,
+		"droppedComponents": 0,
+		"finalError": 0.01237752738675664,
+		"name": "Guardrail Poles",
+		"culledFaces": 6
+	},
+	{
+		"trianglesBefore": 484,
+		"trianglesAfter": 58,
+		"verticesBefore": 244,
+		"verticesAfter": 32,
+		"collapses": 212,
+		"droppedComponents": 0,
+		"finalError": 0.023365180551319035,
+		"name": "Jersey Barrier Concrete Grey Middle",
+		"culledFaces": 1
+	},
+	{
+		"trianglesBefore": 1740,
+		"trianglesAfter": 150,
+		"verticesBefore": 877,
+		"verticesAfter": 93,
+		"collapses": 784,
+		"droppedComponents": 0,
+		"finalError": 0.0710385581980269,
+		"name": "RSEA Env Streetlight",
+		"culledFaces": 46
+	},
+	{
+		"trianglesBefore": 140,
+		"trianglesAfter": 42,
+		"verticesBefore": 72,
+		"verticesAfter": 24,
+		"collapses": 48,
+		"droppedComponents": 0,
+		"finalError": 0.03222460106168638,
+		"name": "Reshiba Lamp",
+		"culledFaces": 8
+	},
+	{
+		"trianglesBefore": 4322,
+		"trianglesAfter": 388,
+		"verticesBefore": 1660,
+		"verticesAfter": 345,
+		"collapses": 1313,
+		"droppedComponents": 0,
+		"finalError": 0.13995485296752197,
+		"name": "Jet Fan",
+		"culledFaces": 887
+	},
+	{
+		"trianglesBefore": 26,
+		"trianglesAfter": 10,
+		"verticesBefore": 16,
+		"verticesAfter": 8,
+		"collapses": 8,
+		"droppedComponents": 0,
+		"finalError": 0.0000010209480218061476,
+		"name": "Raised Pavement Marker",
+		"culledFaces": 0
+	},
+	{
+		"trianglesBefore": 148,
+		"trianglesAfter": 34,
+		"verticesBefore": 76,
+		"verticesAfter": 20,
+		"collapses": 56,
+		"droppedComponents": 0,
+		"finalError": 0.022406546862996375,
+		"name": "Bridge Pole Baked",
+		"culledFaces": 4
+	},
+	{
+		"trianglesBefore": 208,
+		"trianglesAfter": 84,
+		"verticesBefore": 106,
+		"verticesAfter": 44,
+		"collapses": 62,
+		"droppedComponents": 0,
+		"finalError": 0.02943981145762866,
+		"name": "RSEA Rock Small",
+		"culledFaces": 0
+	}
+]

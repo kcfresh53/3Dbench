@@ -161,6 +161,9 @@
 		"build:buildings": "node scripts/build_procedural_buildings.mjs",
 		"test:buildings": "node --test tests/procedural_buildings.test.mjs tests/flexibuilding.test.mjs tests/building-layout.test.mjs",
 		"build:trees": "node scripts/build_procedural_trees.mjs",
+		"build:roadscape": "node scripts/build_roadscape.mjs",
+		"test:roadscape": "node scripts/test_roadscape.mjs",
+		"test:roadscape-scene": "npm run build-electron && electron tests/roadscape_scene.cjs",
 		"test:trees": "node scripts/test_procedural_trees.mjs",
 		"test:trees-scene": "npm run build-electron && electron tests/procedural_trees_scene.cjs",
 		"test:trees-visual": "npm run build-electron && electron tests/procedural_trees_visual.cjs"
