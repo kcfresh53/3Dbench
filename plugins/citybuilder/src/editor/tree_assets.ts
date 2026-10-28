@@ -58,7 +58,12 @@ export async function treeAssets(trees: PlacedTree[]): Promise<Map<string, CityT
 	const unique = new Map(trees.map(t=>[treeKey(t),t]));
 	const out = new Map<string,CityTreeAsset>();
 	// Sequential generation avoids a burst of GPU contexts when making palm cutouts.
-	for (const [key,t] of unique) out.set(key,await treeAsset(t));
+	for (const [key,t] of unique) {
+		const fresh = !cache.has(key);
+		out.set(key,await treeAsset(t));
+		// Generating a variant is heavy; give the editor a frame between new ones.
+		if (fresh) await new Promise<void>(resolve => setTimeout(resolve, 0));
+	}
 	return out;
 }
 export function clearTreeAssets(): void { cache.clear(); }

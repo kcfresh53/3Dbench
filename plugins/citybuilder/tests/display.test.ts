@@ -55,6 +55,27 @@ test('terrain view builds patches that cover the map and follow live edits', () 
 	assert.equal(view.root.children.length, 0);
 });
 
+test('terrain texture bakes in the background, shows a preview first, and is not redone for unchanged ground', async () => {
+	const g = globalThis as unknown as { Canvas?: { updateAll: () => void } };
+	let redraws = 0;
+	g.Canvas = { updateAll: (): void => void redraws++ };
+	const ctx = context();
+	const view = new TerrainView();
+	view.rebuild(ctx);
+	assert.ok(view.textureSize > 0 && view.textureSize < 2048, 'a small preview is shown at once');
+	const started = Date.now();
+	while (view.textureSize < 2048 && Date.now() - started < 20000) await new Promise<void>((resolve) => setTimeout(resolve, 20));
+	assert.equal(view.textureSize, 2048);
+	assert.ok(redraws > 0);
+	const swapped = redraws;
+	view.rebuild(ctx);
+	await new Promise<void>((resolve) => setTimeout(resolve, 100));
+	assert.equal(redraws, swapped, 'same inputs start no new bake');
+	assert.equal(view.textureSize, 2048);
+	view.dispose();
+	delete g.Canvas;
+});
+
 test('district overlay colours follow the district map', () => {
 	const ctx = context();
 	const view = new TerrainView();

@@ -1,10 +1,16 @@
-import { ByteGrid } from '../grid';
+import { ByteGrid, SpatialHash } from '../grid';
 import { pointInPolygon } from '../geometry2d';
 import type { GridRect, Vec2 } from '../types';
 import { Heightfield } from '../terrain/heightfield';
-import type { RoadCorridor } from '../roads/corridor';
+import type { RoadCorridor, RoadSample } from '../roads/corridor';
 import { pointSegmentDistance } from '../geometry2d';
 import { NO_DISTRICT } from './types';
+
+interface RoadPiece {
+	road: RoadCorridor;
+	a: RoadSample;
+	b: RoadSample;
+}
 
 export type PaintShape = 'round' | 'square';
 
@@ -122,12 +128,22 @@ export class DistrictMap {
 	 * with its road-aligned brush. `depth` is measured from the road's outer edge.
 	 */
 	paintAlongRoads(roads: RoadCorridor[], id: number, depth: number, onlyUnzoned: boolean = true, sides: 'both' | 'left' | 'right' = 'both'): number {
+		const index: SpatialHash<RoadPiece> = new SpatialHash<RoadPiece>(32);
+		for (const road of roads) {
+			if (road.structure !== 'ground') continue;
+			const reach: number = Math.max(road.leftExtent, road.rightExtent) + depth;
+			for (let i: number = 0; i + 1 < road.points.length; i++) {
+				const a = road.points[i];
+				const b = road.points[i + 1];
+				index.insert({ road, a, b }, Math.min(a.x, b.x) - reach, Math.min(a.z, b.z) - reach, Math.max(a.x, b.x) + reach, Math.max(a.z, b.z) + reach);
+			}
+		}
 		let changed: number = 0;
 		for (let r: number = 0; r < this.grid.rows; r++) {
 			for (let c: number = 0; c < this.grid.cols; c++) {
 				if (onlyUnzoned && this.grid.get(c, r) !== NO_DISTRICT) continue;
 				const [cx, cz] = this.cellCentre(c, r);
-				if (this.nearRoad(roads, cx, cz, depth, sides)) {
+				if (this.nearRoad(index.query(cx, cz, cx, cz), cx, cz, depth, sides)) {
 					this.grid.set(c, r, id);
 					changed++;
 				}
@@ -137,23 +153,18 @@ export class DistrictMap {
 		return changed;
 	}
 
-	private nearRoad(roads: RoadCorridor[], x: number, z: number, depth: number, sides: 'both' | 'left' | 'right'): boolean {
-		for (const road of roads) {
-			if (road.structure !== 'ground') continue;
-			for (let i: number = 0; i + 1 < road.points.length; i++) {
-				const a = road.points[i];
-				const b = road.points[i + 1];
-				const d: number = pointSegmentDistance(x, z, a.x, a.z, b.x, b.z);
-				const dx: number = b.x - a.x;
-				const dz: number = b.z - a.z;
-				// Positive when the point lies on the right of the direction of travel (X right, Z down screen: cross of forward and offset).
-				const side: number = dx * (z - a.z) - dz * (x - a.x);
-				const isRight: boolean = side > 0;
-				const extent: number = isRight ? road.rightExtent : road.leftExtent;
-				if (sides === 'left' && isRight) continue;
-				if (sides === 'right' && !isRight) continue;
-				if (d >= extent && d <= extent + depth) return true;
-			}
+	private nearRoad(pieces: RoadPiece[], x: number, z: number, depth: number, sides: 'both' | 'left' | 'right'): boolean {
+		for (const { road, a, b } of pieces) {
+			const d: number = pointSegmentDistance(x, z, a.x, a.z, b.x, b.z);
+			const dx: number = b.x - a.x;
+			const dz: number = b.z - a.z;
+			// Positive when the point lies on the right of the direction of travel (X right, Z down screen: cross of forward and offset).
+			const side: number = dx * (z - a.z) - dz * (x - a.x);
+			const isRight: boolean = side > 0;
+			const extent: number = isRight ? road.rightExtent : road.leftExtent;
+			if (sides === 'left' && isRight) continue;
+			if (sides === 'right' && !isRight) continue;
+			if (d >= extent && d <= extent + depth) return true;
 		}
 		return false;
 	}
