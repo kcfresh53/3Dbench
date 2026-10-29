@@ -18,6 +18,12 @@
   var INSTANCE_KEY = /* @__PURE__ */ Symbol.for("3dbench.roadscape.instance");
   var LIVE_BODY_NAME = "Roadscape live surface";
 
+  // plugins/roadscape/src/editor/terrain_provider.ts
+  var TERRAIN_PROVIDER = /* @__PURE__ */ Symbol.for("3dbench.roadscape.terrain");
+  function roadTerrain(mesh) {
+    return globalThis[TERRAIN_PROVIDER]?.(mesh);
+  }
+
   // plugins/roadscape/src/core/types.ts
   function triangleCount(faces) {
     let total = 0;
@@ -1408,9 +1414,10 @@
 
   // plugins/roadscape/src/core/structures.ts
   var DOWN = [0, -1, 0];
-  function resolveStructure(segment, profile, curve, settings) {
+  function resolveStructure(segment, profile, curve, settings, terrain) {
     if (segment.structure !== "auto") return segment.structure;
     if (profile.structure !== "auto") return profile.structure;
+    if (terrain) return terrain.autoStructure(curve.polyline(Math.max(0.5, 2 * settings.unitsPerMeter)));
     const unit = settings.unitsPerMeter;
     const samples = curve.polyline(Math.max(curve.length / 8, 1e-3));
     let total = 0;
@@ -1440,7 +1447,11 @@
     const lanes = right - left > 12 * unit ? [left * 0.5, right * 0.5] : [(left + right) / 2];
     for (let i = 0; i < count; i++) {
       const frame = job.curve.frameAt(job.from + (i + 0.5) * (job.to - job.from) / count);
-      for (const lateral of lanes) emitPier(set, ctx, frame, lateral, settings.groundY, thickness, unit, column);
+      for (const lateral of lanes) {
+        const centre = offsetPoint(frame, lateral, 0);
+        const ground = ctx.terrain?.groundAt(centre[0], centre[2]) ?? settings.groundY;
+        if (Number.isFinite(ground)) emitPier(set, ctx, frame, lateral, ground, thickness, unit, column);
+      }
     }
   }
   function emitPier(set, ctx, frame, lateral, groundY, thickness, unit, tile) {
@@ -1965,8 +1976,8 @@
     const to = curve.length - end;
     if (to - from < 0.2 * unit) return null;
     const profileData = resolveProfileData(network, segment.profile);
-    const structure = resolveStructure(segment, profileData, curve, settings);
-    const signature = JSON.stringify([curveKey(curve), round(from), round(to), profileData, structure, settingsKey(settings), densityKey(profileData, density), ctx.trees.revision, segment.key]);
+    const structure = resolveStructure(segment, profileData, curve, settings, ctx.terrain);
+    const signature = JSON.stringify([curveKey(curve), round(from), round(to), profileData, structure, settingsKey(settings), densityKey(profileData, density), ctx.trees.revision, ctx.terrain?.revision, segment.key]);
     const cached = cache2?.segment(segment.key);
     if (cached && cached.signature === signature) return { chunk: cached };
     const profile = resolveProfile(profileData, unit, settings.weather);
@@ -3767,7 +3778,7 @@
     }
   }
 
-  // stub:stub
+  // stub:bundled-stub
   var BUNDLED_TEXTURES = { bark: "", pineBark: "", leaf: "", needle: "" };
 
   // plugins/procedural_trees/src/texture/painters_image.ts
@@ -4257,12 +4268,12 @@
   }
   function makeTexture(atlas, library, lookup) {
     if (atlas === ROAD_ATLAS) {
-      const texture2 = new Texture({ name: "roadscape_atlas.png", uv_width: library.atlasSize, uv_height: library.atlasSize }).fromDataURL(library.atlas).add(false);
+      const texture2 = new Texture({ sampling: "smooth", name: "roadscape_atlas.png", uv_width: library.atlasSize, uv_height: library.atlasSize }).fromDataURL(library.atlas).add(false);
       return { texture: texture2, size: library.atlasSize };
     }
     const tree = lookup(atlas);
     if (!tree) throw new Error("A tree atlas is missing; wait for trees to finish building.");
-    const texture = new Texture({ name: "roadscape_trees.png", uv_width: tree.size, uv_height: tree.size }).fromDataURL(tree.dataUrl).add(false);
+    const texture = new Texture({ sampling: "smooth", name: "roadscape_trees.png", uv_width: tree.size, uv_height: tree.size }).fromDataURL(tree.dataUrl).add(false);
     return { texture, size: tree.size };
   }
   function addPart(part, group, source, texture, size, created) {
@@ -4359,7 +4370,7 @@
         listen(Mesh.preview_controller, "setup update_geometry update_faces", schedule),
         listen(Mesh.preview_controller, "update_selection", ({ element }) => this.states.get(element)?.surface.refreshSelection()),
         listen(Mesh.preview_controller, "remove", ({ element }) => this.clear(element)),
-        listen(Blockbench, "finished_edit undo redo select_project load_project", () => this.scan()),
+        listen(Blockbench, "finished_edit undo redo select_project load_project citybuilder_terrain_changed", () => this.scan()),
         listen(Blockbench, "update_selection", () => this.notify(true)),
         listen(Blockbench, "unselect_project", () => {
           for (const mesh of [...this.states.keys()]) this.clear(mesh);
@@ -4388,14 +4399,14 @@
     networkOf(mesh) {
       return readNetwork(mesh, this.documentOf(mesh));
     }
-    context() {
+    context(mesh) {
       if (!this.library) throw new Error("The road library is still loading.");
-      return { library: this.library, trees: this.trees };
+      return { library: this.library, trees: this.trees, terrain: mesh ? roadTerrain(mesh) : void 0 };
     }
     signature(mesh, extra) {
       const edges = [];
       for (const face of Object.values(mesh.faces)) if (face.vertices.length === 2) edges.push(face.vertices.join("|"));
-      return JSON.stringify([mesh.vertices, edges, mesh[NETWORK_KEY], this.trees.revision, extra]);
+      return JSON.stringify([mesh.vertices, edges, mesh[NETWORK_KEY], this.trees.revision, roadTerrain(mesh)?.revision, extra]);
     }
     clear(mesh) {
       const state = this.states.get(mesh);
@@ -4445,7 +4456,7 @@
       }
       try {
         const network = override ?? this.networkOf(mesh);
-        const result = generateNetwork(network, this.context(), state.cache);
+        const result = generateNetwork(network, this.context(mesh), state.cache);
         state.surface.show(makeRoadBody(result.parts, this.pool));
         state.result = result;
         state.signature = override ? "" : signature;
@@ -4540,10 +4551,10 @@
       const library = await this.ready;
       const owner = Project;
       const before = this.signature(mesh, "");
-      let result = generateNetwork(this.networkOf(mesh), this.context(), this.states.get(mesh)?.cache ?? null);
+      let result = generateNetwork(this.networkOf(mesh), this.context(mesh), this.states.get(mesh)?.cache ?? null);
       for (let waited = 0; result.report.treesPending && waited < 120; waited++) {
         await new Promise((resolve) => void setTimeout(resolve, 100));
-        result = generateNetwork(this.networkOf(mesh), this.context(), this.states.get(mesh)?.cache ?? null);
+        result = generateNetwork(this.networkOf(mesh), this.context(mesh), this.states.get(mesh)?.cache ?? null);
       }
       if (owner !== Project || !Mesh.all.includes(mesh) || before !== this.signature(mesh, "")) throw new Error("The road changed while baking. Try again.");
       bakeRoad(result, library, (key) => this.trees.atlas(key), mesh);
@@ -5313,7 +5324,7 @@
 
   // plugins/roadscape/src/editor/panel/carriageway.ts
   var MARKINGS = ["none", "solid", "dashed", "double"].map((m) => ({ value: m, label: m[0].toUpperCase() + m.slice(1) }));
-  var STRUCTURES = ["auto", "ground", "bridge", "tunnel"].map((m) => ({ value: m, label: m[0].toUpperCase() + m.slice(1) }));
+  var STRUCTURES = ["auto", "ground", "bridge", "tunnel", "air"].map((m) => ({ value: m, label: m[0].toUpperCase() + m.slice(1) }));
   var LINE_COLORS = [
     { value: "white", label: "White" },
     { value: "yellow", label: "Yellow" }
@@ -5381,7 +5392,8 @@
     { value: "auto", label: "Automatic" },
     { value: "ground", label: "Ground" },
     { value: "bridge", label: "Bridge" },
-    { value: "tunnel", label: "Tunnel" }
+    { value: "tunnel", label: "Tunnel" },
+    { value: "air", label: "Open span / jump (no supports)" }
   ];
   var NODE_STYLES = [
     { value: "auto", label: "Automatic" },

@@ -10,7 +10,7 @@ const exists = async (path) => access(path).then(() => true, () => false);
 
 // 1. Optimise the source artwork into the packed library when the source is present.
 //    Clean checkouts reuse the tracked packed library.
-if (await exists(SOURCE)) {
+if (!process.argv.includes('--skip-assets') && await exists(SOURCE)) {
 	const dir = await mkdtemp(join(tmpdir(), 'roadscape-pack-'));
 	try {
 		const tool = join(dir, 'pack_library.cjs');

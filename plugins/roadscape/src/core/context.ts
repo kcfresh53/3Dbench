@@ -1,3 +1,4 @@
+import type { RoadTerrain } from './terrain_context';
 import type { MeshPart, PartFace, TreeSpecLike, Vec3 } from './types';
 import type { RoadLibrary } from './library_types';
 
@@ -21,6 +22,7 @@ export interface TreeProvider {
 export const NO_TREES: TreeProvider = { revision: 0, assets: (): TreeAsset[] => [] };
 
 export interface GenerationContext {
+	terrain?: RoadTerrain;
 	library: RoadLibrary;
 	trees: TreeProvider;
 }

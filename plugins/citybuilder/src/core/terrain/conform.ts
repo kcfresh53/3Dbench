@@ -6,6 +6,9 @@ import { Heightfield } from './heightfield';
 
 export interface ConformSettings {
 	/** Cut or fill terrain under ground-level roads. */
+	roadBlend: number;
+	autoBridges: boolean;
+	bridgeSpan: number;
 	roads: boolean;
 	/** Level the ground under every lot. */
 	lots: boolean;
@@ -19,7 +22,7 @@ export interface ConformSettings {
 	groundTolerance: number;
 }
 
-export const DEFAULT_CONFORM: ConformSettings = { roads: true, lots: true, roadBed: 0.12, embankment: 2.2, lotBlend: 5, groundTolerance: 10 };
+export const DEFAULT_CONFORM: ConformSettings = { roadBlend: 12, autoBridges: true, bridgeSpan: 8, roads: true, lots: true, roadBed: 0.12, embankment: 2.2, lotBlend: 5, groundTolerance: 10 };
 
 export interface ConformResult {
 	/** The terrain the city is built on. */
@@ -40,7 +43,8 @@ export function conformRoads(base: Heightfield, roads: RoadCorridor[], settings:
 	const lotWeight: Float32Array = new Float32Array(base.heights.length);
 	if (!settings.roads) return { heights, roadWeight, lotWeight };
 	const targets: Float32Array = new Float32Array(base.heights.length);
-	const maxShoulder: number = 40;
+	const maxShoulder: number = Math.max(40, settings.roadBlend);
+	const bestDistance = new Float32Array(base.heights.length).fill(Infinity);
 	for (const road of roads) {
 		if (road.structure !== 'ground') continue;
 		const reach: number = Math.max(road.leftExtent, road.rightExtent);
@@ -63,9 +67,10 @@ export function conformRoads(base: Heightfield, roads: RoadCorridor[], settings:
 					const target: number = a.y + (b.y - a.y) * t - settings.roadBed;
 					const idx: number = base.index(c, r);
 					const diff: number = Math.abs(target - base.heights[idx]);
-					const shoulder: number = Math.min(maxShoulder, Math.max(3, diff * settings.embankment));
+					const shoulder: number = Math.min(maxShoulder, Math.max(base.cellSize * 2, settings.roadBlend, diff * settings.embankment));
 					const w: number = d <= extent ? 1 : 1 - smoothstep(0, shoulder, d - extent);
-					if (w > roadWeight[idx]) {
+					if (w > roadWeight[idx] || (w === roadWeight[idx] && d < bestDistance[idx])) {
+						bestDistance[idx] = d;
 						roadWeight[idx] = w;
 						targets[idx] = target;
 					}

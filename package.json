@@ -153,6 +153,7 @@
 		"publish-types": "npm publish ./types",
 		"generate-docs": "npm run generate-types && npx typedoc --options typedoc.json",
 		"test:ui": "npm run build-electron && electron tests/material_ui.cjs",
+		"test:tooltips": "npm run build-electron && electron tests/tooltips.cjs",
 		"test:theme": "node --experimental-strip-types --import ./tests/support/resolve_bundler.mjs --test tests/md_color.test.mjs",
 		"test:builtins": "npm run build-electron && electron tests/built_in_plugins.cjs",
 		"test:humanoid": "node --test tests/humanoid.test.mjs",

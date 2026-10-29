@@ -1,3 +1,6 @@
+import { TERRAIN_PROVIDER } from '../../../roadscape/src/editor/terrain_provider';
+import type { TerrainProvider } from '../../../roadscape/src/editor/terrain_provider';
+import { terrainStructure } from '../../../roadscape/src/core/terrain_context';
 import { hasNetwork, readStoredDocument, emptyDocument } from '../../../roadscape/src/editor/document';
 import { migrateLegacyRoad } from '../../../roadscape/src/editor/migrate';
 import { readNetwork } from '../../../roadscape/src/editor/network_mesh';
@@ -9,6 +12,28 @@ import type { Vec3 } from '../core/types';
 
 /** Reads every Roadscape network in the open project and expresses it in city metres. */
 export class RoadBridge {
+	private provider: TerrainProvider | null = null;
+	connect(getState:()=>CityState|null, revision:()=>number):void {
+		this.provider=(mesh)=>{
+			const state=getState(); if(!state)return undefined;
+			mesh.mesh.updateWorldMatrix(true,false);
+			const matrix=mesh.mesh.matrixWorld.clone(), inverse=matrix.clone().invert(), unit=state.settings.unitsPerMeter;
+			const toCity=(p:Vec3):Vec3=>{const v=new THREE.Vector3(...p).applyMatrix4(matrix);return [v.x/unit,v.y/unit,v.z/unit];};
+			const ground=(x:number,z:number)=>state.terrain.containsWorld(x,z)?state.terrain.sample(x,z):NaN;
+			return {revision:`${Project.uuid}:${revision()}:${matrix.elements.join(',')}`,groundAt:(x,z)=>{
+				const p=toCity([x,0,z]);const h=ground(p[0],p[2]);
+				return new THREE.Vector3(p[0]*unit,h*unit,p[2]*unit).applyMatrix4(inverse).y;
+			},autoStructure:points=>terrainStructure(points.map(toCity),ground,{
+				waterLevel:state.settings.waterLevel,gapHeight:state.settings.conform.groundTolerance,
+				minSpan:state.settings.conform.bridgeSpan,autoBridges:state.settings.conform.autoBridges})};
+		};
+		(globalThis as unknown as Record<symbol,TerrainProvider>)[TERRAIN_PROVIDER]=this.provider;
+	}
+	dispose():void {
+		const registry=globalThis as unknown as Record<symbol,TerrainProvider>;
+		if(registry[TERRAIN_PROVIDER]===this.provider)delete registry[TERRAIN_PROVIDER];
+		Blockbench.dispatchEvent('citybuilder_terrain_changed', {});
+	}
 	meshes(): Mesh[] {
 		return Mesh.all.filter(hasNetwork);
 	}
@@ -43,8 +68,11 @@ export class RoadBridge {
 					},
 					lengthScale: (network.settings.unitsPerMeter * meanScale) / unitsPerMeter,
 					sampleSpacing: 3,
+					waterLevel: state.settings.waterLevel,
+					autoBridges: state.settings.conform.autoBridges,
+					bridgeSpan: state.settings.conform.bridgeSpan,
 					groundTolerance: state.settings.conform.groundTolerance,
-					terrainHeight: (x: number, z: number): number => state.terrain.sample(x, z),
+					terrainHeight: (x: number, z: number): number => state.terrain.containsWorld(x, z) ? state.terrain.sample(x, z) : NaN,
 				}),
 			);
 		}

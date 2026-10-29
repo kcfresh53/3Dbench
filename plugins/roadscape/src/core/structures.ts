@@ -1,3 +1,4 @@
+import type { RoadTerrain } from './terrain_context';
 import type { MeshPart, Vec3 } from './types';
 import type { CurveFrame, RoadCurve } from './curve';
 import { offsetPoint } from './curve';
@@ -17,9 +18,10 @@ export type ResolvedStructure = Exclude<Structure, 'auto'>;
 const DOWN: Vec3 = [0, -1, 0];
 
 /** Picks ground, bridge or tunnel for a segment: its own setting, then the profile's, then its height. */
-export function resolveStructure(segment: RoadSegment, profile: RoadProfile, curve: RoadCurve, settings: NetworkSettings): ResolvedStructure {
+export function resolveStructure(segment: RoadSegment, profile: RoadProfile, curve: RoadCurve, settings: NetworkSettings, terrain?: RoadTerrain): ResolvedStructure {
 	if (segment.structure !== 'auto') return segment.structure;
 	if (profile.structure !== 'auto') return profile.structure;
+	if (terrain) return terrain.autoStructure(curve.polyline(Math.max(0.5, 2 * settings.unitsPerMeter)));
 	const unit: number = settings.unitsPerMeter;
 	const samples: Vec3[] = curve.polyline(Math.max(curve.length / 8, 1e-3));
 	let total: number = 0;
@@ -63,7 +65,11 @@ function emitBridge(job: StructureJob): void {
 	const lanes: number[] = right - left > 12 * unit ? [left * 0.5, right * 0.5] : [(left + right) / 2];
 	for (let i: number = 0; i < count; i++) {
 		const frame: CurveFrame = job.curve.frameAt(job.from + ((i + 0.5) * (job.to - job.from)) / count);
-		for (const lateral of lanes) emitPier(set, ctx, frame, lateral, settings.groundY, thickness, unit, column);
+		for (const lateral of lanes) {
+			const centre=offsetPoint(frame,lateral,0);
+			const ground=ctx.terrain?.groundAt(centre[0],centre[2]) ?? settings.groundY;
+			if(Number.isFinite(ground))emitPier(set,ctx,frame,lateral,ground,thickness,unit,column);
+		}
 	}
 }
 

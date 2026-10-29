@@ -102,6 +102,8 @@ export class Texture {
 				tex = new THREE.Texture(this.canvas);
 				tex.magFilter = mat.map.magFilter;
 				tex.minFilter = mat.map.minFilter;
+				tex.generateMipmaps = mat.map.generateMipmaps;
+				tex.anisotropy = mat.map.anisotropy;
 				tex.wrapS = mat.map.wrapS;
 				tex.wrapT = mat.map.wrapT;
 				tex.name = this.name;
@@ -554,6 +556,10 @@ export class Texture {
 		mat.side = this.render_sides == 'auto' ? Canvas.getRenderSide() : (this.render_sides == 'front' ? THREE.FrontSide : THREE.DoubleSide);
 		let wrap = this.wrap_mode == 'repeat' ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping;
 		mat.map.wrapS = mat.map.wrapT = wrap;
+		mat.map.magFilter = this.sampling === 'smooth' ? THREE.LinearFilter : THREE.NearestFilter;
+		mat.map.minFilter = this.sampling === 'smooth' ? THREE.LinearMipmapLinearFilter : THREE.NearestFilter;
+		mat.map.generateMipmaps = this.sampling === 'smooth';
+		mat.map.anisotropy = this.sampling === 'smooth' ? 8 : 1;
 
 		// Map
 		mat.map.needsUpdate = true;
@@ -925,6 +931,7 @@ export class Texture {
 			name: 		{label: 'generic.name', value: this.name},
 			file_format: {label: 'menu.texture.file_format', type: 'select', value: this.file_format, options: {}},
 			'render_options': '_',
+			sampling: {label: 'Texture filtering', type: 'select', value: this.sampling, options: {nearest: 'Pixel / nearest', smooth: 'Smooth / mipmapped'}},
 			render_mode: {label: 'menu.texture.render_mode', type: 'select', value: this.render_mode, options: {
 				default: 'menu.texture.render_mode.default',
 				emissive: 'menu.texture.render_mode.emissive',
@@ -994,6 +1001,7 @@ export class Texture {
 
 				this.name = results.name;
 				if (results.render_mode !== undefined) this.render_mode = results.render_mode;
+				if (results.sampling !== undefined) this.sampling = results.sampling;
 				if (results.render_sides !== undefined) this.render_sides = results.render_sides;
 				if (results.wrap_mode !== undefined) this.wrap_mode = results.wrap_mode;
 				if (results.fps !== undefined) this.fps = results.fps;
@@ -1915,6 +1923,7 @@ export class Texture {
 	new Property(Texture, 'string', 'sync_to_project')
 	new Property(Texture, 'enum', 'file_format', {default: 'png'})
 	new Property(Texture, 'enum', 'render_mode', {default: 'default'})
+	new Property(Texture, 'enum', 'sampling', {default: 'nearest'})
 	new Property(Texture, 'enum', 'render_sides', {default: 'auto'})
 	new Property(Texture, 'enum', 'wrap_mode', {default: () => Format.texture_wrap_default ?? 'limited'})
 	new Property(Texture, 'enum', 'pbr_channel', {default: 'color'})

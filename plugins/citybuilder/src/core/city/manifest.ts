@@ -7,6 +7,7 @@ import type { CitySettings } from './settings';
 
 export interface ManifestPrefab {
 	id: string;
+	atlas?: string;
 	archetype: string;
 	floors: number;
 	/** Mesh node names per level of detail, finest first. */
@@ -19,7 +20,7 @@ export interface CityManifest {
 	version: 1;
 	units: 'metres';
 	up: 'y';
-	terrain: { cols: number; rows: number; cellSize: number; origin: [number, number]; heightmap: string; albedo: string; chunks: string[] };
+	terrain: { cols: number; rows: number; cellSize: number; origin: [number, number]; heightmap: string; albedo: string; chunks: string[]; chunkAlbedos?: string[] };
 	waterLevel: number;
 	prefabs: ManifestPrefab[];
 	buildings: Array<{ prefab: string; position: number[]; yaw: number; district: number; lot: string }>;
@@ -33,7 +34,7 @@ function r3(n: number): number {
 }
 
 /** Describes the whole city as plain data: what to instance, where, and with which collision. */
-export function buildManifest(plan: CityPlan, settings: CitySettings, meshNames: Map<string, string[]>, files: { heightmap: string; albedo: string; chunks: string[] }): CityManifest {
+export function buildManifest(plan: CityPlan, settings: CitySettings, meshNames: Map<string, string[]>, files: { heightmap: string; albedo: string; chunks: string[]; chunkAlbedos?: string[] }): CityManifest {
 	const prefabs: ManifestPrefab[] = plan.prefabs.all().map((p: Prefab): ManifestPrefab => ({
 		id: p.key,
 		archetype: p.model.spec.archetype,

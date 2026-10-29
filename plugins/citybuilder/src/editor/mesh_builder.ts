@@ -68,7 +68,7 @@ export function newGroup(name: string, parent: Group | 'root', created: Created)
 }
 
 export function newTexture(name: string, dataUrl: string, size: number, created: Created): Texture {
-	const texture: Texture = new Texture({ name, uv_width: size, uv_height: size } as never).fromDataURL(dataUrl).add(false) as Texture;
+	const texture: Texture = new Texture({ sampling: 'smooth', name, uv_width: size, uv_height: size } as never).fromDataURL(dataUrl).add(false) as Texture;
 	created.textures.push(texture);
 	return texture;
 }

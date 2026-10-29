@@ -24,6 +24,7 @@ const STRUCTURE_OPTIONS = [
 	{ value: 'ground', label: 'Ground' },
 	{ value: 'bridge', label: 'Bridge' },
 	{ value: 'tunnel', label: 'Tunnel' },
+	{ value: 'air', label: 'Open span / jump (no supports)' },
 ];
 const NODE_STYLES = [
 	{ value: 'auto', label: 'Automatic' },

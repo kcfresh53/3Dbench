@@ -194,59 +194,6 @@ export abstract class BarItem extends EventSystem {
 
 			action.node.prepend(tooltip);
 
-			addEventListeners(action.node, 'mouseenter touchstart', () => {
-				let j_tooltip = $(tooltip);
-				let j_description = description && $(description);
-				if ($(action.node).parent().parent().hasClass('vertical')) {
-					j_tooltip.css('margin', '0')
-					if ($(action.node).offset().left > window.innerWidth/2) {
-						j_tooltip.css('margin-left', (-j_tooltip.width()-3) + 'px')
-					} else {
-						j_tooltip.css('margin-left', '34px')
-					}
-				} else {
-
-					j_tooltip.css('margin-left', '0')
-					var offset = j_tooltip && j_tooltip.offset()
-					let right_offset = offset.left + parseInt(j_tooltip.css('width').replace(/px/, '')) - window.innerWidth
-
-					if (right_offset > 4) {
-						j_tooltip.css('margin-left', -right_offset+'px')
-					}				
-
-					// description
-					if (!j_description) return;
-
-					j_description.css('margin-left', '-5px')
-					var offset = j_description.offset()
-					right_offset = offset.left + parseInt(j_description.css('width').replace(/px/, '')) - window.innerWidth
-
-					if (right_offset > 4) {
-						j_description.css('margin-left', -right_offset+'px')
-					}
-
-					// height
-					if ((window.innerHeight - offset.top) < 28) {
-						j_tooltip.css('margin-top', -2-j_tooltip.height()+'px');
-						j_description.css('margin-top', '-51px');
-					}
-				}
-			}, {passive: true})
-			action.node.addEventListener('touchstart', () => {
-				if (tooltip.closest('.dialog_bar.form_bar')) return;
-				tooltip.style.display = 'none';
-				let show_tooltip = setTimeout(() => {
-					tooltip.style.display = 'block';
-					setTimeout(() => {
-						tooltip.style.display = 'none';
-					}, 1200)
-				}, 500)
-				let stop = e => {
-					clearInterval(show_tooltip);
-					document.removeEventListener('touchend', stop);
-				};
-				document.addEventListener('touchend', stop);
-			}, {passive: true})
 		}
 	}
 	/**

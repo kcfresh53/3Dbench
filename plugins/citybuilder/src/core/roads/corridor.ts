@@ -1,3 +1,4 @@
+import { terrainStructure } from '../../../../roadscape/src/core/terrain_context';
 import type { RoadNetwork, RoadNode, RoadProfile, RoadSegment } from '../../../../roadscape/src/core/model';
 import { buildIndex, classifyNode, resolveProfileData, segmentCurve } from '../../../../roadscape/src/core/network';
 import type { NetworkIndex } from '../../../../roadscape/src/core/network';
@@ -8,7 +9,7 @@ import type { Vec3 } from '../types';
 import { SpatialHash } from '../grid';
 import { pointSegmentDistance } from '../geometry2d';
 
-export type RoadStructure = 'ground' | 'bridge' | 'tunnel';
+export type RoadStructure = 'ground' | 'bridge' | 'tunnel' | 'air';
 
 export interface RoadSample {
 	x: number;
@@ -67,13 +68,18 @@ export interface CorridorOptions {
 	 * Roadscape's own thresholds decide.
 	 */
 	groundTolerance?: number;
+	waterLevel?: number;
+	autoBridges?: boolean;
+	bridgeSpan?: number;
 }
 
 export const DEFAULT_CORRIDOR_OPTIONS: Pick<CorridorOptions, 'lengthScale' | 'sampleSpacing'> = { lengthScale: 1, sampleSpacing: 3 };
 
-function structureOf(segment: RoadSegment, profile: RoadProfile, samples: RoadSample[], network: RoadNetwork, terrainHeight: (x: number, z: number) => number, groundTolerance: number | undefined): RoadStructure {
+function structureOf(segment: RoadSegment, profile: RoadProfile, samples: RoadSample[], network: RoadNetwork, terrainHeight: (x: number, z: number) => number, groundTolerance: number | undefined, options: CorridorOptions): RoadStructure {
 	if (segment.structure !== 'auto') return segment.structure;
 	if (profile.structure !== 'auto') return profile.structure;
+	if(options.waterLevel !== undefined) return terrainStructure(samples.map(p=>[p.x,p.y,p.z]),terrainHeight,{
+		waterLevel:options.waterLevel,gapHeight:groundTolerance??10,minSpan:options.bridgeSpan??8,autoBridges:options.autoBridges??true});
 	let total: number = 0;
 	for (const p of samples) total += p.y - terrainHeight(p.x, p.z);
 	const mean: number = samples.length > 0 ? total / samples.length : 0;
@@ -115,7 +121,7 @@ export function roadSetFromNetwork(network: RoadNetwork, options: CorridorOption
 			rightExtent,
 			carriageHalf: resolved.half * scale,
 			lanes: profile.carriageway.lanes,
-			structure: structureOf(segment, profile, samples, network, options.terrainHeight, options.groundTolerance),
+			structure: structureOf(segment, profile, samples, network, options.terrainHeight, options.groundTolerance, options),
 			length,
 			startNode: segment.a,
 			endNode: segment.b,

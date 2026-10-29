@@ -1,5 +1,6 @@
 /** How a city or a single building is prepared for use in a game engine. */
 export interface GameReadySettings {
+	preserveTextureDetail: boolean;
 	/** Side of the packed texture atlas in pixels (power of two). */
 	atlasSize: 512 | 1024 | 2048 | 4096;
 	/** Facade resolution. The packer lowers it automatically when the atlas would overflow. */
@@ -21,6 +22,7 @@ export interface GameReadySettings {
 }
 
 export const DEFAULT_GAME_READY: GameReadySettings = {
+	preserveTextureDetail: true,
 	atlasSize: 2048,
 	texelsPerMeter: 14,
 	gutter: 2,

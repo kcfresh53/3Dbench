@@ -32,6 +32,7 @@ export interface CitySettings {
 	/** Direction towards the sun, used for baked terrain shading. */
 	sun: Vec3;
 	/** Size of the baked terrain albedo in pixels. */
+	terrainTextureMode: 'chunks' | 'single';
 	terrainTexture: 512 | 1024 | 2048 | 4096;
 }
 
@@ -51,6 +52,7 @@ export const DEFAULT_CITY_SETTINGS: CitySettings = {
 	surface: { ...DEFAULT_RULES },
 	gameReady: { ...DEFAULT_GAME_READY },
 	sun: [0.45, 0.8, 0.35],
+	terrainTextureMode: 'chunks',
 	terrainTexture: 1024,
 };
 

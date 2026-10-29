@@ -335,7 +335,6 @@ dialog .button_bar .confirm_btn:hover { background: color-mix(in srgb, var(--md-
 .contextMenu li > i { color: inherit; margin-top: 0; }
 .contextMenu li.focused, .contextMenu li.parent.opened { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
 .contextMenu li.enabled { border-left: 0; padding-left: 34px; box-shadow: inset 3px 0 var(--md-primary); }
-.tooltip { background: var(--md-sys-color-inverse-surface); color: var(--md-sys-color-inverse-on-surface); border: none; border-radius: var(--md-r-xs); }
 /* Controls: tonal pill buttons, tonal selected tools, filled text fields. */
 button, .tool, .select_option, .nslide, bb-select, .bb-select {
 	border-radius: var(--md-r-sm);
@@ -580,7 +579,30 @@ dialog .dialog_sidebar li { min-height: 48px; padding: 12px 16px; display: flex;
 .tab_bar { min-height: 48px; height: auto; }
 .tab_bar > * { min-height: 48px; display: flex; align-items: center; justify-content: center; padding: 0 16px; box-sizing: border-box; font-size: 14px; line-height: 20px; font-weight: 500; }
 .tab_bar > .open { color: var(--md-primary); border-bottom: 3px solid var(--md-primary); }
-.tooltip { font-size: 12px; line-height: 16px; letter-spacing: .4px; padding: 8px; border-radius: var(--md-r-xs); background: var(--md-on-surface); color: var(--md-surface); border: none; box-shadow: none; }
+.tooltip, #cursor_tooltip {
+	font-size: 12px; line-height: 16px; letter-spacing: .4px; padding: 8px;
+	border-radius: var(--md-r-xs); background: var(--md-sys-color-inverse-surface);
+	color: var(--md-sys-color-inverse-on-surface); border: none; box-shadow: var(--md-shadow-1);
+}
+/* A manual popover stays in its owner for inheritance and cloned toolbar labels,
+   while the top layer escapes panel clipping and stacking contexts. */
+.tooltip[popover] {
+	position: fixed; inset: auto; margin: 0; height: auto;
+	max-width: calc(100vw - 16px); white-space: normal; overflow: visible;
+	overflow-wrap: anywhere; pointer-events: none;
+}
+.tooltip[popover]:popover-open { visibility: visible; }
+.tooltip[popover]::backdrop { pointer-events: none; }
+.tooltip[popover] .tooltip_description {
+	top: 100%; left: 0; margin: 4px 0 0; padding: 8px;
+	width: max-content; max-width: min(360px, calc(100vw - 16px));
+	white-space: normal; border: none; border-radius: var(--md-r-xs);
+	background: var(--md-sys-color-inverse-surface); color: var(--md-sys-color-inverse-on-surface);
+	box-shadow: var(--md-shadow-1);
+}
+.tooltip[popover]:popover-open .tooltip_description {
+	transition: opacity 200ms 600ms; opacity: 1;
+}
 #quick_message_box { border-radius: var(--md-r-xs); background: var(--md-on-surface); color: var(--md-surface); box-shadow: var(--md-shadow-3); border: none; padding: 14px 16px; min-height: 48px; }
 .panel_tab_bar > .tool.panel_control { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; flex: 0 0 48px; margin: 0; padding: 4px; border-radius: 50%; background-clip: content-box; }
 .panel_tab_bar > .tool.panel_control > i { font-size: 24px; width: 24px; max-width: 24px; margin: 0; }

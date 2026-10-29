@@ -1,3 +1,5 @@
+import type { LayoutOptions } from '../core/city/layout';
+import { layoutDialog, applyLayout } from './layout_action';
 import { addTreesToPackage } from './tree_export';
 import type { CityStats } from '../core/city/stats';
 import type { CitySettings } from '../core/city/settings';
@@ -79,12 +81,14 @@ export class CityController {
 	private readonly eventHandles: Array<{ delete(): void }> = [];
 
 	constructor() {
+		this.store.bridge.connect(()=>this.store.state,()=>this.store.editRevision);
 		const status = (message: string): void => this.say(message);
 		const refresh = (): void => this.changed.emit();
 		this.landscapeTool = new LandscapeTool(this.store, this.display, this.landscape, status, refresh);
 		this.districtTool = new DistrictTool(this.store, this.display, this.district, status, refresh);
 		this.unsubscribe.push(
 			this.store.changed.on((kind): void => {
+				if (kind === 'edited' || kind === 'loaded' || kind === 'cleared') Blockbench.dispatchEvent('citybuilder_terrain_changed', {});
 				if (kind === 'composed' || kind === 'loaded' || kind === 'cleared') this.display.sync();
 				this.changed.emit();
 			}),
@@ -255,6 +259,8 @@ export class CityController {
 		action.trigger(new Event('click'));
 	}
 
+	generateLayout(options?:LayoutOptions): void | Promise<void> { if(options)return applyLayout(this,options);layoutDialog(this); }
+
 	drape(): void {
 		const state = this.store.state;
 		if (!state) return;
@@ -273,7 +279,7 @@ export class CityController {
 			const pkg = buildGamePackage(plan, state);
 			await addTreesToPackage(pkg, plan.trees);
 			this.report = pkg.report;
-			this.say(`Export would hold ${this.report.prefabs} building meshes on a ${this.report.atlasSize}px atlas.`);
+			this.say(`Export would hold ${this.report.prefabs} building meshes on ${this.report.atlasPages} × ${this.report.atlasSize}px atlas pages.`);
 		});
 	}
 
@@ -338,6 +344,7 @@ export class CityController {
 		for (const handle of this.eventHandles) handle.delete();
 		this.landscapeTool.dispose();
 		this.districtTool.dispose();
+		this.store.bridge.dispose();
 		this.store.dispose();
 		this.display.dispose();
 	}

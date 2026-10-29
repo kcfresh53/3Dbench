@@ -17,12 +17,12 @@ function undoAspects(): UndoAspects {
 
 function makeTexture(atlas: string, library: RoadLibrary, lookup: (key: string) => TreeAtlas | undefined): { texture: Texture; size: number } {
 	if (atlas === ROAD_ATLAS) {
-		const texture: Texture = new Texture({ name: 'roadscape_atlas.png', uv_width: library.atlasSize, uv_height: library.atlasSize } as never).fromDataURL(library.atlas).add(false) as Texture;
+		const texture: Texture = new Texture({ sampling: 'smooth', name: 'roadscape_atlas.png', uv_width: library.atlasSize, uv_height: library.atlasSize } as never).fromDataURL(library.atlas).add(false) as Texture;
 		return { texture, size: library.atlasSize };
 	}
 	const tree: TreeAtlas | undefined = lookup(atlas);
 	if (!tree) throw new Error('A tree atlas is missing; wait for trees to finish building.');
-	const texture: Texture = new Texture({ name: 'roadscape_trees.png', uv_width: tree.size, uv_height: tree.size } as never).fromDataURL(tree.dataUrl).add(false) as Texture;
+	const texture: Texture = new Texture({ sampling: 'smooth', name: 'roadscape_trees.png', uv_width: tree.size, uv_height: tree.size } as never).fromDataURL(tree.dataUrl).add(false) as Texture;
 	return { texture, size: tree.size };
 }
 

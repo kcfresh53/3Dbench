@@ -1,3 +1,4 @@
+import { BrushDock, BRUSH_DOCK_CSS } from './editor/panel/brush_dock';
 import { CityController } from './editor/controller';
 import { INSTANCE_KEY, PROJECT_KEY } from './editor/ids';
 import { buildCityPanel } from './editor/panel/city_panel';
@@ -15,6 +16,7 @@ const ABOUT: string =
 	'bake everything to ordinary meshes, or make any selected mesh game ready (hidden faces removed, simplified, LODs). ' +
 	'Reuses Roadscape (roads) and Procedural Trees (trees).';
 
+let dock: BrushDock | null = null;
 let controller: CityController | null = null;
 let panel: Panel | null = null;
 let style: Handle | null = null;
@@ -27,6 +29,7 @@ function dispose(): void {
 		action.delete();
 	}
 	actions = [];
+	dock?.dispose();dock=null;
 	panel?.delete();
 	style?.delete();
 	property?.delete();
@@ -69,6 +72,7 @@ export default function initializeCityBuilder(api: typeof BBPlugin): void {
 			property = new Property(ModelProject, 'string', PROJECT_KEY, { default: '' }) as unknown as Handle;
 			const ctl: CityController = new CityController();
 			controller = ctl;
+			dock=new BrushDock(ctl);
 			const parts = buildCityPanel(ctl, (instance: PanelInstance): void => {
 				const update = (): void => {
 					instance.snap = ctl.snapshot();
@@ -77,7 +81,7 @@ export default function initializeCityBuilder(api: typeof BBPlugin): void {
 				ctl.changed.on(update);
 				update();
 			});
-			style = Blockbench.addCSS(parts.css) as Handle;
+			style = Blockbench.addCSS(parts.css + BRUSH_DOCK_CSS) as Handle;
 			panel = new Panel('citybuilder_panel', {
 				name: 'City Builder',
 				icon: 'location_city',

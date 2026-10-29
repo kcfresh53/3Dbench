@@ -73,7 +73,7 @@ export class CityHistory {
 	}
 
 	/** Compares with the snapshot taken by `begin` and files the difference as one undo step. */
-	commit(label: string): boolean {
+	commit(label: string, aspects?: {outliner:boolean; elements:Mesh[]; selection:boolean}): boolean {
 		const state: CityState | null = this.getState();
 		const snap: Snapshot | null = this.snapshot;
 		this.snapshot = null;
@@ -85,10 +85,10 @@ export class CityHistory {
 		}
 		const now: string = JSON.stringify(state.settings);
 		const settings: CityEdit['settings'] = now !== snap.settings ? { before: snap.settings, after: now } : undefined;
-		if (layers.length === 0 && !settings) return false;
+		if (layers.length === 0 && !settings && !aspects) return false;
 		const edit: CityEdit = { projectId: Project?.uuid ?? '', label, layers, settings };
-		Undo.initEdit({ elements: [] } as never);
-		Undo.finishEdit(label, { elements: [] } as never);
+		if (!aspects) Undo.initEdit({ elements: [] } as never);
+		Undo.finishEdit(label, (aspects ?? {elements:[]}) as never);
 		const entry: UndoEntry | undefined = Undo.history[Undo.history.length - 1] as unknown as UndoEntry | undefined;
 		if (entry) entry.citybuilder = edit;
 		state.touch();

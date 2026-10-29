@@ -3,6 +3,7 @@ import { translateUI } from "../languages";
 import { currentwindow } from "../native_apis";
 import { ResizeLine, setupResizeLines } from "./resize_lines";
 import "./status_bar"
+import { setupTooltips } from "./tooltips";
 
 
 export const Interface = {
@@ -232,28 +233,7 @@ export function setupInterface() {
 		);
 	}
 
-	//Tooltip Fix
-	$(document).on('mouseenter', '.tool', function() {
-		var tooltip = $(this).find('div.tooltip')
-		if (!tooltip || typeof tooltip.offset() !== 'object') return;
-		//Left
-		if (tooltip.css('left') === '-4px') {
-			tooltip.css('left', 'auto')
-		}
-		if (-tooltip.offset().left > 4) {
-			tooltip.css('left', '-4px')
-		}
-		//Right
-		if (tooltip.css('right') === '-4px') {
-			tooltip.css('right', 'auto')
-		}
-
-		if ((tooltip.offset().left + tooltip.width()) - window.innerWidth > 4) {
-			tooltip.css('right', '-4px')
-		} else if ($(this).parent().css('position') == 'relative') {
-			tooltip.css('right', '0')
-		}
-	})
+	setupTooltips();
 
 	// Background color
 	if (StateMemory.get('viewport_background_color')) {

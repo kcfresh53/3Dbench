@@ -158,7 +158,7 @@ function tryPack(
  * Bakes every wall of every building into one texture and rewrites the meshes to use it. When the
  * walls do not fit, the resolution is lowered step by step until they do.
  */
-export function packBuildings(buildings: BuildingInput[], size: number, gutter: number, texelsPerMeter: number): AtlasResult {
+export function packBuildings(buildings: BuildingInput[], size: number, gutter: number, texelsPerMeter: number, allowReduction: boolean = true): AtlasResult {
 	const tileRefs: Set<TileRef> = new Set<TileRef>();
 	for (const b of buildings) {
 		for (const mesh of b.lods) {
@@ -171,7 +171,7 @@ export function packBuildings(buildings: BuildingInput[], size: number, gutter: 
 	let packed: ReturnType<typeof tryPack> = null;
 	while (ppm >= 1) {
 		packed = tryPack(size, gutter, ppm, buildings, tiles);
-		if (packed !== null) break;
+		if (packed !== null || !allowReduction) break;
 		ppm = Math.floor(ppm * 0.85 * 100) / 100;
 	}
 	if (packed === null) throw new Error('Building textures do not fit the atlas even at the lowest resolution; raise the atlas size or lower the prefab budget.');
@@ -225,4 +225,16 @@ export function packBuildings(buildings: BuildingInput[], size: number, gutter: 
 		return { name: b.name, lods };
 	});
 	return { raster, size, texelsPerMeter: ppm, facadeCount: packed.facades.size, tileCount: tiles.length, buildings: out, fill: packed.used / size };
+}
+
+/** Keep requested texel density by splitting the prefab set into texture pages. */
+export function packBuildingPages(buildings:BuildingInput[],size:number,gutter:number,ppm:number,preserve:boolean):AtlasResult[] {
+	if(!buildings.length)return [];
+	if(!preserve)return [packBuildings(buildings,size,gutter,ppm)];
+	try {return [packBuildings(buildings,size,gutter,ppm,false)];}
+	catch(error) {
+		if(buildings.length===1)throw new Error(`A building exceeds the ${size}px atlas at ${ppm} px/m. Increase atlas size or disable Preserve facade detail.`);
+		const mid=Math.ceil(buildings.length/2);
+		return [...packBuildingPages(buildings.slice(0,mid),size,gutter,ppm,true),...packBuildingPages(buildings.slice(mid),size,gutter,ppm,true)];
+	}
 }

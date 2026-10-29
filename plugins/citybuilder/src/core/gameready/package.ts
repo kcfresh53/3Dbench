@@ -1,14 +1,13 @@
+import type { Raster } from '../raster';
 import { bakedMesh, meshTriangles, modularMesh, silhouetteMesh } from '../buildings/mesh';
 import type { Prefab } from '../buildings/prefabs';
 import type { CityPlan } from '../city/compose';
 import { buildManifest, heightmapBytes } from '../city/manifest';
 import type { CityManifest } from '../city/manifest';
 import type { CityState } from '../city/state';
-import type { Raster } from '../raster';
-import { buildPatch } from '../terrain/mesh';
-import { paintTerrain } from '../terrain/paint';
+import { terrainBakePieces } from '../terrain/bake';
 import type { PropMesh } from '../types';
-import { packBuildings } from './atlas';
+import { packBuildingPages } from './atlas';
 import type { AtlasResult, BuildingInput } from './atlas';
 import { GODOT_LOADER } from './godot_loader';
 import { partToObj, patchToObj } from './obj';
@@ -25,6 +24,7 @@ export interface PackageReport {
 	prefabs: number;
 	buildings: number;
 	trees: number;
+	atlasPages: number;
 	atlasSize: number;
 	texelsPerMeter: number;
 	/** Triangles of one instance, summed over all prefabs, per level of detail. */
@@ -41,7 +41,6 @@ export interface GamePackage {
 	manifest: CityManifest;
 }
 
-const TERRAIN_CHUNK_CELLS: number = 64;
 
 function lodMeshes(prefab: Prefab, state: CityState): PropMesh[] {
 	const g = state.settings.gameReady;
@@ -60,15 +59,20 @@ export function buildGamePackage(plan: CityPlan, state: CityState): GamePackage 
 	const warnings: string[] = [];
 	const prefabs: Prefab[] = plan.prefabs.all();
 	const inputs: BuildingInput[] = prefabs.map((p: Prefab, i: number): BuildingInput => ({ name: `building_${i}`, runs: g.bakeFacades ? p.model.facades : [], lods: lodMeshes(p, state) }));
-	const atlas: AtlasResult | null = inputs.length > 0 ? packBuildings(inputs, g.atlasSize, g.gutter, g.texelsPerMeter) : null;
+	const pages: AtlasResult[] = packBuildingPages(inputs,g.atlasSize,g.gutter,g.texelsPerMeter,g.preserveTextureDetail);
+	const atlas=pages[0];
+	const buildingAtlases=new Map<string,string>();
 	if (atlas && atlas.texelsPerMeter < g.texelsPerMeter) warnings.push(`Facade resolution was lowered from ${g.texelsPerMeter} to ${atlas.texelsPerMeter} texels per metre to fit a ${g.atlasSize}px atlas.`);
 
 	const files: PackageFile[] = [];
 	const names: Map<string, string[]> = new Map<string, string[]>();
 	const prefabTriangles: number[] = [0, 0, 0];
-	if (atlas) {
-		files.push({ path: 'buildings/atlas.png', raster: atlas.raster });
-		atlas.buildings.forEach((b, i: number): void => {
+	for (const [page,atlas] of pages.entries()) {
+		const atlasPath=page===0?'buildings/atlas.png':`buildings/atlas_${page}.png`;
+		files.push({path:atlasPath,raster:atlas.raster});
+		atlas.buildings.forEach((b): void => {
+			const i=Number(b.name.replace('building_',''));
+			buildingAtlases.set(prefabs[i].key,atlasPath);
 			const list: string[] = [];
 			b.lods.forEach((part, lod: number): void => {
 				files.push({ path: `buildings/${part.name}.obj`, text: partToObj(part, part.name) });
@@ -79,40 +83,27 @@ export function buildGamePackage(plan: CityPlan, state: CityState): GamePackage 
 		});
 	}
 
-	const hf = plan.terrain.heights;
-	const albedo: Raster = paintTerrain({
-		hf,
-		surfaces: plan.surfaces,
-		roadWeight: plan.terrain.roadWeight,
-		lotWeight: plan.terrain.lotWeight,
-		padColor: [150, 148, 140],
-		waterLevel: state.settings.waterLevel,
-		sun: state.settings.sun,
-		size: state.settings.terrainTexture,
-		seed: state.settings.seed,
-	});
-	files.push({ path: 'terrain/albedo.png', raster: albedo });
-	const chunks: string[] = [];
-	let terrainTriangles: number = 0;
-	for (let r: number = 0; r < hf.rows - 1; r += TERRAIN_CHUNK_CELLS) {
-		for (let c: number = 0; c < hf.cols - 1; c += TERRAIN_CHUNK_CELLS) {
-			const patch = buildPatch(hf, c, r, Math.min(hf.cols - 1, c + TERRAIN_CHUNK_CELLS), Math.min(hf.rows - 1, r + TERRAIN_CHUNK_CELLS));
-			const path: string = `terrain/chunk_${c}_${r}.obj`;
-			files.push({ path, text: patchToObj(patch, `chunk_${c}_${r}`) });
-			chunks.push(path);
-			terrainTriangles += patch.indices.length / 3;
-		}
+	const chunks: string[] = [], chunkAlbedos: string[] = [];
+	const textures=new Set<string>();
+	let terrainTriangles=0;
+	for(const piece of terrainBakePieces(plan,state.settings)) {
+		const path=`terrain/${piece.name}.obj`, albedo=`terrain/${piece.texture}.png`;
+		files.push({path,text:patchToObj(piece.patch,piece.name)});
+		if(!textures.has(albedo)) {files.push({path:albedo,raster:piece.raster});textures.add(albedo);}
+		chunks.push(path);chunkAlbedos.push(albedo);terrainTriangles+=piece.patch.indices.length/3;
 	}
 	files.push({ path: 'terrain/heightmap.bin', bytes: heightmapBytes(plan) });
 
-	const manifest: CityManifest = buildManifest(plan, state.settings, names, { heightmap: 'terrain/heightmap.bin', albedo: 'terrain/albedo.png', chunks });
+	const manifest: CityManifest = buildManifest(plan, state.settings, names, { heightmap: 'terrain/heightmap.bin', albedo: chunkAlbedos[0], chunks, chunkAlbedos });
+	for(const p of manifest.prefabs)p.atlas=buildingAtlases.get(p.id);
 	files.push({ path: 'city.json', text: JSON.stringify(manifest, null, 1) });
 	files.push({ path: 'city_loader.gd', text: GODOT_LOADER });
 
 	let cityTriangles: number = terrainTriangles;
 	const uses: Map<string, number> = new Map<string, number>(prefabs.map((p: Prefab): [string, number] => [p.key, 0]));
 	for (const b of plan.buildings) uses.set(b.prefab, (uses.get(b.prefab) ?? 0) + 1);
-	atlas?.buildings.forEach((b, i: number): void => {
+	pages.flatMap(a=>a.buildings).forEach((b): void => {
+		const i=Number(b.name.replace('building_',''));
 		cityTriangles += (uses.get(prefabs[i].key) ?? 0) * meshTriangles({ positions: b.lods[0].positions, faces: b.lods[0].faces.map((face) => ({ ...face, material: '' })) });
 	});
 	return {
@@ -122,6 +113,7 @@ export function buildGamePackage(plan: CityPlan, state: CityState): GamePackage 
 			prefabs: prefabs.length,
 			buildings: plan.buildings.length,
 			trees: plan.trees.length,
+			atlasPages: pages.length,
 			atlasSize: atlas?.size ?? 0,
 			texelsPerMeter: atlas?.texelsPerMeter ?? 0,
 			prefabTriangles,

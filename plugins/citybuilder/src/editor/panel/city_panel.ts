@@ -83,7 +83,8 @@ const TEMPLATE: string = `<div class="rs_panel">
 			<div><b>{{snap.composeMs}} ms</b><small>build time</small></div>
 		</div>
 
-		<rs-section title="Roads">
+		<rs-section title="Roads & layout">
+			<div class="rs_row"><button class="rs_primary" :disabled="!!snap.busy || !snap.hasRoadscape" @click="ctl.generateLayout()">Generate editable layout…</button></div>
 			<div class="rs_row">
 				<button class="rs_primary" :disabled="!snap.hasRoadscape" @click="ctl.drawRoads()" title="Opens the Roadscape Draw Road tool">Draw roads</button>
 				<button @click="ctl.drape()" title="Move road points onto the terrain, so roads follow the land">Drape roads on terrain</button>
@@ -92,7 +93,11 @@ const TEMPLATE: string = `<div class="rs_panel">
 			<p class="rs_hint">{{snap.roadCount}} road segment{{snap.roadCount === 1 ? '' : 's'}} found.</p>
 			<rs-toggle label="Terrain follows roads" :value="snap.settings.conform.roads" @input="ctl.setSetting('conform.roads', $event)"></rs-toggle>
 			<rs-number label="Ground tolerance" suffix="m" :value="snap.settings.conform.groundTolerance" :min="0" :max="60" :step="1" @input="ctl.setSetting('conform.groundTolerance', $event)"></rs-number>
-			<p class="rs_hint">Roads this close to the land count as ground-level (the land is cut or filled around them). Further away they become bridges or tunnels, which get no lots.</p>
+			<p class="rs_hint">Gap height threshold for automatic bridges. Water crossings are detected separately. Explicit Ground, Bridge, Tunnel and Open span segments keep their chosen behavior.</p>
+			<rs-toggle label="Automatic bridges over water / gaps" :value="snap.settings.conform.autoBridges" @input="ctl.setSetting('conform.autoBridges', $event)"></rs-toggle>
+			<rs-number label="Minimum bridge span" suffix="m" :value="snap.settings.conform.bridgeSpan" :min="2" :max="100" :step="1" @input="ctl.setSetting('conform.bridgeSpan', $event)"></rs-number>
+			<rs-number label="Road shoulder blend" suffix="m" :value="snap.settings.conform.roadBlend" :min="0" :max="80" :step="1" @input="ctl.setSetting('conform.roadBlend', $event)"></rs-number>
+			<p class="rs_hint">Roadscape segment settings override automation. Use Open span / jump for unsupported sections. Drape is optional and changes control-point heights; avoid it on authored ramps.</p>
 			<rs-number label="Embankment" suffix="m per m" :value="snap.settings.conform.embankment" :min="0.5" :max="8" :step="0.1" @input="ctl.setSetting('conform.embankment', $event)"></rs-number>
 		</rs-section>
 
@@ -159,9 +164,13 @@ const TEMPLATE: string = `<div class="rs_panel">
 			<rs-toggle label="Bake facades" :value="snap.settings.gameReady.bakeFacades" @input="ctl.setSetting('gameReady.bakeFacades', $event)"></rs-toggle>
 			<p class="rs_hint">Baked walls become one quad each on a shared atlas. Off keeps one quad per window bay.</p>
 			<rs-toggle label="Levels of detail" :value="snap.settings.gameReady.lods" @input="ctl.setSetting('gameReady.lods', $event)"></rs-toggle>
+			<rs-toggle label="Preserve facade detail" :value="snap.settings.gameReady.preserveTextureDetail" @input="ctl.setSetting('gameReady.preserveTextureDetail', $event)"></rs-toggle>
+			<p class="rs_hint">Preserve detail adds atlas pages rather than lowering resolution. Disable for one compact atlas. No mesh simplification is applied by this option.</p>
 			<rs-select label="Building atlas" :value="String(snap.settings.gameReady.atlasSize)" :options="atlas" @input="ctl.setSetting('gameReady.atlasSize', Number($event))"></rs-select>
 			<rs-number label="Facade detail" suffix="px/m" :value="snap.settings.gameReady.texelsPerMeter" :min="2" :max="48" :step="1" @input="ctl.setSetting('gameReady.texelsPerMeter', $event)"></rs-number>
 			<rs-number label="Building meshes" suffix="max" :value="snap.settings.gameReady.prefabBudget" :min="4" :max="200" :step="1" @input="ctl.setSetting('gameReady.prefabBudget', $event)"></rs-number>
+			<rs-toggle label="Chunked terrain textures" :value="snap.settings.terrainTextureMode === 'chunks'" @input="ctl.setSetting('terrainTextureMode', $event ? 'chunks' : 'single')"></rs-toggle>
+			<p class="rs_hint">Chunked textures retain local detail. Resolution is per 32-cell chunk; single-map mode uses less memory. Baked textures use smooth filtering, editable in Texture Properties.</p>
 			<rs-select label="Terrain texture" :value="String(snap.settings.terrainTexture)" :options="atlas" @input="ctl.setSetting('terrainTexture', Number($event))"></rs-select>
 			<rs-select label="Collision" :value="snap.settings.gameReady.collision" :options="collision" @input="ctl.setSetting('gameReady.collision', $event)"></rs-select>
 			<div class="rs_row">
@@ -174,7 +183,7 @@ const TEMPLATE: string = `<div class="rs_panel">
 			</div>
 			<div v-if="snap.report" class="rs_stats">
 				<div>{{snap.report.prefabs}} building meshes · {{snap.report.buildings}} buildings · {{snap.report.trees}} trees</div>
-				<div>Atlas {{snap.report.atlasSize}} px at {{snap.report.texelsPerMeter}} px/m</div>
+				<div>{{snap.report.atlasPages}} atlas page(s) · {{snap.report.atlasSize}} px at {{snap.report.texelsPerMeter}} px/m</div>
 				<div>Per mesh set: {{snap.report.prefabTriangles.join(' / ')}} triangles (LOD 0 / 1 / 2)</div>
 				<div>City at full detail: {{snap.report.cityTriangles.toLocaleString()}} triangles ({{snap.report.terrainTriangles.toLocaleString()}} terrain)</div>
 				<p v-for="w in snap.report.warnings" class="rs_warn">{{w}}</p>

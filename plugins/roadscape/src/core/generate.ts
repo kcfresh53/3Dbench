@@ -108,8 +108,8 @@ function generateSegment(network: RoadNetwork, index: NetworkIndex, ctx: Generat
 	const to: number = curve.length - end;
 	if (to - from < 0.2 * unit) return null;
 	const profileData: RoadProfile = resolveProfileData(network, segment.profile);
-	const structure: ResolvedStructure = resolveStructure(segment, profileData, curve, settings);
-	const signature: string = JSON.stringify([curveKey(curve), round(from), round(to), profileData, structure, settingsKey(settings), densityKey(profileData, density), ctx.trees.revision, segment.key]);
+	const structure: ResolvedStructure = resolveStructure(segment, profileData, curve, settings, ctx.terrain);
+	const signature: string = JSON.stringify([curveKey(curve), round(from), round(to), profileData, structure, settingsKey(settings), densityKey(profileData, density), ctx.trees.revision, ctx.terrain?.revision, segment.key]);
 	const cached: CachedChunk | undefined = cache?.segment(segment.key);
 	if (cached && cached.signature === signature) return { chunk: cached };
 	const profile: ResolvedProfile = resolveProfile(profileData, unit, settings.weather);

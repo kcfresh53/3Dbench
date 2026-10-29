@@ -1,3 +1,4 @@
+import { roadTerrain } from './terrain_provider';
 import type { Vec3 } from '../core/types';
 import type { NetworkSettings, RoadDocument, RoadNetwork, RoadProfile, RoadSegment, SegmentData } from '../core/model';
 import type { RoadLibrary } from '../core/library_types';
@@ -67,7 +68,7 @@ export class LiveRoads {
 			listen(Mesh.preview_controller, 'setup update_geometry update_faces', schedule),
 			listen(Mesh.preview_controller, 'update_selection', ({ element }: { element: Mesh }): void => this.states.get(element)?.surface.refreshSelection()),
 			listen(Mesh.preview_controller, 'remove', ({ element }: { element: Mesh }): void => this.clear(element)),
-			listen(Blockbench, 'finished_edit undo redo select_project load_project', (): void => this.scan()),
+			listen(Blockbench, 'finished_edit undo redo select_project load_project citybuilder_terrain_changed', (): void => this.scan()),
 			listen(Blockbench, 'update_selection', (): void => this.notify(true)),
 			listen(Blockbench, 'unselect_project', (): void => {
 				for (const mesh of [...this.states.keys()]) this.clear(mesh);
@@ -102,15 +103,15 @@ export class LiveRoads {
 		return readNetwork(mesh, this.documentOf(mesh));
 	}
 
-	context(): GenerationContext {
+	context(mesh?: Mesh): GenerationContext {
 		if (!this.library) throw new Error('The road library is still loading.');
-		return { library: this.library, trees: this.trees };
+		return { library: this.library, trees: this.trees, terrain: mesh ? roadTerrain(mesh) : undefined };
 	}
 
 	private signature(mesh: Mesh, extra: string): string {
 		const edges: string[] = [];
 		for (const face of Object.values(mesh.faces)) if (face.vertices.length === 2) edges.push(face.vertices.join('|'));
-		return JSON.stringify([mesh.vertices, edges, (mesh as unknown as Record<string, string>)[NETWORK_KEY], this.trees.revision, extra]);
+		return JSON.stringify([mesh.vertices, edges, (mesh as unknown as Record<string, string>)[NETWORK_KEY], this.trees.revision, roadTerrain(mesh)?.revision, extra]);
 	}
 
 	private clear(mesh: Mesh): void {
@@ -164,7 +165,7 @@ export class LiveRoads {
 		}
 		try {
 			const network: RoadNetwork = override ?? this.networkOf(mesh);
-			const result: GenerateResult = generateNetwork(network, this.context(), state.cache);
+			const result: GenerateResult = generateNetwork(network, this.context(mesh), state.cache);
 			state.surface.show(makeRoadBody(result.parts, this.pool));
 			state.result = result;
 			state.signature = override ? '' : signature;
@@ -267,10 +268,10 @@ export class LiveRoads {
 		const library: RoadLibrary = await this.ready;
 		const owner: typeof Project = Project;
 		const before: string = this.signature(mesh, '');
-		let result: GenerateResult = generateNetwork(this.networkOf(mesh), this.context(), this.states.get(mesh)?.cache ?? null);
+		let result: GenerateResult = generateNetwork(this.networkOf(mesh), this.context(mesh), this.states.get(mesh)?.cache ?? null);
 		for (let waited: number = 0; result.report.treesPending && waited < 120; waited++) {
 			await new Promise<void>((resolve: () => void): void => void setTimeout(resolve, 100));
-			result = generateNetwork(this.networkOf(mesh), this.context(), this.states.get(mesh)?.cache ?? null);
+			result = generateNetwork(this.networkOf(mesh), this.context(mesh), this.states.get(mesh)?.cache ?? null);
 		}
 		if (owner !== Project || !Mesh.all.includes(mesh) || before !== this.signature(mesh, '')) throw new Error('The road changed while baking. Try again.');
 		bakeRoad(result, library, (key: string) => this.trees.atlas(key), mesh);

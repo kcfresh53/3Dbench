@@ -22,6 +22,7 @@ export interface PaintInput {
 	/** Direction towards the sun. */
 	sun: Vec3;
 	/** Output size in pixels per side. */
+	region?: { x: number; z: number; width: number; depth: number };
 	size: number;
 	seed: number;
 }
@@ -93,6 +94,7 @@ export interface TerrainPainter {
 
 export function createTerrainPainter(input: PaintInput): TerrainPainter {
 	const { hf, size } = input;
+	const region = input.region ?? {x:hf.originX,z:hf.originZ,width:hf.width,depth:hf.depth};
 	const out: Raster = new Raster(size, size);
 	const data: Uint8ClampedArray = out.data;
 	const sunLen: number = Math.hypot(input.sun[0], input.sun[1], input.sun[2]) || 1;
@@ -129,7 +131,7 @@ export function createTerrainPainter(input: PaintInput): TerrainPainter {
 
 	const paintRows = (from: number, to: number): void => {
 	for (let py: number = Math.max(0, from); py < Math.min(size, to); py++) {
-		const z: number = hf.originZ + ((py + 0.5) / size) * hf.depth;
+		const z: number = region.z + ((py + 0.5) / size) * region.depth;
 		const fr: number = hf.rowAt(z);
 		const vr: number = clamp(Math.floor(fr), 0, hf.rows - 2);
 		const tv: number = clamp(fr - vr, 0, 1);
@@ -143,7 +145,7 @@ export function createTerrainPainter(input: PaintInput): TerrainPainter {
 		const gj1: number = (gj + 1) % GRAIN_SIZE;
 		const gfy: number = gv - Math.floor(gv);
 		for (let px: number = 0; px < size; px++) {
-			const x: number = hf.originX + ((px + 0.5) / size) * hf.width;
+			const x: number = region.x + ((px + 0.5) / size) * region.width;
 			const fc: number = hf.colAt(x);
 			const cc: number = fc - 0.5;
 			const c0: number = Math.floor(cc);
@@ -237,5 +239,5 @@ export function paintSignature(input: PaintInput): string {
 	h = hashWords(h, input.surfaces.data);
 	if (input.roadWeight) h = hashWords(h, new Uint32Array(input.roadWeight.buffer, input.roadWeight.byteOffset, input.roadWeight.length));
 	if (input.lotWeight) h = hashWords(h, new Uint32Array(input.lotWeight.buffer, input.lotWeight.byteOffset, input.lotWeight.length));
-	return `${h}:${hf.cols}x${hf.rows}x${hf.cellSize}:${input.size}:${input.waterLevel}:${input.seed}:${input.sun.join(',')}`;
+	return `${h}:${hf.cols}x${hf.rows}x${hf.cellSize}:${input.size}:${input.waterLevel}:${input.seed}:${input.sun.join(',')}:${JSON.stringify(input.region)}`;
 }

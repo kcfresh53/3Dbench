@@ -167,3 +167,18 @@ test('thinning also removes corner props at junctions, down to bare surfaces', (
 	assert.equal(bare.breakdown['Street lamp'] ?? 0, 0);
 	assert.ok(bare.report.warnings.length > 0, 'an impossible budget is reported, not hidden');
 });
+
+test('terrain provider updates bridge foundations through the cache and open spans omit supports',()=>{
+ const road=network('street',[['a',[0,3,0]],['b',[0,3,80]]],[['a','b']]);
+ const cache=new GenerationCache();
+ const context:GenerationContext={...plain,terrain:{revision:'1',groundAt:()=>-4,autoStructure:()=> 'bridge'}};
+ const first=generateNetwork(road,context,cache);
+ assert.equal(bounds([part(first,'Bridge pier')]).min[1],-4);
+ context.terrain={revision:'2',groundAt:()=>-9,autoStructure:()=> 'bridge'};
+ const next=generateNetwork(road,context,cache);
+ assert.equal(bounds([part(next,'Bridge pier')]).min[1],-9);
+ for(const edge of road.segments.values())edge.structure='air';
+ const jump=generateNetwork(road,context,cache);
+ assert.ok(!jump.parts.some(p=>p.name==='Bridge pier'||p.name==='Bridge deck'));
+ assert.ok(jump.parts.some(p=>p.name==='Road surface'));
+});

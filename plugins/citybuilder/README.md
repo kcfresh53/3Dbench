@@ -7,7 +7,7 @@ Load `plugins/citybuilder.js` (File → Plugins → Load Plugin from File). Road
 ## Workflow
 
 1. **Create a city** in the *City Builder* panel: pick a map size and a landscape preset.
-2. **Draw roads** with Roadscape (*Draw roads* opens its tool). Terrain follows the roads, or use *Drape roads on terrain* to make the roads follow the land.
+2. **Draw roads** with Roadscape (*Draw roads* opens its tool). Use **Generate city layout** for an editable seeded grid, organic network or circuit, with optional zoning. Terrain follows ground roads, or use *Drape roads on terrain* to make the roads follow the land.
 3. **Sculpt the land** with the **Landscape** tool: raise, lower, smooth, flatten, level, roughen, erode, terrace, and paint ground surfaces. Ctrl inverts raise/lower, `[` `]` resize the brush.
 4. **Zone districts** with the **Zoning** tool: brush, rectangle, polygon, fill, *along road* or *zone along all roads*. Twelve district types (low/medium/high-density residential, low/high commercial, offices, light/heavy industry, civic, park, forest, mixed use).
 5. **Watch it grow.** Lots appear throughout painted districts, with road frontage filled first. Each lot gets a building chosen from its district, sized to the lot, taller where land value is high. *Development* raises how many lots are built; existing buildings never move.
@@ -18,8 +18,8 @@ Everything is undoable with Ctrl+Z, and the city is stored inside the project fi
 ## Game ready
 
 * **Export game package…** writes a folder:
-  * `buildings/building_N[_lodK].obj` and `buildings/atlas.png`: every distinct building once, in three levels of detail, all on one packed texture atlas. Walls are baked into one quad each; resolution lowers itself to fit the atlas.
-  * `terrain/chunk_*.obj`, `terrain/albedo.png`, `terrain/heightmap.bin` (16-bit, header: cols, rows, min, max).
+  * `buildings/building_N[_lodK].obj` and `buildings/atlas.png`: every distinct building once, in three levels of detail, on packed texture atlas pages. Walls are baked into one quad each; **Preserve facade detail** adds pages to maintain the selected pixel density. Disable it for a compact atlas that reduces resolution to fit. Prefab atlas paths are recorded in the manifest.
+  * `terrain/chunk_*.obj`, padded per-chunk albedos (or one shared `terrain/albedo.png`), `terrain/heightmap.bin` (16-bit, header: cols, rows, min, max).
   * `city.json`: prefabs (with collision boxes), building placements, tree placements, stats.
   * `city_loader.gd`: a statically typed Godot 4 script that builds the city from `city.json`.
 * **Bake city to meshes** turns the live city into ordinary Blockbench meshes (terrain patches, buildings and trees merged per 128 m block).
@@ -36,11 +36,17 @@ tests/          node:test suites (npm run test:citybuilder)
 
 `npm run build:citybuilder` bundles the plugin; `npm run test:citybuilder` runs the tests.
 
-## Limits
+## Terrain, racing roads and editing
 
-* The editor layer (tools, panel, live display) is verified by typechecking and by running the core pipeline in Node, not by an automated test inside the Electron app.
-* Trees are placed in the manifest and shown live, but are not baked into meshes.
-* Bridges and tunnels from Roadscape are ignored for lot placement.
+Baked city and Roadscape textures use smooth mipmapped filtering, saved in the project. The app's Texture Properties dialog also offers pixel/nearest filtering for artists who prefer it. Restart the rebuilt app and reload both plugins to pick up the new texture property and terrain integration.
+
+**Chunked terrain textures** allocates the chosen resolution to each 32-cell terrain patch, with padded borders. This preserves detail across large maps but consumes more texture memory; disable it to share one map. **Preserve facade detail** likewise trades additional atlas pages for stable facade resolution. A single building that cannot fit reports an error rather than silently reducing quality.
+
+Road shoulders blend over at least two terrain cells, with adjustable blend distance. Automatic structures sample the natural terrain: sustained gaps or water crossings become bridges and piers meet the ground. Classification applies to each complete road control segment; split a segment to tune bridge boundaries. Ground, bridge, tunnel and **Open span / jump (no supports)** overrides remain available. Conforming terrain never moves road control points; **Drape roads on terrain** is an explicit operation that does move them.
+
+The collapsible toolbar at the bottom of the active viewport provides brush selection, biome/district painting, radius and strength. The sidebar retains the full settings. Generated layouts are additive editable Roadscape control meshes; their optional zoning and mesh creation undo together. Existing roads and painted districts are retained.
+
+Core suites and an isolated Electron scene test cover layout undo/redo, district growth, baking, texture filtering persistence and plugin cleanup. The generated Godot loader has not been executed in Godot. Bridges, tunnels and open spans are excluded from ground-road lot frontage.
 
 ## Painted districts and biomes
 

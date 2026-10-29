@@ -14,6 +14,7 @@ class_name CityLoader
 var _manifest: Dictionary = {}
 var _meshes: Dictionary = {}
 var _boxes: Dictionary = {}
+var _building_materials: Dictionary = {}
 var _building_material: StandardMaterial3D
 
 
@@ -43,7 +44,7 @@ func _load_manifest() -> bool:
 func _make_material(texture_path: String) -> StandardMaterial3D:
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.albedo_texture = load(texture_path) as Texture2D
-	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
+	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	material.roughness = 1.0
 	return material
 
@@ -61,7 +62,8 @@ func _build_terrain() -> void:
 	for index: int in range(chunks.size()):
 		var node: MeshInstance3D = MeshInstance3D.new()
 		node.mesh = load(city_dir.path_join(chunks[index] as String)) as Mesh
-		node.material_override = material
+		var maps: Array = terrain.get("chunkAlbedos", []) as Array
+		node.material_override = _make_material(city_dir.path_join(maps[index] as String)) if index < maps.size() else material
 		add_child(node)
 		if build_collision:
 			node.create_trimesh_collision()
@@ -83,10 +85,13 @@ func _build_buildings() -> void:
 func _make_building(prefab: Dictionary) -> Node3D:
 	var root: Node3D = Node3D.new()
 	var names: Array = prefab["meshes"] as Array
+	var atlas_path: String = prefab.get("atlas", "buildings/atlas.png") as String
+	if not _building_materials.has(atlas_path):
+		_building_materials[atlas_path] = _make_material(city_dir.path_join(atlas_path))
 	for index: int in range(names.size()):
 		var instance: MeshInstance3D = MeshInstance3D.new()
 		instance.mesh = _mesh(names[index] as String)
-		instance.material_override = _building_material
+		instance.material_override = _building_materials[atlas_path] as StandardMaterial3D
 		if index > 0:
 			instance.visibility_range_begin = lod_distances[index - 1]
 		if index < names.size() - 1:

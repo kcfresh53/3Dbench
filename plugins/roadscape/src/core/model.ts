@@ -31,7 +31,7 @@ export type LiningType =
 export type Placement = 'start' | 'center' | 'end';
 
 export type MarkingStyle = 'none' | 'solid' | 'dashed' | 'double';
-export type Structure = 'auto' | 'ground' | 'bridge' | 'tunnel';
+export type Structure = 'auto' | 'ground' | 'bridge' | 'tunnel' | 'air';
 export type Weather = 'spring' | 'wet' | 'snow';
 export type EndCap = 'flat' | 'round';
 export type CrosswalkStyle = 'none' | 'zebra';

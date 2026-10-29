@@ -30,6 +30,7 @@ declare global {
 		particle?: boolean
 		visible?: boolean
 		render_mode?: 'default' | 'emissive' | 'additive' | 'layered' | string
+		sampling?: 'nearest' | 'smooth'
 		render_sides?: 'auto' | 'front' | 'double' | string
 		wrap_mode?: 'limited' | 'repeat' | 'clamp'
 		pbr_channel?: import('../../js/texturing/pbr_channels').PBRChannel
@@ -116,6 +117,7 @@ declare global {
 		/** Whether the texture is used for the models particle system. Used by some formats such as Java Block/Item */
 		particle: boolean
 		render_mode: 'default' | 'emissive' | 'additive' | 'layered' | string
+		sampling: 'nearest' | 'smooth'
 		render_sides: 'auto' | 'front' | 'double' | string
 		wrap_mode: 'limited' | 'repeat' | 'clamp'
 		pbr_channel: import('../../js/texturing/pbr_channels').PBRChannel

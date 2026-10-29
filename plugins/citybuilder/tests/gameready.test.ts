@@ -54,16 +54,27 @@ test('the game package lists every file the manifest and loader refer to', async
 	const plan = composeCity(state, roads);
 	const pkg = buildGamePackage(plan, state);
 	const paths: Set<string> = new Set(pkg.files.map((f) => f.path));
-	assert.ok(paths.has('city.json') && paths.has('buildings/atlas.png') && paths.has('terrain/albedo.png') && paths.has('city_loader.gd'));
+	assert.ok(paths.has('city.json') && paths.has('buildings/atlas.png') && paths.has(pkg.manifest.terrain.albedo) && paths.has('city_loader.gd'));
 	for (const prefab of pkg.manifest.prefabs) {
 		assert.equal(prefab.meshes.length, 3);
+		assert.ok(paths.has(prefab.atlas!));
 		for (const name of prefab.meshes) assert.ok(paths.has(`buildings/${name}.obj`), `${name} exported`);
 		assert.ok(prefab.collision.length > 0);
 	}
+	for(const albedo of pkg.manifest.terrain.chunkAlbedos ?? [])assert.ok(paths.has(albedo));
 	for (const chunk of pkg.manifest.terrain.chunks) assert.ok(paths.has(chunk));
 	assert.equal(pkg.manifest.buildings.length, plan.buildings.length);
 	assert.ok(pkg.report.prefabTriangles[0] > pkg.report.prefabTriangles[2], 'LOD2 is lighter than LOD0');
 	const obj = pkg.files.find((f) => f.path.startsWith('buildings/building_0'))?.text ?? '';
 	assert.match(obj, /^v /m);
 	assert.match(obj, /^f \d+\/\d+/m);
+});
+
+import {packBuildingPages} from '../src/core/gameready/atlas';
+test('detail-preserving atlas pages retain requested texel density',()=>{
+ const inputs=inputsFromCity();
+ const pages=packBuildingPages(inputs,1024,2,14,true);
+ assert.ok(pages.length>1);
+ assert.ok(pages.every(p=>p.texelsPerMeter===14));
+ assert.deepEqual(pages.flatMap(p=>p.buildings.map(b=>b.name)),inputs.map(b=>b.name));
 });

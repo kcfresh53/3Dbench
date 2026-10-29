@@ -48,6 +48,18 @@ app.on('browser-window-created',(_,win)=>{
     Undo.redo();await until(()=>ctl.store.plan.buildings.length===brushed,'redo brush');
     Undo.undo();await until(()=>ctl.store.plan.buildings.length===0,'clear brush for road checks');
 
+    // ---- generated networks are editable and undo/redo includes their zoning ----
+    await until(()=>Panels.roadscape_panel.vue.session.manager.library,'road library');
+    const beforeLayouts=Mesh.all.length;
+    await ctl.generateLayout({kind:'organic',seed:27,blocks:3,coverage:.5,rotation:15,profile:'street',elevation:.2,zone:true,district:2,zoneDepth:30});
+    await until(()=>Mesh.all.length===beforeLayouts+1&&ctl.store.plan.buildings.length>0,'generated editable layout');
+    const layoutMesh=Mesh.all.find(m=>m.name.startsWith('organic layout'));
+    check(layoutMesh&&Object.values(layoutMesh.faces).every(f=>f.vertices.length===2),'Layout is not a control graph');
+    Undo.undo();await until(()=>Mesh.all.length===beforeLayouts&&ctl.store.plan.buildings.length===0,'undo layout and zones');
+    Undo.redo();await until(()=>Mesh.all.length===beforeLayouts+1&&ctl.store.plan.buildings.length>0,'redo layout');
+    Undo.undo();await until(()=>Mesh.all.length===beforeLayouts&&ctl.store.plan.buildings.length===0,'remove test layout');
+    check(document.querySelector('.city_brush_dock'),'Brush dock missing');
+
     // ---- draw one road with Roadscape ----
     const rs=Panels.roadscape_panel.vue;await until(()=>rs.session.manager.library,'road library');
     rs.draw();const preview=Preview.selected;
@@ -102,6 +114,14 @@ app.on('browser-window-created',(_,win)=>{
     check(Group.all.some(g=>g.name==='City')&&Mesh.all.filter(m=>m.name.startsWith('terrain_')).length>0,'Bake created nothing');
     check(Mesh.all.some(m=>m.name.startsWith('buildings_')),'Bake created no buildings');
     check(Mesh.all.some(m=>m.name.startsWith('trees_')),'Bake created no trees');
+    const bakedTerrain=Texture.all.filter(t=>t.name.startsWith('city_terrain_'));
+    check(bakedTerrain.length>1,'Chunked terrain bake missing');
+    for(const t of bakedTerrain){
+     check(t.sampling==='smooth'&&t.getOwnMaterial().map.magFilter===THREE.LinearFilter,'Bake lost smooth filtering');
+     const copy=t.getSaveCopy();check(copy.sampling==='smooth','Filtering is not saved');
+     const restored=new Texture(copy);check(restored.sampling==='smooth'&&restored.getOwnMaterial().map.magFilter===THREE.LinearFilter,'Reload lost filtering');
+     restored.getOwnMaterial().map.dispose();restored.getOwnMaterial().dispose();
+    }
     const bakedMeshes=Mesh.all.length;
     Undo.undo();check(!Group.all.some(g=>g.name==='City'),'Bake undo left the group');
     Undo.redo();check(Mesh.all.length===bakedMeshes,'Bake redo failed');
@@ -118,6 +138,7 @@ app.on('browser-window-created',(_,win)=>{
     await wait(500);
     const stats=ctl.store.plan.stats;
     Plugins.registered.citybuilder.onunload();
+    check(!document.querySelector('.city_brush_dock'),'Dock leaked on unload');
     check(!Panels.citybuilder_panel&&!BarItems.citybuilder_landscape&&!BarItems.citybuilder_district,'Unload leaked UI');
     check(!Project.model_3d.children.some(o=>o.name==='CityBuilder live city'),'Unload leaked the display');
     return {buildings,stats};

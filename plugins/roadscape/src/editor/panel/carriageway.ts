@@ -5,7 +5,7 @@ import { SURFACE_OPTIONS } from './side_stack';
 import type { Option } from './side_stack';
 
 const MARKINGS: Option[] = (['none', 'solid', 'dashed', 'double'] as MarkingStyle[]).map((m: MarkingStyle): Option => ({ value: m, label: m[0].toUpperCase() + m.slice(1) }));
-const STRUCTURES: Option[] = (['auto', 'ground', 'bridge', 'tunnel'] as Structure[]).map((m: Structure): Option => ({ value: m, label: m[0].toUpperCase() + m.slice(1) }));
+const STRUCTURES: Option[] = (['auto', 'ground', 'bridge', 'tunnel', 'air'] as Structure[]).map((m: Structure): Option => ({ value: m, label: m[0].toUpperCase() + m.slice(1) }));
 const LINE_COLORS: Option[] = [
 	{ value: 'white', label: 'White' },
 	{ value: 'yellow', label: 'Yellow' },

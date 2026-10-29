@@ -2,10 +2,9 @@ import { treeAssets, treeKey } from './tree_assets';
 import { bakedMesh } from '../core/buildings/mesh';
 import type { Prefab } from '../core/buildings/prefabs';
 import type { PlacedBuilding } from '../core/city/compose';
-import { packBuildings } from '../core/gameready/atlas';
+import { packBuildingPages } from '../core/gameready/atlas';
 import type { BuildingInput, PackedBuilding } from '../core/gameready/atlas';
-import { buildPatch, patchRanges } from '../core/terrain/mesh';
-import { paintTerrain } from '../core/terrain/paint';
+import { terrainBakePieces } from '../core/terrain/bake';
 import type { MeshPart, PartFace, Vec3 } from '../core/types';
 import { abortCreate, addMesh, beginCreate, finishCreate, newGroup, newTexture } from './mesh_builder';
 import type { Created } from './mesh_builder';
@@ -13,7 +12,6 @@ import { rasterToDataUrl } from './files';
 import type { CityStore } from './store';
 
 const CHUNK_METRES: number = 128;
-const TERRAIN_PATCH_CELLS: number = 32;
 
 export interface BakeResult {
 	meshes: number;
@@ -46,27 +44,23 @@ export async function bakeCity(store: CityStore): Promise<BakeResult> {
 	const plan = store.plan;
 	if (!state || !plan) throw new Error('Create a city first.');
 	const scale: number = state.settings.unitsPerMeter;
+	const owner=Project, revision=store.editRevision;
 	const nature = await treeAssets(plan.trees);
+	if(Project!==owner || store.state!==state || store.editRevision!==revision)throw new Error('The city changed while preparing the bake. Try again.');
 	const created: Created = beginCreate();
 	try {
 		const root = newGroup('City', 'root', created);
 		const terrainGroup = newGroup('Terrain', root, created);
 		const size: number = state.settings.terrainTexture;
-		const albedo = paintTerrain({
-			hf: plan.terrain.heights,
-			surfaces: plan.surfaces,
-			roadWeight: plan.terrain.roadWeight,
-			lotWeight: plan.terrain.lotWeight,
-			padColor: [150, 148, 140],
-			waterLevel: state.settings.waterLevel,
-			sun: state.settings.sun,
-			size,
-			seed: state.settings.seed,
-		});
-		const terrainTexture = newTexture('city_terrain.png', rasterToDataUrl(albedo), size, created);
 		let triangles: number = 0;
-		for (const range of patchRanges(plan.terrain.heights, TERRAIN_PATCH_CELLS)) {
-			const patch = buildPatch(plan.terrain.heights, range.c0, range.r0, range.c1, range.r1);
+		const terrainTextures = new Map<string, Texture>();
+		for (const piece of terrainBakePieces(plan,state.settings)) {
+			let terrainTexture=terrainTextures.get(piece.texture);
+			if (!terrainTexture) {
+				terrainTexture=newTexture(`city_terrain_${piece.texture}.png`,rasterToDataUrl(piece.raster),size,created);
+				terrainTextures.set(piece.texture,terrainTexture);
+			}
+			const patch=piece.patch;
 			const positions: Vec3[] = [];
 			for (let i: number = 0; i < patch.positions.length; i += 3) positions.push([patch.positions[i] * scale, patch.positions[i + 1] * scale, patch.positions[i + 2] * scale]);
 			const faces: PartFace[] = [];
@@ -74,7 +68,7 @@ export async function bakeCity(store: CityStore): Promise<BakeResult> {
 				const ids: number[] = [patch.indices[t], patch.indices[t + 1], patch.indices[t + 2]];
 				faces.push({ indices: ids, uvs: ids.map((i: number): [number, number] => [patch.uvs[i * 2], patch.uvs[i * 2 + 1]]) });
 			}
-			addMesh(`terrain_${range.c0}_${range.r0}`, positions, faces, terrainTexture, terrainGroup, 'smooth', created.meshes);
+			addMesh(`terrain_${piece.name}`, positions, faces, terrainTexture, terrainGroup, 'smooth', created.meshes);
 			triangles += faces.length;
 		}
 
@@ -82,10 +76,11 @@ export async function bakeCity(store: CityStore): Promise<BakeResult> {
 		if (plan.buildings.length > 0) {
 			const g = state.settings.gameReady;
 			const inputs: BuildingInput[] = prefabs.map((p: Prefab, i: number): BuildingInput => ({ name: `b${i}`, runs: p.model.facades, lods: [bakedMesh(p.model, 0)] }));
-			const atlas = packBuildings(inputs, g.atlasSize, g.gutter, g.texelsPerMeter);
-			const atlasTexture = newTexture('city_buildings.png', rasterToDataUrl(atlas.raster), atlas.size, created);
+			const pages = packBuildingPages(inputs, g.atlasSize, g.gutter, g.texelsPerMeter,g.preserveTextureDetail);
+			for (const [page,atlas] of pages.entries()) {
+			const atlasTexture = newTexture(`city_buildings_${page}.png`, rasterToDataUrl(atlas.raster), atlas.size, created);
 			const buildingGroup = newGroup('Buildings', root, created);
-			const index: Map<string, PackedBuilding> = new Map<string, PackedBuilding>(prefabs.map((p: Prefab, i: number): [string, PackedBuilding] => [p.key, atlas.buildings[i]]));
+			const index: Map<string, PackedBuilding> = new Map<string, PackedBuilding>(prefabs.map((p: Prefab, i: number): [string, PackedBuilding] => [p.key, atlas.buildings.find(b=>b.name===`b${i}`)!]));
 			const chunks: Map<string, Accumulator> = new Map<string, Accumulator>();
 			for (const b of plan.buildings) {
 				const packed: PackedBuilding | undefined = index.get(b.prefab);
@@ -96,9 +91,10 @@ export async function bakeCity(store: CityStore): Promise<BakeResult> {
 				chunks.set(key, acc);
 			}
 			for (const [key, acc] of chunks) {
-				addMesh(`buildings_${key}`, acc.positions, acc.faces, atlasTexture, buildingGroup, 'flat', created.meshes);
+				addMesh(`buildings_${page}_${key}`, acc.positions, acc.faces, atlasTexture, buildingGroup, 'flat', created.meshes);
 				triangles += acc.faces.reduce((n: number, f: PartFace): number => n + f.indices.length - 2, 0);
 			}
+		}
 		}
 		if (plan.trees.length) {
 			const treeGroup = newGroup('Trees', root, created);
