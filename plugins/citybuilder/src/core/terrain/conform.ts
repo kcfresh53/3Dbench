@@ -120,3 +120,36 @@ export function conformLots(result: ConformResult, lots: Lot[], settings: Confor
 	hf.touch();
 	return result;
 }
+
+/** A flat disc of ground, such as the island of a roundabout. */
+export interface GroundDisc {
+	x: number;
+	z: number;
+	/** Radius of the flat part, metres. */
+	island: number;
+	/** Height of the road around it, metres. */
+	y: number;
+}
+
+/** Levels the ground inside each disc slightly above the road around it, easing out over two cells. */
+export function conformDiscs(result: ConformResult, discs: GroundDisc[], settings: ConformSettings): ConformResult {
+	if (discs.length === 0) return result;
+	const hf: Heightfield = result.heights;
+	const blend: number = Math.max(1, hf.cellSize);
+	for (const disc of discs) {
+		const rect = hf.rectAround(disc.x, disc.z, disc.island + blend + hf.cellSize);
+		for (let r: number = rect.r0; r <= rect.r1; r++) {
+			for (let c: number = rect.c0; c <= rect.c1; c++) {
+				const idx: number = hf.index(c, r);
+				if (result.roadWeight[idx] >= 0.999) continue;
+				const d: number = Math.hypot(hf.worldX(c) - disc.x, hf.worldZ(r) - disc.z);
+				const w: number = (d <= disc.island ? 1 : 1 - smoothstep(0, blend, d - disc.island)) * (1 - result.roadWeight[idx]);
+				if (w <= 0) continue;
+				result.lotWeight[idx] = Math.max(result.lotWeight[idx], w);
+				hf.heights[idx] += (disc.y - settings.roadBed + 0.12 - hf.heights[idx]) * w;
+			}
+		}
+	}
+	hf.touch();
+	return result;
+}

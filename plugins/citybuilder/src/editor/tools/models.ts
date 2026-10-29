@@ -28,3 +28,29 @@ export interface DistrictModel {
 }
 
 export const DEFAULT_DISTRICT: DistrictModel = { mode: 'brush', id: 2, radius: 24, shape: 'round', depth: 36, onlyUnzoned: true };
+
+export type RoadPaintMode = 'brush' | 'rect' | 'polygon';
+
+/** What the road type tool does, edited from the panel and the toolbar. */
+export interface RoadTypeModel {
+	mode: RoadPaintMode;
+	/** Road profile to paint; empty keeps each road's own profile. */
+	profile: string;
+	/** Structure to paint; 'keep' leaves each road's own structure. */
+	structure: 'keep' | 'auto' | 'ground' | 'bridge' | 'tunnel' | 'air';
+	radius: number;
+}
+
+export const DEFAULT_ROAD_TYPE: RoadTypeModel = { mode: 'brush', profile: '', structure: 'bridge', radius: 20 };
+
+/** What the roundabout tool builds. */
+export interface RoundaboutModel {
+	/** Radius of the ring's centreline, metres. */
+	radius: number;
+	/** Road profile of the ring; empty derives one from the roads that meet there. */
+	profile: string;
+	/** Side of the road traffic drives on; sets which way it circulates. */
+	hand: 'right' | 'left';
+}
+
+export const DEFAULT_ROUNDABOUT_MODEL: RoundaboutModel = { radius: 18, profile: '', hand: 'right' };

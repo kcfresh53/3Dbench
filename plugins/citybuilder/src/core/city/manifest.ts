@@ -35,7 +35,8 @@ function r3(n: number): number {
 
 /** Describes the whole city as plain data: what to instance, where, and with which collision. */
 export function buildManifest(plan: CityPlan, settings: CitySettings, meshNames: Map<string, string[]>, files: { heightmap: string; albedo: string; chunks: string[]; chunkAlbedos?: string[] }): CityManifest {
-	const prefabs: ManifestPrefab[] = plan.prefabs.all().map((p: Prefab): ManifestPrefab => ({
+	const include = settings.export;
+	const prefabs: ManifestPrefab[] = (include.buildings ? plan.prefabs.all() : []).map((p: Prefab): ManifestPrefab => ({
 		id: p.key,
 		archetype: p.model.spec.archetype,
 		floors: p.model.spec.floors,
@@ -51,8 +52,8 @@ export function buildManifest(plan: CityPlan, settings: CitySettings, meshNames:
 		terrain: { cols: hf.cols, rows: hf.rows, cellSize: hf.cellSize, origin: [hf.originX, hf.originZ], ...files },
 		waterLevel: settings.waterLevel,
 		prefabs,
-		buildings: plan.buildings.map((b: PlacedBuilding) => ({ prefab: b.prefab, position: [r3(b.x), r3(b.y), r3(b.z)], yaw: r3(b.yaw), district: b.districtId, lot: b.lotId })),
-		trees: plan.trees.map((t) => ({ preset: t.preset, position: [r3(t.x), r3(t.y), r3(t.z)], yaw: r3(t.yaw), scale: r3(t.scale), variant: t.variant, representation: t.representation })),
+		buildings: (include.buildings ? plan.buildings : []).map((b: PlacedBuilding) => ({ prefab: b.prefab, position: [r3(b.x), r3(b.y), r3(b.z)], yaw: r3(b.yaw), district: b.districtId, lot: b.lotId })),
+		trees: (include.trees ? plan.trees : []).map((t) => ({ preset: t.preset, position: [r3(t.x), r3(t.y), r3(t.z)], yaw: r3(t.yaw), scale: r3(t.scale), variant: t.variant, representation: t.representation })),
 		stats: plan.stats,
 	};
 }

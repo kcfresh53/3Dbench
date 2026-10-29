@@ -13,7 +13,7 @@ import { PROJECT_KEY } from './ids';
 import { RoadBridge } from './roads_bridge';
 import { Signal } from './signal';
 
-export type StoreChange = 'loaded' | 'edited' | 'composed' | 'cleared';
+export type StoreChange = 'loaded' | 'edited' | 'composed' | 'cleared' | 'display';
 
 type Stored = Record<string, string>;
 
@@ -34,7 +34,7 @@ export class CityStore {
 	readonly bridge: RoadBridge = new RoadBridge();
 	readonly history: CityHistory;
 	private timer: number | null = null;
-	private roadSignature: string = '';
+	roadSignature: string = '';
 	private poll: number | null = null;
 	private composing: boolean = false;
 
@@ -96,6 +96,13 @@ export class CityStore {
 		this.flush();
 		this.changed.emit('edited');
 		this.invalidate(delay);
+	}
+
+	/** For settings that only change how the city looks in the viewport (water colour, motion): saves, but does not recompose. */
+	displayEdited(): void {
+		if (typeof Project !== 'undefined' && Project) Project.saved = false;
+		this.flush();
+		this.changed.emit('display');
 	}
 
 	invalidate(delay: number = 250): void {

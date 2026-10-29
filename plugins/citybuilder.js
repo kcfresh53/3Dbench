@@ -13,7 +13,72 @@
   });
   var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
+  // plugins/citybuilder/src/editor/panel/icons.ts
+  var PATHS = {
+    select: "M5 3l13 8-6 1.5L9.5 19z",
+    raise: "M3 19l6-9 4 5 3-4 5 8zM12 3v5M9.5 5.5L12 3l2.5 2.5",
+    lower: "M3 19l6-9 4 5 3-4 5 8zM12 8V3M9.5 5.5L12 8l2.5-2.5",
+    smooth: "M3 14c3-6 6-6 9 0s6 6 9 0",
+    flatten: "M3 7c3-2 6 0 9-1s6 0 9-1M3 17h18M12 9v6M9.5 12.5L12 15l2.5-2.5",
+    level: "M3 12h18M3 6h18M3 18h18M12 8v8",
+    biome: "M5 19c0-8 5-14 14-14 0 9-6 14-14 14zM5 19l8-8",
+    district: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
+    erase: "M4 16l9-9 6 6-6 6H8zM9 12l6 6M12 20h8",
+    road: "M8 3L4 21M16 3l4 18M12 4v3M12 10.5v3M12 17v3",
+    roundabout: "M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM12 3v5.5M12 15.5V21M3 12h5.5M15.5 12H21",
+    roadtype: "M2 15h20M4 15v-3a8 8 0 0 1 16 0v3M8 15v-6M12 15V8M16 15v-6M3 19h18",
+    brush: "M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z",
+    rect: "M4 6h16v12H4z",
+    polygon: "M5 18l2-11 9-3 4 9-6 6z",
+    ground: "M3 16h18M3 20h18M6 16c1-4 3-6 6-6s5 2 6 6",
+    bridge: "M2 17h20M4 17V9M20 17V9M4 9c4 7 12 7 16 0M8 14v3M12 15.5V17M16 14v3",
+    tunnel: "M3 20h18V10a9 9 0 0 0-18 0zM8 20v-6a4 4 0 0 1 8 0v6",
+    air: "M2 18h6M16 18h6M8 18c1-8 7-8 8 0M10 6l2-3 2 3",
+    keep: "M5 12h14M5 12l4-4M5 12l4 4",
+    chevron_down: "M6 9l6 6 6-6",
+    chevron_up: "M6 15l6-6 6 6",
+    hand_right: "M12 4a8 8 0 1 0 8 8M20 4v5h-5",
+    hand_left: "M12 4a8 8 0 1 1-8 8M4 4v5h5"
+  };
+  function icon(name) {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("width", "20");
+    svg.setAttribute("height", "20");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.8");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS(ns, "path");
+    path.setAttribute("d", PATHS[name]);
+    svg.append(path);
+    return svg;
+  }
+
   // plugins/citybuilder/src/editor/panel/brush_dock.ts
+  var LANDSCAPE = [
+    ["raise", "raise", "Raise terrain"],
+    ["lower", "lower", "Lower terrain"],
+    ["smooth", "smooth", "Smooth terrain"],
+    ["flatten", "flatten", "Flatten to the clicked height"],
+    ["level", "level", "Level to a plane"],
+    ["surface", "biome", "Paint ground surface"]
+  ];
+  var PAINT_MODES = [
+    ["brush", "brush", "Brush along a road"],
+    ["rect", "rect", "Rectangle"],
+    ["polygon", "polygon", "Polygon (Enter to apply)"]
+  ];
+  var STRUCTURES = [
+    ["keep", "keep", "Keep each road\u2019s structure"],
+    ["ground", "ground", "Ground level"],
+    ["bridge", "bridge", "Bridge"],
+    ["tunnel", "tunnel", "Tunnel"],
+    ["air", "air", "Open span / jump"]
+  ];
   var BrushDock = class {
     constructor(ctl) {
       __publicField(this, "ctl", ctl);
@@ -25,6 +90,7 @@
       __publicField(this, "collapsed", false);
       __publicField(this, "last", "");
       this.root.className = "city_brush_dock";
+      this.root.setAttribute("role", "toolbar");
       this.root.setAttribute("aria-label", "City tools");
       this.root.append(this.tools, this.options);
       for (const event of ["pointerdown", "pointerup", "click", "wheel"]) this.root.addEventListener(event, (e) => e.stopPropagation());
@@ -38,68 +104,118 @@
       if (host && this.root.parentElement !== host) host.append(this.root);
       this.root.hidden = !this.ctl.store.state || !Modes.edit;
     }
-    button(label, action, active = false) {
+    button(name, label, action, active = false) {
       const b = document.createElement("button");
       b.type = "button";
-      b.textContent = label;
       b.title = label;
+      b.setAttribute("aria-label", label);
       b.classList.toggle("active", active);
       b.setAttribute("aria-pressed", String(active));
+      b.append(icon(name));
       b.onclick = action;
       return b;
+    }
+    divider(parent) {
+      const d = document.createElement("span");
+      d.className = "city_dock_sep";
+      parent.append(d);
+    }
+    group(buttons, parent) {
+      parent.append(...buttons);
     }
     update() {
       this.attach();
       const c = this.ctl;
-      const active = c.landscapeTool.active ? "landscape" : c.districtTool.active ? "zoning" : "none";
-      const signature = JSON.stringify([active, c.landscape, c.district, this.collapsed, c.busy]);
+      const active = c.activeTool();
+      const signature = JSON.stringify([active, c.landscape, c.district, c.roadType, c.roundabout, c.roadEditor.profileChoices(), this.collapsed, c.busy]);
       if (signature === this.last) return;
       this.last = signature;
       this.tools.replaceChildren();
       this.options.replaceChildren();
-      this.tools.append(this.button(this.collapsed ? "City tools \u25B4" : "\u25BE", () => {
+      this.tools.append(this.button(this.collapsed ? "chevron_up" : "chevron_down", this.collapsed ? "Show city tools" : "Hide city tools", () => {
         this.collapsed = !this.collapsed;
         this.update();
       }));
       if (this.collapsed) return;
-      this.tools.append(this.button("Select", () => {
-        BarItems.move_tool.select();
+      this.group([this.button("select", "Select (back to the normal tools)", () => {
+        c.deselectTools();
         this.last = "";
         this.update();
-      }, active === "none"));
-      for (const [id, label2] of [["raise", "Raise"], ["lower", "Lower"], ["smooth", "Smooth"], ["flatten", "Flatten"], ["level", "Level"], ["surface", "Biome"]])
-        this.tools.append(this.button(label2, () => c.pickLandscape(id), active === "landscape" && c.landscape.mode === id));
-      this.tools.append(this.button("District", () => c.pickDistrictMode("brush"), active === "zoning"));
-      this.tools.append(this.button("Road", () => c.drawRoads()));
+      }, active === "none")], this.tools);
+      this.divider(this.tools);
+      this.group(LANDSCAPE.map(([mode, name, label]) => this.button(name, label, () => c.pickLandscape(mode), active === "landscape" && c.landscape.mode === mode)), this.tools);
+      this.divider(this.tools);
+      this.group([this.button("district", "Zone districts", () => c.pickDistrictMode("brush"), active === "zoning")], this.tools);
+      this.divider(this.tools);
+      const roadTools = [
+        { id: "draw", icon: "road", label: "Draw roads (Roadscape)", isActive: () => false, run: (k) => k.drawRoads() },
+        { id: "roundabout", icon: "roundabout", label: "Roundabout: click a junction", isActive: (_k, a) => a === "roundabout", run: (k) => k.pickRoundabout() },
+        { id: "roadtype", icon: "roadtype", label: "Road type: paint bridges, tunnels and road profiles", isActive: (_k, a) => a === "roadtype", run: (k) => k.pickRoadType(k.roadType.mode) }
+      ];
+      this.group(roadTools.map((t) => this.button(t.icon, t.label, () => t.run(c), t.isActive(c, active))), this.tools);
       if (active === "none") return;
+      if (active === "roadtype") this.roadTypeOptions();
+      else if (active === "roundabout") this.roundaboutOptions();
+      else this.paintOptions(active);
+    }
+    slider(label, unit, min, max, value, change) {
+      const input = document.createElement("input");
+      input.type = "range";
+      input.min = String(min);
+      input.max = String(max);
+      input.step = "1";
+      input.value = String(value);
+      input.setAttribute("aria-label", label);
+      const text = document.createElement("label");
+      text.title = label;
+      text.append(`${label} ${value} ${unit} `, input);
+      input.onchange = () => change(Number(input.value));
+      return text;
+    }
+    select(label, entries, value, change) {
       const select = document.createElement("select");
-      select.setAttribute("aria-label", active === "zoning" ? "District" : "Brush shape");
-      if (active === "zoning") {
-        for (const d of c.districts) select.add(new Option(d.label, String(d.id)));
-        select.value = String(c.district.id);
-        select.onchange = () => c.pickDistrictType(Number(select.value));
-        this.options.append(select, this.button("Erase", () => c.pickDistrictMode("erase"), c.district.mode === "erase"));
+      select.setAttribute("aria-label", label);
+      select.title = label;
+      for (const [id, name] of entries) select.add(new Option(name, id));
+      select.value = value;
+      select.onchange = () => change(select.value);
+      return select;
+    }
+    roadTypeOptions() {
+      const c = this.ctl;
+      const m = c.roadType;
+      this.group(PAINT_MODES.map(([mode, name, label]) => this.button(name, label, () => c.pickRoadType(mode), m.mode === mode)), this.options);
+      this.divider(this.options);
+      this.group(STRUCTURES.map(([id, name, label]) => this.button(name, label, () => c.setRoadType("structure", id), m.structure === id)), this.options);
+      const profiles = [["", "Keep road profile"], ...c.roadEditor.profileChoices().map((p) => [p.id, p.name])];
+      this.options.append(this.select("Road profile to paint", profiles, m.profile, (v) => c.setRoadType("profile", v)));
+      if (m.mode === "brush") this.options.append(this.slider("Radius", "m", 2, 200, m.radius, (v) => c.setRoadType("radius", v)));
+    }
+    roundaboutOptions() {
+      const c = this.ctl;
+      this.options.append(this.slider("Radius", "m", 8, 120, c.roundabout.radius, (v) => c.setRoundabout("radius", v)));
+      this.group(
+        [
+          this.button("hand_right", "Drive on the right (counter-clockwise)", () => c.setRoundabout("hand", "right"), c.roundabout.hand === "right"),
+          this.button("hand_left", "Drive on the left (clockwise)", () => c.setRoundabout("hand", "left"), c.roundabout.hand === "left")
+        ],
+        this.options
+      );
+      const profiles = [["", "Ring profile: automatic"], ...c.roadEditor.profileChoices().map((p) => [p.id, p.name])];
+      this.options.append(this.select("Ring road profile", profiles, c.roundabout.profile, (v) => c.setRoundabout("profile", v)));
+    }
+    paintOptions(active) {
+      const c = this.ctl;
+      const zoning = active === "zoning";
+      if (zoning) {
+        this.options.append(this.select("District", c.districts.map((d) => [String(d.id), d.label]), String(c.district.id), (v) => c.pickDistrictType(Number(v))));
+        this.options.append(this.button("erase", "Erase districts", () => c.pickDistrictMode("erase"), c.district.mode === "erase"));
       } else if (c.landscape.mode === "surface") {
-        select.setAttribute("aria-label", "Biome");
-        for (const s of c.surfaces) select.add(new Option(s.label, String(s.id)));
-        select.add(new Option("Automatic", "0"));
-        select.value = String(c.landscape.surface);
-        select.onchange = () => c.setLandscape("surface", Number(select.value));
-        this.options.append(select);
+        const entries = [...c.surfaces.map((s) => [String(s.id), s.label]), ["0", "Automatic"]];
+        this.options.append(this.select("Surface", entries, String(c.landscape.surface), (v) => c.setLandscape("surface", Number(v))));
       }
-      const radius = document.createElement("input");
-      radius.type = "range";
-      radius.min = "4";
-      radius.max = "300";
-      radius.step = "1";
-      radius.setAttribute("aria-label", "Brush radius");
-      radius.value = String(active === "zoning" ? c.district.radius : c.landscape.brush.radius);
-      const label = document.createElement("label");
-      label.textContent = `Radius ${radius.value} m `;
-      label.append(radius);
-      radius.onchange = () => active === "zoning" ? c.setDistrict("radius", Number(radius.value)) : c.setLandscape("brush.radius", Number(radius.value));
-      this.options.append(label);
-      if (active === "landscape" && c.landscape.mode !== "surface") {
+      this.options.append(this.slider("Radius", "m", 4, 300, zoning ? c.district.radius : c.landscape.brush.radius, (v) => zoning ? c.setDistrict("radius", v) : c.setLandscape("brush.radius", v)));
+      if (!zoning && c.landscape.mode !== "surface") {
         const strength = document.createElement("input");
         strength.type = "number";
         strength.min = ".02";
@@ -107,11 +223,9 @@
         strength.step = ".02";
         strength.value = String(c.landscape.brush.strength);
         strength.setAttribute("aria-label", "Brush strength");
+        strength.title = "Brush strength";
         strength.onchange = () => c.setLandscape("brush.strength", Math.max(0.02, Math.min(1, Number(strength.value) || 0.02)));
-        const l = document.createElement("label");
-        l.textContent = "Strength ";
-        l.append(strength);
-        this.options.append(l);
+        this.options.append(strength);
       }
     }
     dispose() {
@@ -120,7 +234,7 @@
       this.root.remove();
     }
   };
-  var BRUSH_DOCK_CSS = `.city_brush_dock{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:12;width:max-content;max-width:calc(100% - 32px);padding:6px;background:var(--color-back);color:var(--color-text);border:1px solid var(--color-border);border-radius:12px;box-shadow:0 4px 20px #0006;pointer-events:auto}.city_brush_dock[hidden]{display:none}.city_brush_dock>div{display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap}.city_brush_dock>div+div:not(:empty){margin-top:6px}.city_brush_dock button{min-width:0;min-height:0;height:auto;line-height:24px;font-size:12px;padding:3px 9px;border-radius:6px}.city_brush_dock button.active{background:var(--color-accent);color:var(--color-accent_text)}.city_brush_dock input[type=range]{width:100px;vertical-align:middle}.city_brush_dock input[type=number]{width:60px}.city_brush_dock select{max-width:160px}`;
+  var BRUSH_DOCK_CSS = `.city_brush_dock{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:12;width:max-content;max-width:calc(100% - 32px);padding:6px;background:var(--color-back);color:var(--color-text);border:1px solid var(--color-border);border-radius:12px;box-shadow:0 4px 20px #0006;pointer-events:auto}.city_brush_dock[hidden]{display:none}.city_brush_dock>div{display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap}.city_brush_dock>div+div:not(:empty){margin-top:6px}.city_brush_dock button{min-width:0;min-height:0;width:32px;height:32px;padding:0;border-radius:6px;display:inline-flex;align-items:center;justify-content:center}.city_brush_dock button svg{display:block;pointer-events:none}.city_brush_dock button.active{background:var(--color-accent);color:var(--color-accent_text)}.city_dock_sep{width:1px;height:22px;background:var(--color-border);margin:0 3px}.city_brush_dock label{font-size:12px;white-space:nowrap}.city_brush_dock input[type=range]{width:100px;vertical-align:middle}.city_brush_dock input[type=number]{width:60px}.city_brush_dock select{max-width:170px}`;
 
   // plugins/roadscape/src/core/model.ts
   function edgeKey(a, b) {
@@ -576,8 +690,8 @@
         tangent = sub(this.pointAt(Math.min(1, t + 0.02)), this.pointAt(Math.max(0, t - 0.02)));
         forward = flatDirection(tangent) ?? [0, 0, 1];
       }
-      const horizontal = Math.hypot(tangent[0], tangent[2]) || 1;
-      return { position, forward, right: rightOf(forward), slope: tangent[1] / horizontal };
+      const horizontal2 = Math.hypot(tangent[0], tangent[2]) || 1;
+      return { position, forward, right: rightOf(forward), slope: tangent[1] / horizontal2 };
     }
     /** Unit tangent leaving the start (`end` false) or arriving at the end (`end` true). */
     endTangent(end) {
@@ -674,6 +788,10 @@
     network.segments.set(key, segment);
     return segment;
   }
+  function removeNode(network, id) {
+    for (const [key, s] of [...network.segments]) if (s.a === id || s.b === id) network.segments.delete(key);
+    network.nodes.delete(id);
+  }
   function resolveProfileData(network, id) {
     const profile = network.profiles.get(id) ?? builtinProfile(id) ?? builtinProfile(network.settings.defaultProfile) ?? builtinProfile("street");
     if (!profile) throw new Error("No road profile available.");
@@ -736,6 +854,10 @@
     const ha = handleAt(network, index, segment, segment.a);
     const hb = handleAt(network, index, segment, segment.b);
     return new RoadCurve(a.position, [a.position[0] + ha[0], a.position[1] + ha[1], a.position[2] + ha[2]], [b.position[0] + hb[0], b.position[1] + hb[1], b.position[2] + hb[2]], b.position);
+  }
+  function freezeHandles(network, index, segment) {
+    if (!segment.handleA) segment.handleA = handleAt(network, index, segment, segment.a);
+    if (!segment.handleB) segment.handleB = handleAt(network, index, segment, segment.b);
   }
   function renameNodes(network, map) {
     const result = { nodes: /* @__PURE__ */ new Map(), segments: /* @__PURE__ */ new Map(), settings: network.settings, profiles: network.profiles };
@@ -858,34 +980,662 @@
     return sum / norm2;
   }
 
-  // plugins/citybuilder/src/core/city/layout.ts
-  var DEFAULT_LAYOUT = { kind: "organic", seed: 1, blocks: 4, coverage: 0.65, rotation: 0, profile: "street", elevation: 0.2, zone: true, district: 2, zoneDepth: 32 };
-  function generateLayout(hf, waterLevel, unit, options) {
-    const blocks = Math.max(2, Math.min(10, Math.round(options.blocks))), coverage = Math.max(0.1, Math.min(0.85, options.coverage));
-    const angle = options.rotation * Math.PI / 180;
-    const width = Math.min(hf.width, hf.depth) * coverage / (Math.abs(Math.cos(angle)) + Math.abs(Math.sin(angle)));
-    const network = createNetwork({ unitsPerMeter: unit, defaultProfile: options.profile, seed: options.seed });
-    const rng = new Rng(options.seed);
-    const point = (id, x, z) => {
-      const xx = x * Math.cos(angle) - z * Math.sin(angle), zz = x * Math.sin(angle) + z * Math.cos(angle);
-      const y = Math.max(hf.sample(xx, zz), waterLevel + 1.5) + options.elevation;
-      addNode(network, id, [xx * unit, y * unit, zz * unit]);
+  // plugins/citybuilder/src/core/layout/circuit.ts
+  function circuitPoints(width, count, seed) {
+    const points = [];
+    for (let i = 0; i < count; i++) {
+      const t = i / count * Math.PI * 2;
+      const radius = 1 + 0.08 * Math.sin(t * 3 + seed) + 0.04 * Math.sin(t * 5 + seed * 1.7);
+      points.push([Math.cos(t) * width * 0.48 * radius, Math.sin(t) * width * 0.32 * radius]);
+    }
+    return points;
+  }
+
+  // plugins/citybuilder/src/core/layout/graph.ts
+  function pointToSegment(px, pz, a, b) {
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const l2 = dx * dx + dz * dz;
+    const t = l2 < 1e-12 ? 0 : Math.max(0, Math.min(1, ((px - a[0]) * dx + (pz - a[1]) * dz) / l2));
+    const x = a[0] + dx * t;
+    const z = a[1] + dz * t;
+    return { t, x, z, d: Math.hypot(px - x, pz - z) };
+  }
+  function simplifyLine(points, tolerance) {
+    if (points.length <= 2) return points.slice();
+    const keep = new Array(points.length).fill(false);
+    keep[0] = keep[points.length - 1] = true;
+    const stack = [[0, points.length - 1]];
+    while (stack.length > 0) {
+      const [lo, hi] = stack.pop();
+      let far = -1;
+      let farD = tolerance;
+      for (let i = lo + 1; i < hi; i++) {
+        const d = pointToSegment(points[i][0], points[i][1], points[lo], points[hi]).d;
+        if (d > farD) {
+          far = i;
+          farD = d;
+        }
+      }
+      if (far >= 0) {
+        keep[far] = true;
+        stack.push([lo, far], [far, hi]);
+      }
+    }
+    return points.filter((_, i) => keep[i]);
+  }
+  function crossing(a, b, c, d) {
+    const rx = b[0] - a[0];
+    const rz = b[1] - a[1];
+    const sx = d[0] - c[0];
+    const sz = d[1] - c[1];
+    const denom = rx * sz - rz * sx;
+    if (Math.abs(denom) < 1e-9) return null;
+    const t = ((c[0] - a[0]) * sz - (c[1] - a[1]) * sx) / denom;
+    const u = ((c[0] - a[0]) * rz - (c[1] - a[1]) * rx) / denom;
+    return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? { t, u } : null;
+  }
+  function buildGraph(lines, options) {
+    const thin = lines.map((l) => simplifyLine(l.points, options.simplify));
+    const pieces = [];
+    const owner = thin.map(() => []);
+    thin.forEach((points, line) => {
+      for (let i = 0; i + 1 < points.length; i++) {
+        owner[line].push(pieces.length);
+        pieces.push({ line, a: points[i], b: points[i + 1], cuts: [] });
+      }
+    });
+    const cell = Math.max(options.snap * 2, 30);
+    const buckets = /* @__PURE__ */ new Map();
+    const bucketKeys = (a, b, pad) => {
+      const keys = [];
+      const x0 = Math.floor((Math.min(a[0], b[0]) - pad) / cell);
+      const x1 = Math.floor((Math.max(a[0], b[0]) + pad) / cell);
+      const z0 = Math.floor((Math.min(a[1], b[1]) - pad) / cell);
+      const z1 = Math.floor((Math.max(a[1], b[1]) + pad) / cell);
+      for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) keys.push(`${x},${z}`);
+      return keys;
     };
-    if (options.kind === "circuit") {
-      const count = blocks * 8;
-      for (let i = 0; i < count; i++) {
-        const t = i / count * Math.PI * 2;
-        const radius = 1 + 0.08 * Math.sin(t * 3 + options.seed);
-        point(`p${i}`, Math.cos(t) * width * 0.48 * radius, Math.sin(t) * width * 0.32 * radius);
+    const index = () => {
+      buckets.clear();
+      pieces.forEach((p, i) => {
+        for (const k of bucketKeys(p.a, p.b, 0)) {
+          const list = buckets.get(k);
+          if (list) list.push(i);
+          else buckets.set(k, [i]);
+        }
+      });
+    };
+    const nearby = (a, b, pad) => {
+      const found = /* @__PURE__ */ new Set();
+      for (const k of bucketKeys(a, b, pad)) for (const i of buckets.get(k) ?? []) found.add(i);
+      return found;
+    };
+    index();
+    thin.forEach((points, line) => {
+      for (const end of [0, points.length - 1]) {
+        const p = points[end];
+        const ownPiece = end === 0 ? owner[line][0] : owner[line][owner[line].length - 1];
+        let best = null;
+        for (const i of nearby(p, p, options.snap)) {
+          if (i === ownPiece) continue;
+          if (pieces[i].line === line && Math.abs(owner[line].indexOf(i) - owner[line].indexOf(ownPiece)) < 3) continue;
+          const r = pointToSegment(p[0], p[1], pieces[i].a, pieces[i].b);
+          if (r.d <= options.snap && (!best || r.d < best.d)) best = { piece: i, ...r };
+        }
+        if (best) {
+          points[end] = [best.x, best.z];
+          const own = pieces[ownPiece];
+          if (end === 0) own.a = points[0];
+          else own.b = points[points.length - 1];
+          pieces[best.piece].cuts.push({ t: best.t, x: best.x, z: best.z });
+        }
       }
-      for (let i = 0; i < count; i++) addSegment(network, `p${i}`, `p${(i + 1) % count}`);
+    });
+    index();
+    for (let i = 0; i < pieces.length; i++) {
+      for (const j of nearby(pieces[i].a, pieces[i].b, 0)) {
+        if (j <= i || pieces[j].line === pieces[i].line) continue;
+        const hit = crossing(pieces[i].a, pieces[i].b, pieces[j].a, pieces[j].b);
+        if (!hit) continue;
+        const x = pieces[i].a[0] + (pieces[i].b[0] - pieces[i].a[0]) * hit.t;
+        const z = pieces[i].a[1] + (pieces[i].b[1] - pieces[i].a[1]) * hit.t;
+        pieces[i].cuts.push({ t: hit.t, x, z });
+        pieces[j].cuts.push({ t: hit.u, x, z });
+      }
+    }
+    const nodes = /* @__PURE__ */ new Map();
+    const nodeCells = /* @__PURE__ */ new Map();
+    const tolerance = Math.max(1.5, options.snap * 0.25);
+    const nodeAt = (x, z) => {
+      const cx = Math.floor(x / tolerance);
+      const cz = Math.floor(z / tolerance);
+      for (let i = -1; i <= 1; i++) {
+        for (let j = -1; j <= 1; j++) {
+          for (const id2 of nodeCells.get(`${cx + i},${cz + j}`) ?? []) {
+            const n = nodes.get(id2);
+            if (Math.hypot(n.x - x, n.z - z) <= tolerance) return id2;
+          }
+        }
+      }
+      const id = nodes.size;
+      nodes.set(id, { id, x, z });
+      const key = `${cx},${cz}`;
+      const list = nodeCells.get(key);
+      if (list) list.push(id);
+      else nodeCells.set(key, [id]);
+      return id;
+    };
+    const edges = /* @__PURE__ */ new Map();
+    const addEdge = (a, b, rank) => {
+      if (a === b) return;
+      const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+      const existing = edges.get(key);
+      if (existing) {
+        if (rank === "main") existing.rank = "main";
+      } else edges.set(key, { a, b, rank });
+    };
+    for (const piece of pieces) {
+      const rank = lines[piece.line].rank;
+      const stops = [{ t: 0, x: piece.a[0], z: piece.a[1] }, ...piece.cuts.slice().sort((p, q) => p.t - q.t), { t: 1, x: piece.b[0], z: piece.b[1] }];
+      let previous = nodeAt(stops[0].x, stops[0].z);
+      for (let i = 1; i < stops.length; i++) {
+        const id = nodeAt(stops[i].x, stops[i].z);
+        addEdge(previous, id, rank);
+        previous = id;
+      }
+    }
+    const graph = { nodes, edges: [...edges.values()] };
+    mergeShortEdges(graph, options.minEdge);
+    pruneSpurs(graph, options.spur);
+    keepLargest(graph);
+    return graph;
+  }
+  function lengthOf(g, e) {
+    const a = g.nodes.get(e.a);
+    const b = g.nodes.get(e.b);
+    return Math.hypot(a.x - b.x, a.z - b.z);
+  }
+  function dedupe(g) {
+    const seen = /* @__PURE__ */ new Map();
+    for (const e of g.edges) {
+      if (e.a === e.b) continue;
+      const key = e.a < e.b ? `${e.a}:${e.b}` : `${e.b}:${e.a}`;
+      const old = seen.get(key);
+      if (old) {
+        if (e.rank === "main") old.rank = "main";
+      } else seen.set(key, e);
+    }
+    g.edges = [...seen.values()];
+  }
+  function mergeShortEdges(g, minEdge) {
+    for (let pass = 0; pass < 50; pass++) {
+      const short = g.edges.find((e) => lengthOf(g, e) < minEdge);
+      if (!short) break;
+      const keep = g.nodes.get(short.a);
+      const drop = g.nodes.get(short.b);
+      keep.x = (keep.x + drop.x) / 2;
+      keep.z = (keep.z + drop.z) / 2;
+      for (const e of g.edges) {
+        if (e.a === drop.id) e.a = keep.id;
+        if (e.b === drop.id) e.b = keep.id;
+      }
+      g.nodes.delete(drop.id);
+      dedupe(g);
+    }
+  }
+  function degrees(g) {
+    const d = /* @__PURE__ */ new Map();
+    for (const e of g.edges) {
+      d.set(e.a, (d.get(e.a) ?? 0) + 1);
+      d.set(e.b, (d.get(e.b) ?? 0) + 1);
+    }
+    return d;
+  }
+  function pruneSpurs(g, spur) {
+    for (let pass = 0; pass < 8; pass++) {
+      const deg = degrees(g);
+      const before = g.edges.length;
+      g.edges = g.edges.filter((e) => !(((deg.get(e.a) ?? 0) === 1 || (deg.get(e.b) ?? 0) === 1) && lengthOf(g, e) < spur));
+      if (g.edges.length === before) break;
+    }
+    const used = new Set(g.edges.flatMap((e) => [e.a, e.b]));
+    for (const id of [...g.nodes.keys()]) if (!used.has(id)) g.nodes.delete(id);
+  }
+  function keepLargest(g) {
+    const parent = new Map([...g.nodes.keys()].map((id) => [id, id]));
+    const find = (x) => {
+      let r = x;
+      while (parent.get(r) !== r) r = parent.get(r);
+      parent.set(x, r);
+      return r;
+    };
+    for (const e of g.edges) parent.set(find(e.a), find(e.b));
+    const size = /* @__PURE__ */ new Map();
+    for (const e of g.edges) size.set(find(e.a), (size.get(find(e.a)) ?? 0) + 1);
+    let best = -1;
+    let bestSize = 0;
+    for (const [root, n] of size) {
+      if (n > bestSize) {
+        best = root;
+        bestSize = n;
+      }
+    }
+    g.edges = g.edges.filter((e) => find(e.a) === best);
+    const used = new Set(g.edges.flatMap((e) => [e.a, e.b]));
+    for (const id of [...g.nodes.keys()]) if (!used.has(id)) g.nodes.delete(id);
+  }
+
+  // plugins/citybuilder/src/core/layout/spatial.ts
+  var SpatialHash = class {
+    constructor(cell) {
+      __publicField(this, "cell", cell);
+      __publicField(this, "cells", /* @__PURE__ */ new Map());
+    }
+    key(cx, cz) {
+      return (cx + 32768) * 65536 + (cz + 32768);
+    }
+    add(p) {
+      const k = this.key(Math.floor(p.x / this.cell), Math.floor(p.z / this.cell));
+      const list = this.cells.get(k);
+      if (list) list.push(p);
+      else this.cells.set(k, [p]);
+    }
+    /** The closest sample within `radius`, optionally skipping some. */
+    nearest(x, z, radius, skip) {
+      const span = Math.ceil(radius / this.cell);
+      const cx = Math.floor(x / this.cell);
+      const cz = Math.floor(z / this.cell);
+      let best = null;
+      let bestD = radius * radius;
+      for (let i = -span; i <= span; i++) {
+        for (let j = -span; j <= span; j++) {
+          const list = this.cells.get(this.key(cx + i, cz + j));
+          if (!list) continue;
+          for (const p of list) {
+            const d = (p.x - x) ** 2 + (p.z - z) ** 2;
+            if (d < bestD && !(skip && skip(p))) {
+              bestD = d;
+              best = p;
+            }
+          }
+        }
+      }
+      return best;
+    }
+  };
+
+  // plugins/citybuilder/src/core/layout/streamlines.ts
+  var MAX_LINES = 900;
+  function dot(a, b) {
+    return a[0] * b[0] + a[1] * b[1];
+  }
+  var StreamlineTracer = class {
+    constructor(field, allowed, bounds, rng, step) {
+      __publicField(this, "field", field);
+      __publicField(this, "allowed", allowed);
+      __publicField(this, "bounds", bounds);
+      __publicField(this, "rng", rng);
+      __publicField(this, "step", step);
+      __publicField(this, "lines", []);
+      __publicField(this, "hashes");
+      this.hashes = [new SpatialHash(step * 4), new SpatialHash(step * 4)];
+    }
+    direction(s, dir) {
+      return dir === 0 ? s.major : s.minor;
+    }
+    heading(x, z, dir, previous) {
+      const s = this.field.sample(x, z);
+      if (!s) return null;
+      const v = this.direction(s, dir);
+      return previous && dot(v, previous) < 0 ? [-v[0], -v[1]] : v;
+    }
+    /** One Runge–Kutta step along the field. */
+    advance(p, dir, previous) {
+      const h = this.step;
+      const k1 = this.heading(p[0], p[1], dir, previous);
+      if (!k1) return null;
+      const k2 = this.heading(p[0] + k1[0] * h / 2, p[1] + k1[1] * h / 2, dir, k1);
+      const k3 = k2 && this.heading(p[0] + k2[0] * h / 2, p[1] + k2[1] * h / 2, dir, k2);
+      const k4 = k3 && this.heading(p[0] + k3[0] * h, p[1] + k3[1] * h, dir, k3);
+      if (!k2 || !k3 || !k4) return k1;
+      const dx = k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0];
+      const dz = k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1];
+      const l = Math.hypot(dx, dz) || 1;
+      return [dx / l, dz / l];
+    }
+    /** Free to start a street here: on allowed ground and clear of streets of the same direction. */
+    valid(x, z, dir, spacing) {
+      if (!this.allowed(x, z) || !this.field.sample(x, z)) return false;
+      return this.hashes[dir].nearest(x, z, spacing) === null;
+    }
+    /** Grows a street from a seed one way. Returns the points after the seed and why it stopped. */
+    walk(seed, dir, sign, pass) {
+      const points = [];
+      const first = this.field.sample(seed[0], seed[1]);
+      if (!first) return { points, closed: false };
+      let heading = this.direction(first, dir);
+      heading = [heading[0] * sign, heading[1] * sign];
+      let p = seed;
+      const maxSteps = Math.ceil(pass.maxLength / this.step / 2);
+      const recent = Math.max(4, Math.ceil(2 * pass.spacing(seed[0], seed[1]) / this.step));
+      for (let n = 0; n < maxSteps; n++) {
+        const d = this.advance(p, dir, heading);
+        if (!d) break;
+        heading = d;
+        const q = [p[0] + d[0] * this.step, p[1] + d[1] * this.step];
+        if (!this.allowed(q[0], q[1])) break;
+        const test = pass.spacing(q[0], q[1]) * 0.5;
+        for (let i = 0; i < points.length - recent; i++) {
+          if ((points[i][0] - q[0]) ** 2 + (points[i][1] - q[1]) ** 2 < test * test) {
+            points.push(points[i]);
+            return { points, closed: true };
+          }
+        }
+        const hit = this.hashes[dir].nearest(q[0], q[1], test);
+        if (hit) {
+          const other = this.lines[hit.line];
+          const a = other.points[Math.max(0, hit.index - 1)];
+          const b = other.points[Math.min(other.points.length - 1, hit.index + 1)];
+          const along = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+          const cos = Math.abs(dot(d, [(b[0] - a[0]) / along, (b[1] - a[1]) / along]));
+          if (Math.acos(Math.min(1, cos)) >= pass.minJoinAngle) points.push([hit.x, hit.z]);
+          break;
+        }
+        points.push(q);
+        p = q;
+      }
+      return { points, closed: false };
+    }
+    trace(seed, pass) {
+      const forward = this.walk(seed, pass.dir, 1, pass);
+      const backward = forward.closed ? { points: [] } : this.walk(seed, pass.dir, -1, pass);
+      return [...backward.points.reverse(), seed, ...forward.points];
+    }
+    /** Runs one pass. Streets already traced (of any pass) keep new streets of the same direction apart. */
+    run(pass) {
+      const made = [];
+      const queue = [];
+      const b = this.bounds;
+      const grid = Math.max(pass.spacing((b.minX + b.maxX) / 2, (b.minZ + b.maxZ) / 2) * 1.6, this.step * 3);
+      const starts = [];
+      for (let x = b.minX; x <= b.maxX; x += grid) {
+        for (let z = b.minZ; z <= b.maxZ; z += grid) starts.push([x + this.rng.range(-0.4, 0.4) * grid, z + this.rng.range(-0.4, 0.4) * grid]);
+      }
+      for (let i = starts.length - 1; i > 0; i--) {
+        const j = this.rng.int(0, i);
+        [starts[i], starts[j]] = [starts[j], starts[i]];
+      }
+      queue.push(...starts);
+      let guard = 0;
+      while (queue.length > 0 && this.lines.length < MAX_LINES && guard++ < 2e4) {
+        const seed = queue.pop();
+        const spacing = pass.spacing(seed[0], seed[1]);
+        if (!this.valid(seed[0], seed[1], pass.dir, spacing)) continue;
+        const points = this.trace(seed, pass);
+        if ((points.length - 1) * this.step < pass.minLength) continue;
+        const line = { id: this.lines.length, dir: pass.dir, rank: pass.rank, points };
+        this.lines.push(line);
+        made.push(line);
+        points.forEach((pt, index) => this.hashes[pass.dir].add({ x: pt[0], z: pt[1], line: line.id, index }));
+        const every = Math.max(1, Math.round(spacing / this.step));
+        for (let i = 0; i < points.length; i += every) {
+          const s = this.field.sample(points[i][0], points[i][1]);
+          if (!s) continue;
+          const side = pass.dir === 0 ? s.minor : s.major;
+          const gap = pass.spacing(points[i][0], points[i][1]);
+          queue.push([points[i][0] + side[0] * gap, points[i][1] + side[1] * gap], [points[i][0] - side[0] * gap, points[i][1] - side[1] * gap]);
+        }
+      }
+      return made;
+    }
+  };
+
+  // plugins/citybuilder/src/core/layout/tensor.ts
+  function tensorOf(theta) {
+    return [Math.cos(2 * theta), Math.sin(2 * theta)];
+  }
+  function gridBasis(x, z, size, decay, theta, weight) {
+    const t = tensorOf(theta);
+    return {
+      at: (px, pz) => ({ weight: weight * Math.exp(-decay * ((px - x) ** 2 + (pz - z) ** 2) / (size * size)), tensor: t })
+    };
+  }
+  function radialBasis(x, z, size, decay, weight) {
+    return {
+      at: (px, pz) => {
+        const dx = px - x;
+        const dz = pz - z;
+        const d2 = dx * dx + dz * dz;
+        return { weight: weight * Math.exp(-decay * d2 / (size * size)), tensor: tensorOf(Math.atan2(dz, dx)) };
+      }
+    };
+  }
+  function valueNoise2(x, z, seed) {
+    const hash3 = (ix2, iz2) => {
+      let h = Math.imul(ix2, 374761393) ^ Math.imul(iz2, 668265263) ^ Math.imul(seed | 0, 2147483647);
+      h = Math.imul(h ^ h >>> 13, 1274126177);
+      return ((h ^ h >>> 16) >>> 0) / 4294967295 * 2 - 1;
+    };
+    const ix = Math.floor(x);
+    const iz = Math.floor(z);
+    const fx = x - ix;
+    const fz = z - iz;
+    const sx = fx * fx * (3 - 2 * fx);
+    const sz = fz * fz * (3 - 2 * fz);
+    const top = hash3(ix, iz) * (1 - sx) + hash3(ix + 1, iz) * sx;
+    const bottom = hash3(ix, iz + 1) * (1 - sx) + hash3(ix + 1, iz + 1) * sx;
+    return top * (1 - sz) + bottom * sz;
+  }
+  var TensorField = class {
+    constructor(seed) {
+      __publicField(this, "seed", seed);
+      __publicField(this, "bases", []);
+      /** Maximum extra rotation from noise, radians. */
+      __publicField(this, "noiseAngle", 0);
+      /** Size of the noise features, metres. */
+      __publicField(this, "noiseScale", 160);
+    }
+    add(basis) {
+      this.bases.push(basis);
+      return this;
+    }
+    /** Blended tensor, or null where no basis reaches. */
+    tensorAt(x, z) {
+      let a = 0;
+      let b = 0;
+      let total = 0;
+      for (const basis of this.bases) {
+        const r = basis.at(x, z);
+        if (r.weight < 1e-5) continue;
+        a += r.weight * r.tensor[0];
+        b += r.weight * r.tensor[1];
+        total += r.weight;
+      }
+      return total < 1e-4 ? null : { a, b, total };
+    }
+    sample(x, z) {
+      const t = this.tensorAt(x, z);
+      if (!t) return null;
+      const strength = Math.hypot(t.a, t.b) / t.total;
+      if (strength < 0.04) return null;
+      let theta = 0.5 * Math.atan2(t.b, t.a);
+      if (this.noiseAngle > 0) theta += valueNoise2(x / this.noiseScale, z / this.noiseScale, this.seed) * this.noiseAngle;
+      const major = [Math.cos(theta), Math.sin(theta)];
+      return { major, minor: [-major[1], major[0]], strength };
+    }
+  };
+
+  // plugins/citybuilder/src/core/layout/generate.ts
+  var DEFAULT_LAYOUT = {
+    kind: "organic",
+    seed: 1,
+    blockSize: 70,
+    coverage: 0.65,
+    rotation: 0,
+    centers: 3,
+    hierarchy: true,
+    terrainFollow: 0.6,
+    wiggle: 0.35,
+    maxSlope: 0.4,
+    profile: "street",
+    mainProfile: "avenue",
+    elevation: 0.2,
+    zone: true,
+    district: 2,
+    zoneDepth: 32
+  };
+  function clampNumber(n, lo, hi) {
+    return Math.max(lo, Math.min(hi, n));
+  }
+  function makeDomain(hf, waterLevel, region, options, angle, hubs, hole) {
+    const margin = hf.cellSize * 2;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    return (x, z) => {
+      if (x < hf.originX + margin || z < hf.originZ + margin || x > hf.originX + hf.width - margin || z > hf.originZ + hf.depth - margin) return false;
+      const dx = x - region.cx;
+      const dz = z - region.cz;
+      if (options.kind === "grid") {
+        const u = dx * cos + dz * sin;
+        const v = -dx * sin + dz * cos;
+        if (Math.abs(u) > region.radius || Math.abs(v) > region.radius * 0.9) return false;
+      } else {
+        const a = Math.atan2(dz, dx);
+        const bend = 1 + 0.16 * valueNoise2(Math.cos(a) * 1.3 + 4, Math.sin(a) * 1.3 + 4, options.seed + 7);
+        if (Math.hypot(dx, dz) > region.radius * bend) return false;
+      }
+      for (const h of hubs) if (Math.hypot(x - h[0], z - h[1]) < hole) return false;
+      return hf.sample(x, z) >= waterLevel + 1 && hf.slope(x, z) <= options.maxSlope;
+    };
+  }
+  function pickCenter(hf, waterLevel, radius, options) {
+    const mx = hf.originX + hf.width / 2;
+    const mz = hf.originZ + hf.depth / 2;
+    let best = [mx, mz];
+    let bestScore = -Infinity;
+    const reach = Math.min(hf.width, hf.depth) * 0.2;
+    for (let i = -2; i <= 2; i++) {
+      for (let j = -2; j <= 2; j++) {
+        const cx = mx + i / 2 * reach;
+        const cz = mz + j / 2 * reach;
+        let good = 0;
+        let total = 0;
+        for (let k = 0; k < 48; k++) {
+          const a = k / 48 * Math.PI * 2;
+          for (const f2 of [0.35, 0.75]) {
+            const x = cx + Math.cos(a) * radius * f2;
+            const z = cz + Math.sin(a) * radius * f2;
+            total++;
+            if (hf.containsWorld(x, z) && hf.sample(x, z) >= waterLevel + 1 && hf.slope(x, z) <= options.maxSlope) good++;
+          }
+        }
+        const score = good / total - Math.hypot(i, j) * 0.01;
+        if (score > bestScore) {
+          bestScore = score;
+          best = [cx, cz];
+        }
+      }
+    }
+    return best;
+  }
+  function contourBasis(hf, strength) {
+    const e = hf.cellSize * 1.5;
+    return {
+      at: (x, z) => {
+        const gx = (hf.sample(x + e, z) - hf.sample(x - e, z)) / (2 * e);
+        const gz = (hf.sample(x, z + e) - hf.sample(x, z - e)) / (2 * e);
+        const slope = Math.hypot(gx, gz);
+        return { weight: strength * 2.2 * smoothstep(0.04, 0.22, slope), tensor: tensorOf(Math.atan2(gx, -gz)) };
+      }
+    };
+  }
+  function buildField(hf, region, centers, options, rng) {
+    const field = new TensorField(options.seed);
+    const theta = options.rotation * Math.PI / 180;
+    const R = region.radius;
+    if (options.kind === "grid") {
+      field.add(gridBasis(region.cx, region.cz, R * 4, 0, theta, 1));
+      field.noiseAngle = options.wiggle * 0.25;
+    } else if (options.kind === "radial") {
+      field.add(radialBasis(region.cx, region.cz, R * 1.3, 0.7, 1));
+      field.add(gridBasis(region.cx, region.cz, R * 3, 0.2, theta, 0.3));
+      field.noiseAngle = options.wiggle * 0.3;
     } else {
-      const spacing = width / blocks, jitter = options.kind === "organic" ? spacing * 0.18 : 0;
-      for (let r = 0; r <= blocks; r++) for (let c = 0; c <= blocks; c++) point(`${c}:${r}`, -width / 2 + c * spacing + rng.range(-jitter, jitter), -width / 2 + r * spacing + rng.range(-jitter, jitter));
-      for (let r = 0; r <= blocks; r++) for (let c = 0; c <= blocks; c++) {
-        if (c < blocks) addSegment(network, `${c}:${r}`, `${c + 1}:${r}`);
-        if (r < blocks) addSegment(network, `${c}:${r}`, `${c}:${r + 1}`);
+      for (const c of centers) {
+        field.add(radialBasis(c[0], c[1], R * 0.45, 2, 1.3));
+        field.add(gridBasis(c[0], c[1], R * 0.75, 1, theta + rng.range(-Math.PI / 2, Math.PI / 2), 0.9));
       }
+      field.add(gridBasis(region.cx, region.cz, R * 5, 0, theta, 0.2));
+      field.noiseAngle = options.wiggle * 1.4;
+    }
+    field.noiseScale = Math.max(100, options.blockSize * 3);
+    if (options.terrainFollow > 0) field.add(contourBasis(hf, options.terrainFollow));
+    return field;
+  }
+  function generateLayout(hf, waterLevel, unit, options) {
+    const network = createNetwork({ unitsPerMeter: unit, defaultProfile: options.profile, seed: options.seed });
+    const coverage = clampNumber(options.coverage, 0.1, 0.9);
+    const angle = options.rotation * Math.PI / 180;
+    const rng = new Rng(options.seed);
+    const radius = Math.min(hf.width, hf.depth) * coverage / 2;
+    const lift = options.elevation;
+    const height = (x, z) => hf.sample(x, z) + lift;
+    if (options.kind === "circuit") {
+      const width = Math.min(hf.width, hf.depth) * coverage;
+      const mx = hf.originX + hf.width / 2;
+      const mz = hf.originZ + hf.depth / 2;
+      const points = circuitPoints(width, 40, options.seed);
+      points.forEach((p, i) => {
+        const x = mx + p[0] * Math.cos(angle) - p[1] * Math.sin(angle);
+        const z = mz + p[0] * Math.sin(angle) + p[1] * Math.cos(angle);
+        addNode(network, `p${i}`, [x * unit, Math.max(height(x, z), waterLevel + 1.5 + lift) * unit, z * unit]);
+      });
+      for (let i = 0; i < points.length; i++) addSegment(network, `p${i}`, `p${(i + 1) % points.length}`);
+      return network;
+    }
+    const centre = pickCenter(hf, waterLevel, radius, options);
+    const region = { cx: centre[0], cz: centre[1], radius };
+    const centers = [centre];
+    const wanted = clampNumber(Math.round(options.centers), 1, 5);
+    for (let tries = 0; centers.length < wanted && tries < 80; tries++) {
+      const a = rng.range(0, Math.PI * 2);
+      const d = rng.range(0.35, 0.7) * radius;
+      const c = [centre[0] + Math.cos(a) * d, centre[1] + Math.sin(a) * d];
+      if (centers.every((o) => Math.hypot(o[0] - c[0], o[1] - c[1]) > radius * 0.45)) centers.push(c);
+    }
+    const hubs = options.kind === "grid" ? [] : options.kind === "radial" ? [centre] : centers;
+    const domain = makeDomain(hf, waterLevel, region, options, angle, hubs, clampNumber(options.blockSize, 20, 400) * 0.55);
+    const field = buildField(hf, region, centers, options, rng);
+    const block = clampNumber(options.blockSize, 20, 400);
+    const step = clampNumber(block / 8, 3, 8);
+    const bounds = { minX: region.cx - radius * 1.2, maxX: region.cx + radius * 1.2, minZ: region.cz - radius * 1.2, maxZ: region.cz + radius * 1.2 };
+    const tracer = new StreamlineTracer(field, domain, bounds, rng, step);
+    const density = (x, z) => {
+      if (options.kind === "grid") return 1;
+      let nearest = Infinity;
+      for (const c of centers) nearest = Math.min(nearest, Math.hypot(x - c[0], z - c[1]));
+      return 0.75 + 0.5 * smoothstep(0, radius, nearest);
+    };
+    const passes = [];
+    if (options.hierarchy) {
+      const main = (x, z) => block * 3.2 * density(x, z);
+      for (const dir of [0, 1]) passes.push({ dir, rank: "main", spacing: main, minLength: block * 2.5, maxLength: radius * 6, minJoinAngle: 0.5 });
+    }
+    const local = (x, z) => block * density(x, z);
+    for (const dir of [0, 1]) passes.push({ dir, rank: "street", spacing: local, minLength: block * 1.2, maxLength: radius * 6, minJoinAngle: 0.45 });
+    const lines = [];
+    for (const pass of passes) lines.push(...tracer.run(pass));
+    const graph = buildGraph(lines, { simplify: Math.max(1, step * 0.4), snap: block * 0.35, minEdge: block * 0.18, spur: block * 0.5 });
+    if (graph.edges.length === 0) throw new Error("There is no flat dry ground to lay streets on. Lower the water level, raise the coverage or flatten some land.");
+    const ids = /* @__PURE__ */ new Map();
+    for (const n of graph.nodes.values()) {
+      const id = `n${n.id}`;
+      ids.set(n.id, id);
+      addNode(network, id, [n.x * unit, height(n.x, n.z) * unit, n.z * unit]);
+    }
+    for (const e of graph.edges) {
+      addSegment(network, ids.get(e.a), ids.get(e.b), { profile: e.rank === "main" ? options.mainProfile : options.profile, smooth: options.kind !== "grid" });
     }
     return network;
   }
@@ -1018,13 +1768,18 @@
   function layoutDialog(ctl) {
     const profiles = Object.fromEntries(BUILTIN_PROFILES.map((p) => [p.id, p.name]));
     new Dialog({ id: "citybuilder_layout", title: "Generate editable layout", form: {
-      info: { type: "info", text: "Adds a new editable Roadscape network. Existing roads, terrain and zoning are retained. Move control points and handles afterward to shape your streets, ramps or circuit." },
-      kind: { label: "Layout", type: "select", options: { grid: "Grid streets", organic: "Organic streets", circuit: "Closed circuit" }, value: "organic" },
+      info: { type: "info", text: "Grows a new editable Roadscape network with a tensor-field street generator: main roads first, then streets that follow the land and avoid water and steep ground. Existing roads, terrain and zoning are retained. Move control points and handles afterwards." },
+      kind: { label: "Layout", type: "select", options: { organic: "Organic city (growth around centres)", grid: "Grid city", radial: "Radial city (rings and spokes)", circuit: "Closed circuit (race track)" }, value: "organic" },
       seed: { label: "Seed", type: "number", value: ctl.store.state?.settings.seed ?? 1, min: 0, max: 999999 },
-      blocks: { label: "Blocks / circuit detail", type: "number", value: 4, min: 2, max: 10, step: 1 },
-      coverage: { label: "Map coverage", type: "number", value: 0.65, min: 0.1, max: 0.85, step: 0.05 },
+      blockSize: { label: "Block size (m)", type: "number", value: DEFAULT_LAYOUT.blockSize, min: 30, max: 300, step: 5 },
+      coverage: { label: "Map coverage", type: "number", value: DEFAULT_LAYOUT.coverage, min: 0.1, max: 0.9, step: 0.05 },
+      centers: { label: "City centres (organic)", type: "number", value: DEFAULT_LAYOUT.centers, min: 1, max: 5, step: 1 },
+      hierarchy: { label: "Main roads first", type: "checkbox", value: true },
+      terrainFollow: { label: "Follow hillsides (0\u20131)", type: "number", value: DEFAULT_LAYOUT.terrainFollow, min: 0, max: 1, step: 0.1 },
+      wiggle: { label: "Street bend (0\u20131)", type: "number", value: DEFAULT_LAYOUT.wiggle, min: 0, max: 1, step: 0.05 },
       rotation: { label: "Rotation (degrees)", type: "number", value: 0, min: -180, max: 180 },
-      profile: { label: "Road profile", type: "select", options: profiles, value: "street" },
+      profile: { label: "Street profile", type: "select", options: profiles, value: "street" },
+      mainProfile: { label: "Main road profile", type: "select", options: profiles, value: "avenue" },
       elevation: { label: "Elevation above land (m)", type: "number", value: 0.2, min: -100, max: 200, step: 0.1 },
       zone: { label: "Zone beside new roads", type: "checkbox", value: true },
       district: { label: "District", type: "select", options: Object.fromEntries(ctl.districts.map((d) => [d.id, d.label])), value: String(ctl.district.id) },
@@ -1843,13 +2598,13 @@ Public License instead of this License.  But first, please read
   var add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
   var sub2 = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
   var scale2 = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
-  var dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  var dot2 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   var cross = (a, b) => [
     a[1] * b[2] - a[2] * b[1],
     a[2] * b[0] - a[0] * b[2],
     a[0] * b[1] - a[1] * b[0]
   ];
-  var length2 = (a) => Math.sqrt(dot(a, a));
+  var length2 = (a) => Math.sqrt(dot2(a, a));
   var lerp2 = (a, b, t) => a + (b - a) * t;
   var lerp3 = (a, b, t) => [
     lerp2(a[0], b[0], t),
@@ -1871,7 +2626,7 @@ Public License instead of this License.  But first, please read
     const k = normalize2(axis);
     const c = Math.cos(angle);
     const s = Math.sin(angle);
-    return add(add(scale2(v, c), scale2(cross(k, v), s)), scale2(k, dot(k, v) * (1 - c)));
+    return add(add(scale2(v, c), scale2(cross(k, v), s)), scale2(k, dot2(k, v) * (1 - c)));
   }
   function transportFrames(points) {
     const last = points.length - 1;
@@ -1886,7 +2641,7 @@ Public License instead of this License.  But first, please read
       if (i === 0) {
         u = perpendicular(direction);
       } else {
-        u = normalize2(sub2(previousU, scale2(direction, dot(previousU, direction))));
+        u = normalize2(sub2(previousU, scale2(direction, dot2(previousU, direction))));
       }
       previousU = u;
       frames.push({ u, v: cross(direction, u), direction });
@@ -2125,7 +2880,7 @@ Public License instead of this License.  But first, please read
     const axisV = cross(normal, axisU);
     const local = corners.map((p) => {
       const d = sub2(p, origin);
-      return [dot(d, axisU), dot(d, axisV)];
+      return [dot2(d, axisU), dot2(d, axisV)];
     });
     const minX = Math.min(...local.map((p) => p[0]));
     const maxX = Math.max(...local.map((p) => p[0]));
@@ -3469,6 +4224,27 @@ Public License instead of this License.  But first, please read
     hf.touch();
     return result;
   }
+  function conformDiscs(result, discs, settings) {
+    if (discs.length === 0) return result;
+    const hf = result.heights;
+    const blend = Math.max(1, hf.cellSize);
+    for (const disc of discs) {
+      const rect = hf.rectAround(disc.x, disc.z, disc.island + blend + hf.cellSize);
+      for (let r = rect.r0; r <= rect.r1; r++) {
+        for (let c = rect.c0; c <= rect.c1; c++) {
+          const idx = hf.index(c, r);
+          if (result.roadWeight[idx] >= 0.999) continue;
+          const d = Math.hypot(hf.worldX(c) - disc.x, hf.worldZ(r) - disc.z);
+          const w = (d <= disc.island ? 1 : 1 - smoothstep(0, blend, d - disc.island)) * (1 - result.roadWeight[idx]);
+          if (w <= 0) continue;
+          result.lotWeight[idx] = Math.max(result.lotWeight[idx], w);
+          hf.heights[idx] += (disc.y - settings.roadBed + 0.12 - hf.heights[idx]) * w;
+        }
+      }
+    }
+    hf.touch();
+    return result;
+  }
 
   // plugins/citybuilder/src/core/grid.ts
   var ByteGrid = class _ByteGrid {
@@ -3511,7 +4287,7 @@ Public License instead of this License.  But first, please read
       return total;
     }
   };
-  var SpatialHash = class {
+  var SpatialHash2 = class {
     constructor(cell) {
       __publicField(this, "cell", cell);
       __publicField(this, "buckets", /* @__PURE__ */ new Map());
@@ -3622,8 +4398,39 @@ Public License instead of this License.  But first, please read
     return Math.hypot(dx, dz);
   }
 
+  // plugins/citybuilder/src/core/water/settings.ts
+  var DEFAULT_WATER = {
+    show: true,
+    animate: true,
+    color: [0, 0.635, 0.639],
+    colorRatio: 0.35,
+    alphaScale: 0.8,
+    roughness: 0.2,
+    normal: 0.4,
+    timeScale: 1,
+    highlightsTimeScale: 0,
+    uvScale: 40,
+    normalBlend: 0.5,
+    highlightsBlend: 0.5,
+    depthDistance: 6,
+    foamIntensity: 0.5,
+    foamWidth: 0.6,
+    shoreFadeDistance: 1,
+    aberrationR: [0, 0],
+    aberrationG: [0, 0],
+    aberrationB: [0, 0]
+  };
+  function mergeWater(partial) {
+    return { ...DEFAULT_WATER, ...partial };
+  }
+
   // plugins/citybuilder/src/core/city/settings.ts
   var DEFAULT_CITY_SETTINGS = {
+    kind: "city",
+    features: { buildings: true, trees: true },
+    export: { terrain: true, buildings: true, trees: true },
+    water: { ...DEFAULT_WATER },
+    roundabouts: [],
     seed: 1,
     cols: 129,
     rows: 129,
@@ -3652,8 +4459,24 @@ Public License instead of this License.  But first, please read
       conform: { ...d.conform, ...p.conform },
       surface: { ...d.surface, ...p.surface },
       gameReady: { ...d.gameReady, ...p.gameReady },
-      sun: p.sun ?? d.sun
+      sun: p.sun ?? d.sun,
+      features: { ...d.features, ...p.features },
+      export: { ...d.export, ...p.export },
+      water: mergeWater(p.water),
+      roundabouts: (p.roundabouts ?? []).map((r) => ({ ...r }))
     };
+  }
+  function settingsForKind(settings, kind) {
+    const next = mergeSettings2(JSON.parse(JSON.stringify(settings)));
+    next.kind = kind;
+    next.features = { buildings: kind === "city", trees: kind !== "landscape" };
+    next.export = { terrain: true, buildings: kind === "city", trees: kind !== "landscape" };
+    if (kind === "track") {
+      next.development = 0;
+      next.treeScale = Math.min(next.treeScale, 0.6);
+      next.conform = { ...next.conform, roads: true, roadBlend: Math.max(next.conform.roadBlend, 10) };
+    }
+    return next;
   }
 
   // plugins/citybuilder/src/core/district/library.ts
@@ -3684,8 +4507,6 @@ Public License instead of this License.  But first, please read
       palettes: [0, 3, 6, 7, 10],
       treeDensity: 0.35,
       treeSpecies: TREES_TEMPERATE,
-      residentsPerM2: 0.022,
-      jobsPerM2: 0,
       buildable: true
     },
     {
@@ -3704,8 +4525,6 @@ Public License instead of this License.  But first, please read
       palettes: [0, 1, 2, 7, 10],
       treeDensity: 0.18,
       treeSpecies: TREES_TEMPERATE,
-      residentsPerM2: 0.026,
-      jobsPerM2: 2e-3,
       buildable: true
     },
     {
@@ -3724,8 +4543,6 @@ Public License instead of this License.  But first, please read
       palettes: [4, 5, 8, 9],
       treeDensity: 0.08,
       treeSpecies: TREES_TEMPERATE,
-      residentsPerM2: 0.03,
-      jobsPerM2: 3e-3,
       buildable: true
     },
     {
@@ -3744,8 +4561,6 @@ Public License instead of this License.  But first, please read
       palettes: [0, 1, 2, 6, 7, 10],
       treeDensity: 0.04,
       treeSpecies: TREES_TEMPERATE,
-      residentsPerM2: 6e-3,
-      jobsPerM2: 0.03,
       buildable: true
     },
     {
@@ -3764,8 +4579,6 @@ Public License instead of this License.  But first, please read
       palettes: [2, 4, 5, 8],
       treeDensity: 0.02,
       treeSpecies: TREES_TEMPERATE,
-      residentsPerM2: 4e-3,
-      jobsPerM2: 0.045,
       buildable: true
     },
     {
@@ -3784,8 +4597,6 @@ Public License instead of this License.  But first, please read
       palettes: [4, 5, 8, 9],
       treeDensity: 0.05,
       treeSpecies: TREES_TEMPERATE,
-      residentsPerM2: 0,
-      jobsPerM2: 0.06,
       buildable: true
     },
     {
@@ -3804,8 +4615,6 @@ Public License instead of this License.  But first, please read
       palettes: [4, 5, 8, 10],
       treeDensity: 0.03,
       treeSpecies: TREES_CONIFER,
-      residentsPerM2: 0,
-      jobsPerM2: 0.012,
       buildable: true
     },
     {
@@ -3824,8 +4633,6 @@ Public License instead of this License.  But first, please read
       palettes: [4, 5, 8],
       treeDensity: 0.01,
       treeSpecies: TREES_CONIFER,
-      residentsPerM2: 0,
-      jobsPerM2: 0.01,
       buildable: true
     },
     {
@@ -3844,8 +4651,6 @@ Public License instead of this License.  But first, please read
       palettes: [2, 6, 7],
       treeDensity: 0.25,
       treeSpecies: TREES_TEMPERATE,
-      residentsPerM2: 0,
-      jobsPerM2: 0.02,
       buildable: true
     },
     {
@@ -3864,8 +4669,6 @@ Public License instead of this License.  But first, please read
       palettes: [],
       treeDensity: 0.9,
       treeSpecies: TREES_TEMPERATE,
-      residentsPerM2: 0,
-      jobsPerM2: 0,
       buildable: false
     },
     {
@@ -3884,8 +4687,6 @@ Public License instead of this License.  But first, please read
       palettes: [],
       treeDensity: 2.2,
       treeSpecies: TREES_CONIFER,
-      residentsPerM2: 0,
-      jobsPerM2: 0,
       buildable: false
     },
     {
@@ -3904,8 +4705,6 @@ Public License instead of this License.  But first, please read
       palettes: [0, 1, 2, 6, 7, 10],
       treeDensity: 0.04,
       treeSpecies: TREES_TEMPERATE,
-      residentsPerM2: 0.02,
-      jobsPerM2: 0.02,
       buildable: true
     }
   ];
@@ -4523,7 +5322,8 @@ Public License instead of this License.  But first, please read
     return round(n, 3);
   }
   function buildManifest(plan, settings, meshNames, files) {
-    const prefabs = plan.prefabs.all().map((p) => ({
+    const include = settings.export;
+    const prefabs = (include.buildings ? plan.prefabs.all() : []).map((p) => ({
       id: p.key,
       archetype: p.model.spec.archetype,
       floors: p.model.spec.floors,
@@ -4539,8 +5339,8 @@ Public License instead of this License.  But first, please read
       terrain: { cols: hf.cols, rows: hf.rows, cellSize: hf.cellSize, origin: [hf.originX, hf.originZ], ...files },
       waterLevel: settings.waterLevel,
       prefabs,
-      buildings: plan.buildings.map((b) => ({ prefab: b.prefab, position: [r3(b.x), r3(b.y), r3(b.z)], yaw: r3(b.yaw), district: b.districtId, lot: b.lotId })),
-      trees: plan.trees.map((t) => ({ preset: t.preset, position: [r3(t.x), r3(t.y), r3(t.z)], yaw: r3(t.yaw), scale: r3(t.scale), variant: t.variant, representation: t.representation })),
+      buildings: (include.buildings ? plan.buildings : []).map((b) => ({ prefab: b.prefab, position: [r3(b.x), r3(b.y), r3(b.z)], yaw: r3(b.yaw), district: b.districtId, lot: b.lotId })),
+      trees: (include.trees ? plan.trees : []).map((t) => ({ preset: t.preset, position: [r3(t.x), r3(t.y), r3(t.z)], yaw: r3(t.yaw), scale: r3(t.scale), variant: t.variant, representation: t.representation })),
       stats: plan.stats
     };
   }
@@ -4682,6 +5482,7 @@ Public License instead of this License.  But first, please read
     const lotW = input.lotWeight;
     const pad = input.padColor;
     const surfaces = input.surfaces;
+    const waterTint = input.waterTint ?? 0;
     const cellCols = surfaces.cols;
     const cellRows = surfaces.rows;
     const lattice = 1 / GRAIN_STEP;
@@ -4768,7 +5569,7 @@ Public License instead of this License.  But first, please read
           }
           const shade2 = (light[a] + (light[b] - light[a]) * tu) * (1 - tv) + (light[d] + (light[e] - light[d]) * tu) * tv;
           const height = (heights[a] + (heights[b] - heights[a]) * tu) * (1 - tv) + (heights[d] + (heights[e] - heights[d]) * tu) * tv;
-          const wet = wetnessOf(height, input.waterLevel) * 0.7;
+          const wet = waterTint > 0 ? wetnessOf(height, input.waterLevel) * 0.7 * waterTint : 0;
           const o = (py * size + px) * 4;
           for (let i = 0; i < 3; i++) {
             let value = rgb[i] * grainValue;
@@ -4788,9 +5589,9 @@ Public License instead of this License.  But first, please read
     return t * t * (3 - 2 * t);
   }
   function hashWords(h, words) {
-    let hash = h;
-    for (let i = 0; i < words.length; i++) hash = Math.imul(hash ^ words[i], 16777619) >>> 0;
-    return hash;
+    let hash3 = h;
+    for (let i = 0; i < words.length; i++) hash3 = Math.imul(hash3 ^ words[i], 16777619) >>> 0;
+    return hash3;
   }
   function paintSignature(input) {
     const { hf } = input;
@@ -5582,7 +6383,8 @@ func _build_trees() -> void:
   function buildGamePackage(plan, state) {
     const g = state.settings.gameReady;
     const warnings = [];
-    const prefabs = plan.prefabs.all();
+    const include = state.settings.export;
+    const prefabs = include.buildings ? plan.prefabs.all() : [];
     const inputs = prefabs.map((p, i) => ({ name: `building_${i}`, runs: g.bakeFacades ? p.model.facades : [], lods: lodMeshes(p, state) }));
     const pages = packBuildingPages(inputs, g.atlasSize, g.gutter, g.texelsPerMeter, g.preserveTextureDetail);
     const atlas = pages[0];
@@ -5609,7 +6411,7 @@ func _build_trees() -> void:
     const chunks = [], chunkAlbedos = [];
     const textures = /* @__PURE__ */ new Set();
     let terrainTriangles = 0;
-    for (const piece of terrainBakePieces(plan, state.settings)) {
+    for (const piece of include.terrain ? terrainBakePieces(plan, state.settings) : []) {
       const path = `terrain/${piece.name}.obj`, albedo = `terrain/${piece.texture}.png`;
       files.push({ path, text: patchToObj(piece.patch, piece.name) });
       if (!textures.has(albedo)) {
@@ -5620,14 +6422,14 @@ func _build_trees() -> void:
       chunkAlbedos.push(albedo);
       terrainTriangles += piece.patch.indices.length / 3;
     }
-    files.push({ path: "terrain/heightmap.bin", bytes: heightmapBytes(plan) });
-    const manifest = buildManifest(plan, state.settings, names, { heightmap: "terrain/heightmap.bin", albedo: chunkAlbedos[0], chunks, chunkAlbedos });
+    if (include.terrain) files.push({ path: "terrain/heightmap.bin", bytes: heightmapBytes(plan) });
+    const manifest = buildManifest(plan, state.settings, names, { heightmap: include.terrain ? "terrain/heightmap.bin" : "", albedo: chunkAlbedos[0] ?? "", chunks, chunkAlbedos });
     for (const p of manifest.prefabs) p.atlas = buildingAtlases.get(p.id);
     files.push({ path: "city.json", text: JSON.stringify(manifest, null, 1) });
     files.push({ path: "city_loader.gd", text: GODOT_LOADER });
     let cityTriangles = terrainTriangles;
     const uses = new Map(prefabs.map((p) => [p.key, 0]));
-    for (const b of plan.buildings) uses.set(b.prefab, (uses.get(b.prefab) ?? 0) + 1);
+    for (const b of include.buildings ? plan.buildings : []) uses.set(b.prefab, (uses.get(b.prefab) ?? 0) + 1);
     pages.flatMap((a) => a.buildings).forEach((b) => {
       const i = Number(b.name.replace("building_", ""));
       cityTriangles += (uses.get(prefabs[i].key) ?? 0) * meshTriangles({ positions: b.lods[0].positions, faces: b.lods[0].faces.map((face) => ({ ...face, material: "" })) });
@@ -5637,8 +6439,8 @@ func _build_trees() -> void:
       manifest,
       report: {
         prefabs: prefabs.length,
-        buildings: plan.buildings.length,
-        trees: plan.trees.length,
+        buildings: include.buildings ? plan.buildings.length : 0,
+        trees: include.trees ? plan.trees.length : 0,
         atlasPages: pages.length,
         atlasSize: atlas?.size ?? 0,
         texelsPerMeter: atlas?.texelsPerMeter ?? 0,
@@ -5874,6 +6676,32 @@ func _build_trees() -> void:
           }
         }
         hf.heights[hf.index(c, r)] = h;
+      }
+    }
+    hf.touch();
+  }
+
+  // plugins/citybuilder/src/core/terrain/island.ts
+  var DEFAULT_ISLAND = { width: 0.35, depth: 12, roughness: 0.5, shape: "round", seed: 11 };
+  function applyIsland(hf, waterLevel, options) {
+    const halfW = Math.max(1, hf.width / 2);
+    const halfD = Math.max(1, hf.depth / 2);
+    const cx = hf.originX + halfW;
+    const cz = hf.originZ + halfD;
+    const inner = 1 - Math.max(0.05, Math.min(0.7, options.width));
+    const floor = waterLevel - Math.max(0.5, options.depth);
+    const power = options.shape === "round" ? 2 : 4;
+    for (let r = 0; r < hf.rows; r++) {
+      for (let c = 0; c < hf.cols; c++) {
+        const x = hf.worldX(c);
+        const z = hf.worldZ(r);
+        const nx = Math.abs((x - cx) / halfW);
+        const nz = Math.abs((z - cz) / halfD);
+        const distance2 = Math.pow(Math.pow(nx, power) + Math.pow(nz, power), 1 / power);
+        const ragged = (fbm(x / 180, z / 180, options.seed, 4) - 0.5) * options.roughness * 0.7;
+        const f2 = smoothstep(inner, 1, distance2 + ragged);
+        const index = hf.index(c, r);
+        hf.heights[index] = Math.min(hf.heights[index], lerp(hf.heights[index], floor, f2));
       }
     }
     hf.touch();
@@ -6291,6 +7119,8 @@ func _build_trees() -> void:
       __publicField(this, "albedo", null);
       __publicField(this, "albedoShape", "");
       __publicField(this, "albedoSignature", "");
+      /** Told whenever the terrain texture changes, so the water can show it through its surface. */
+      __publicField(this, "onAlbedo", null);
       __publicField(this, "bakeToken", 0);
       __publicField(this, "bakeTimer", null);
     }
@@ -6308,6 +7138,7 @@ func _build_trees() -> void:
         padColor: PAD_COLOR,
         waterLevel: s.waterLevel,
         sun: s.sun,
+        waterTint: 0,
         size: DISPLAY_TEXTURE,
         seed: s.seed
       };
@@ -6363,6 +7194,7 @@ func _build_trees() -> void:
       this.albedo = texture;
       this.albedoShape = shape;
       this.albedoSignature = signature;
+      this.onAlbedo?.(texture);
     }
     /** Re-reads heights from `hf` for the patches that cover `rect`; used while a brush is dragging. */
     liveEdit(hf, rect) {
@@ -6429,9 +7261,9 @@ func _build_trees() -> void:
   var MAX_TREE_HEIGHT = 20;
   var ALL_CELLS = "all";
   function treesSignature(trees) {
-    let hash = 2166136261;
+    let hash3 = 2166136261;
     const mix3 = (value) => {
-      hash = Math.imul(hash ^ Math.round(value * 100), 16777619) >>> 0;
+      hash3 = Math.imul(hash3 ^ Math.round(value * 100), 16777619) >>> 0;
     };
     for (const t of trees) {
       mix3(t.x);
@@ -6443,7 +7275,7 @@ func _build_trees() -> void:
       mix3(t.representation === "model" ? 1 : 2);
       mix3(t.preset.length);
     }
-    return `${trees.length}:${hash}`;
+    return `${trees.length}:${hash3}`;
   }
   var TreeView = class {
     constructor() {
@@ -6525,31 +7357,460 @@ func _build_trees() -> void:
     }
   };
 
+  // plugins/citybuilder/src/core/water/depth_map.ts
+  function buildWaterDepthMap(hf, waterLevel, size = 512) {
+    const depths = new Float32Array(size * size);
+    let maxDepth = 0;
+    for (let j = 0; j < size; j++) {
+      const z = hf.originZ + (j + 0.5) / size * hf.depth;
+      for (let i = 0; i < size; i++) {
+        const x = hf.originX + (i + 0.5) / size * hf.width;
+        const d = Math.max(0, waterLevel - hf.sample(x, z));
+        depths[j * size + i] = d;
+        if (d > maxDepth) maxDepth = d;
+      }
+    }
+    return { size, depths, maxDepth, wet: maxDepth > 0 };
+  }
+
+  // plugins/citybuilder/src/core/water/textures.ts
+  function hash(x, y, seed) {
+    let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(seed, 2246822519);
+    h = Math.imul(h ^ h >>> 13, 1274126177);
+    return ((h ^ h >>> 16) >>> 0) / 4294967296;
+  }
+  function periodicNoise(x, y, period, seed) {
+    const x0 = Math.floor(x);
+    const y0 = Math.floor(y);
+    const fx = x - x0;
+    const fy = y - y0;
+    const ux = fx * fx * (3 - 2 * fx);
+    const uy = fy * fy * (3 - 2 * fy);
+    const at2 = (i, j) => hash((i % period + period) % period, (j % period + period) % period, seed);
+    const top = at2(x0, y0) + (at2(x0 + 1, y0) - at2(x0, y0)) * ux;
+    const bottom = at2(x0, y0 + 1) + (at2(x0 + 1, y0 + 1) - at2(x0, y0 + 1)) * ux;
+    return top + (bottom - top) * uy;
+  }
+  function tileableFbm(size, seed, cells, octaves) {
+    const out = new Float32Array(size * size);
+    let norm2 = 0;
+    for (let o = 0; o < octaves; o++) norm2 += Math.pow(0.5, o);
+    for (let j = 0; j < size; j++) {
+      for (let i = 0; i < size; i++) {
+        let sum = 0;
+        for (let o = 0; o < octaves; o++) {
+          const period = cells * (1 << o);
+          sum += periodicNoise(i / size * period, j / size * period, period, seed + o * 17) * Math.pow(0.5, o);
+        }
+        out[j * size + i] = sum / norm2;
+      }
+    }
+    return out;
+  }
+  function rippleNormals(size, seed, cells) {
+    const height = tileableFbm(size, seed, cells, 4);
+    const out = new Uint8Array(size * size * 4);
+    const strength = 5;
+    const at2 = (i, j) => height[(j + size) % size * size + (i + size) % size];
+    for (let j = 0; j < size; j++) {
+      for (let i = 0; i < size; i++) {
+        const dx = (at2(i + 1, j) - at2(i - 1, j)) * strength;
+        const dy = (at2(i, j + 1) - at2(i, j - 1)) * strength;
+        const l = Math.hypot(dx, dy, 1);
+        const o = (j * size + i) * 4;
+        out[o] = Math.round((-dx / l * 0.5 + 0.5) * 255);
+        out[o + 1] = Math.round((-dy / l * 0.5 + 0.5) * 255);
+        out[o + 2] = Math.round((1 / l * 0.5 + 0.5) * 255);
+        out[o + 3] = 255;
+      }
+    }
+    return out;
+  }
+  function glitterTexture(size, seed, cells) {
+    const noise = tileableFbm(size, seed, cells, 3);
+    const out = new Uint8Array(size * size * 4);
+    for (let i = 0; i < size * size; i++) {
+      const v = Math.max(0, (noise[i] - 0.52) / 0.48);
+      const value = Math.round(Math.min(1, v * v * 3.2 + 0.18) * 255);
+      out[i * 4] = value;
+      out[i * 4 + 1] = value;
+      out[i * 4 + 2] = value;
+      out[i * 4 + 3] = 255;
+    }
+    return out;
+  }
+  function foamTexture(size, seed, cells) {
+    const noise = tileableFbm(size, seed, cells, 4);
+    const out = new Uint8Array(size * size * 4);
+    for (let i = 0; i < size * size; i++) {
+      const v = Math.min(1, Math.max(0, (noise[i] - 0.45) / 0.3));
+      out[i * 4] = 255;
+      out[i * 4 + 1] = 255;
+      out[i * 4 + 2] = 255;
+      out[i * 4 + 3] = Math.round(v * v * (3 - 2 * v) * 255);
+    }
+    return out;
+  }
+  var WATER_TEXTURE_SIZE = 256;
+  function buildWaterTextures(size = WATER_TEXTURE_SIZE) {
+    return {
+      size,
+      normal1: rippleNormals(size, 11, 6),
+      normal2: rippleNormals(size, 23, 9),
+      highlights1: glitterTexture(size, 31, 12),
+      highlights2: glitterTexture(size, 47, 17),
+      foam: foamTexture(size, 59, 10)
+    };
+  }
+
+  // plugins/citybuilder/src/editor/display/water_shader.ts
+  var WATER_VERTEX = (
+    /* glsl */
+    `
+varying vec2 vUv;
+varying vec2 vXZ;
+varying vec3 vWorld;
+void main() {
+	vUv = uv;
+	vXZ = position.xz;
+	vec4 world = modelMatrix * vec4(position, 1.0);
+	vWorld = world.xyz;
+	gl_Position = projectionMatrix * viewMatrix * world;
+}
+`
+  );
+  var WATER_FRAGMENT = (
+    /* glsl */
+    `
+varying vec2 vUv;
+varying vec2 vXZ;
+varying vec3 vWorld;
+
+uniform vec3 uWaterColor;
+uniform float uColorRatio;
+uniform float uAlphaScale;
+uniform float uRoughness;
+uniform float uNormal;
+uniform sampler2D uNormalMap1;
+uniform sampler2D uNormalMap2;
+uniform sampler2D uSunHighlights;
+uniform sampler2D uSunHighlights2;
+uniform sampler2D uFoamTexture;
+uniform sampler2D uBackdrop;
+uniform sampler2D uDepth;
+uniform float uHasBackdrop;
+uniform float uTime;
+uniform float uTimeScale;
+uniform float uHighlightsTimeScale;
+uniform float uUvScale;
+uniform float uNormalBlend;
+uniform float uHighlightsBlend;
+uniform float uDepthDistance;
+uniform float uFoamIntensity;
+uniform float uFoamWidth;
+uniform float uShoreFadeDistance;
+uniform vec2 uAbberationR;
+uniform vec2 uAbberationG;
+uniform vec2 uAbberationB;
+uniform vec2 uMapOrigin;
+uniform vec2 uMapSize;
+uniform vec3 uSunDir;
+
+vec3 soft_light(vec3 base, vec3 blend) {
+	vec3 limit = step(0.5, blend);
+	return mix(2.0 * base * blend + base * base * (1.0 - 2.0 * blend),
+		sqrt(base) * (2.0 * blend - 1.0) + (2.0 * base) * (1.0 - blend), limit);
+}
+
+void main() {
+	float TIME = uTime;
+	vec2 _uv = vUv * uUvScale;
+	// Where this fragment sits over the terrain: stands in for SCREEN_UV.
+	vec2 _suv = (vXZ - uMapOrigin) / uMapSize;
+	vec2 mapUv = _suv;
+
+	vec2 uv_offset_1 = _uv;
+	uv_offset_1.x += (TIME * uTimeScale * 0.01) + sin(TIME * uTimeScale + (uv_offset_1.x + uv_offset_1.y) * 25.0) * 0.01;
+	uv_offset_1.y += (TIME * uTimeScale * 0.01) + cos(TIME * uTimeScale + (uv_offset_1.x + uv_offset_1.y) * 25.0) * 0.01;
+
+	vec2 uv_offset_2 = _uv;
+	uv_offset_2.x += (-TIME * uTimeScale * 0.01) + sin(-TIME * uTimeScale + (uv_offset_2.x + uv_offset_2.y) * 25.0) * 0.01;
+	uv_offset_2.y += (-TIME * uTimeScale * 0.01) + cos(-TIME * uTimeScale + (uv_offset_2.x + uv_offset_2.y) * 25.0) * 0.01;
+
+	vec2 highlights_offset_1 = _uv;
+	highlights_offset_1.x += sin(TIME * uHighlightsTimeScale + (highlights_offset_1.x + highlights_offset_1.y) * 25.0) * 0.01;
+	highlights_offset_1.y += cos(TIME * uHighlightsTimeScale + (highlights_offset_1.x + highlights_offset_1.y) * 25.0) * 0.01;
+
+	vec2 highlights_offset_2 = _uv;
+	highlights_offset_2.x += sin(-TIME * uHighlightsTimeScale + (highlights_offset_2.x + highlights_offset_2.y) * 25.0) * 0.01;
+	highlights_offset_2.y += cos(-TIME * uHighlightsTimeScale + (highlights_offset_2.x + highlights_offset_2.y) * 25.0) * 0.01;
+
+	_suv.x += sin(TIME * uTimeScale + (_suv.x + _suv.y)) * 0.002;
+	_suv.y += cos(TIME * uTimeScale + (_suv.x + _suv.y)) * 0.002;
+
+	float r1 = texture2D(uSunHighlights, highlights_offset_1 + uAbberationR).r;
+	float g1 = texture2D(uSunHighlights, highlights_offset_1 + uAbberationG).g;
+	float b1 = texture2D(uSunHighlights, highlights_offset_1 + uAbberationB).b;
+	float r2 = texture2D(uSunHighlights2, highlights_offset_2 + uAbberationR).r;
+	float g2 = texture2D(uSunHighlights2, highlights_offset_2 + uAbberationG).g;
+	float b2 = texture2D(uSunHighlights2, highlights_offset_2 + uAbberationB).b;
+	vec3 highlights = mix(vec3(r1, g1, b1), vec3(r2, g2, b2), uHighlightsBlend);
+
+	vec3 ground = uHasBackdrop > 0.5 ? texture2D(uBackdrop, clamp(_suv, 0.0, 1.0)).rgb : vec3(0.35, 0.4, 0.33);
+	vec3 blended = soft_light(ground, highlights);
+
+	vec3 normal_1 = texture2D(uNormalMap1, uv_offset_1).rgb;
+	vec3 normal_2 = texture2D(uNormalMap2, uv_offset_2).rgb;
+	vec3 blended_normal = mix(normal_1, normal_2, uNormalBlend);
+
+	// Depth: how far the view ray runs below the surface before it reaches the ground.
+	vec3 V = normalize(cameraPosition - vWorld);
+	float below = texture2D(uDepth, clamp(mapUv, 0.0, 1.0)).r;
+	float depth_diff = below / max(abs(V.y), 0.12);
+
+	// Shallow water shows the ground through a tint; deeper water absorbs light and turns to the deep
+	// colour, so lakes read as water instead of dark holes. The original multiplies the colour by the
+	// depth fade, which suits an engine with a lit ground behind it but blackens a viewport preview.
+	float deep_t = clamp(depth_diff / max(uDepthDistance, 0.0001), 0.0, 1.0);
+	float deep = deep_t * deep_t * (3.0 - 2.0 * deep_t);
+	vec3 shallow_tint = mix(blended, uWaterColor, uColorRatio);
+	vec3 deep_color = uWaterColor * vec3(0.32, 0.5, 0.62) + vec3(0.0, 0.015, 0.03);
+	vec3 water_albedo = mix(shallow_tint, deep_color, deep);
+
+	// Foam hugs the shoreline and breaks up with the foam texture instead of filling shallow flats.
+	float foam_mask = 1.0 - smoothstep(0.0, max(uFoamWidth, 0.0001), depth_diff);
+	foam_mask *= foam_mask;
+	vec4 foam1 = texture2D(uFoamTexture, uv_offset_1 * 1.7);
+	vec4 foam2 = texture2D(uFoamTexture, uv_offset_2 * 1.3 + 0.37);
+	float foam_pattern = smoothstep(0.35, 0.8, mix(foam1.a, foam2.a, uNormalBlend));
+	water_albedo = mix(water_albedo, vec3(0.92, 0.96, 0.98), clamp(foam_pattern * foam_mask * uFoamIntensity, 0.0, 0.85));
+
+	float shore_alpha = smoothstep(0.0, max(uShoreFadeDistance, 0.0001), depth_diff);
+	float alpha = mix(uAlphaScale, 0.96, deep * 0.7) * shore_alpha;
+	if (alpha < 0.003) discard;
+
+	// Sun and sky stand in for the engine's lighting.
+	vec2 slope = (blended_normal.xy * 2.0 - 1.0) * uNormal * 1.5;
+	vec3 N = normalize(vec3(slope.x, 1.0, slope.y));
+	vec3 L = normalize(uSunDir);
+	vec3 H = normalize(L + V);
+	float smooth_amount = 1.0 - uRoughness;
+	float spec = pow(max(dot(N, H), 0.0), mix(12.0, 420.0, smooth_amount)) * (0.3 + smooth_amount * 1.4);
+	float fresnel = pow(1.0 - max(dot(N, V), 0.0), 4.0) * (0.15 + smooth_amount * 0.5);
+	vec3 lit = water_albedo * (0.62 + 0.38 * max(dot(N, L), 0.0));
+	lit = mix(lit, vec3(0.62, 0.78, 0.95), fresnel) + vec3(spec);
+	gl_FragColor = vec4(lit, alpha);
+}
+`
+  );
+  function createWaterUniforms(textures) {
+    return {
+      uWaterColor: { value: new THREE.Vector3() },
+      uColorRatio: { value: 0 },
+      uAlphaScale: { value: 0 },
+      uRoughness: { value: 0 },
+      uNormal: { value: 0 },
+      uNormalMap1: { value: textures.normal1 },
+      uNormalMap2: { value: textures.normal2 },
+      uSunHighlights: { value: textures.highlights1 },
+      uSunHighlights2: { value: textures.highlights2 },
+      uFoamTexture: { value: textures.foam },
+      uBackdrop: { value: null },
+      uDepth: { value: null },
+      uHasBackdrop: { value: 0 },
+      uTime: { value: 0 },
+      uTimeScale: { value: 1 },
+      uHighlightsTimeScale: { value: 0 },
+      uUvScale: { value: 1 },
+      uNormalBlend: { value: 0.5 },
+      uHighlightsBlend: { value: 0.5 },
+      uDepthDistance: { value: 1 },
+      uFoamIntensity: { value: 0 },
+      uFoamWidth: { value: 0.1 },
+      uShoreFadeDistance: { value: 1 },
+      uAbberationR: { value: new THREE.Vector2() },
+      uAbberationG: { value: new THREE.Vector2() },
+      uAbberationB: { value: new THREE.Vector2() },
+      uMapOrigin: { value: new THREE.Vector2() },
+      uMapSize: { value: new THREE.Vector2(1, 1) },
+      uSunDir: { value: new THREE.Vector3(0, 1, 0) }
+    };
+  }
+  function applyWaterSettings(uniforms, s) {
+    uniforms.uWaterColor.value.set(s.color[0], s.color[1], s.color[2]);
+    uniforms.uColorRatio.value = s.colorRatio;
+    uniforms.uAlphaScale.value = s.alphaScale;
+    uniforms.uRoughness.value = s.roughness;
+    uniforms.uNormal.value = s.normal;
+    uniforms.uTimeScale.value = s.timeScale;
+    uniforms.uHighlightsTimeScale.value = s.highlightsTimeScale;
+    uniforms.uUvScale.value = s.uvScale;
+    uniforms.uNormalBlend.value = s.normalBlend;
+    uniforms.uHighlightsBlend.value = s.highlightsBlend;
+    uniforms.uDepthDistance.value = s.depthDistance;
+    uniforms.uFoamIntensity.value = s.foamIntensity;
+    uniforms.uFoamWidth.value = s.foamWidth;
+    uniforms.uShoreFadeDistance.value = s.shoreFadeDistance;
+    uniforms.uAbberationR.value.set(s.aberrationR[0], s.aberrationR[1]);
+    uniforms.uAbberationG.value.set(s.aberrationG[0], s.aberrationG[1]);
+    uniforms.uAbberationB.value.set(s.aberrationB[0], s.aberrationB[1]);
+  }
+
   // plugins/citybuilder/src/editor/display/water_view.ts
+  var ANIMATION_FPS = 30;
+  function repeatingTexture(bytes, size) {
+    const texture = new THREE.DataTexture(bytes, size, size, THREE.RGBAFormat);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.generateMipmaps = true;
+    texture.flipY = false;
+    texture.needsUpdate = true;
+    return texture;
+  }
+  function depthSignature(hf, level) {
+    let hash3 = 2166136261;
+    const words = new Uint32Array(hf.heights.buffer, hf.heights.byteOffset, hf.heights.length);
+    for (let i = 0; i < words.length; i++) hash3 = Math.imul(hash3 ^ words[i], 16777619) >>> 0;
+    return `${hash3}:${hf.cols}x${hf.rows}x${hf.cellSize}:${level}`;
+  }
   var WaterView = class {
     constructor() {
       __publicField(this, "root", new THREE.Object3D());
+      __publicField(this, "textures", null);
+      __publicField(this, "textureData", null);
+      __publicField(this, "uniforms", null);
+      __publicField(this, "material", null);
+      __publicField(this, "mesh", null);
+      __publicField(this, "depthTexture", null);
+      __publicField(this, "signature", "");
+      __publicField(this, "frame", 0);
+      __publicField(this, "lastFrame", 0);
+      __publicField(this, "running", false);
+      __publicField(this, "animate", false);
+      this.root.no_export = true;
+    }
+    ensureMaterial() {
+      if (this.material) return;
+      this.textureData = buildWaterTextures();
+      const size = this.textureData.size;
+      this.textures = {
+        normal1: repeatingTexture(this.textureData.normal1, size),
+        normal2: repeatingTexture(this.textureData.normal2, size),
+        highlights1: repeatingTexture(this.textureData.highlights1, size),
+        highlights2: repeatingTexture(this.textureData.highlights2, size),
+        foam: repeatingTexture(this.textureData.foam, size)
+      };
+      this.uniforms = createWaterUniforms(this.textures);
+      this.material = new THREE.ShaderMaterial({
+        uniforms: this.uniforms,
+        vertexShader: WATER_VERTEX,
+        fragmentShader: WATER_FRAGMENT,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
     }
     rebuild(ctx) {
-      disposeTree(this.root);
+      this.ensureMaterial();
       const hf = ctx.plan.terrain.heights;
-      const size = Math.max(hf.width, hf.depth) * 2;
-      const plane = new THREE.Mesh(
-        new THREE.PlaneGeometry(size, size),
-        new THREE.MeshBasicMaterial({ color: 4163253, transparent: true, opacity: 0.62, depthWrite: false, side: THREE.DoubleSide })
-      );
-      plane.rotation.x = -Math.PI / 2;
-      plane.position.y = ctx.state.settings.waterLevel;
-      plane.renderOrder = 1;
-      this.root.add(plane);
+      const settings = ctx.state.settings;
+      const level = settings.waterLevel;
+      const uniforms = this.uniforms;
+      const signature = depthSignature(hf, level);
+      if (signature !== this.signature || !this.mesh) {
+        this.signature = signature;
+        const map = buildWaterDepthMap(hf, level, 512);
+        this.depthTexture?.dispose();
+        const texture = new THREE.DataTexture(map.depths, map.size, map.size, THREE.RedFormat, THREE.FloatType);
+        texture.magFilter = THREE.LinearFilter;
+        texture.minFilter = THREE.LinearFilter;
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        texture.generateMipmaps = false;
+        texture.flipY = false;
+        texture.needsUpdate = true;
+        this.depthTexture = texture;
+        uniforms.uDepth.value = texture;
+        if (this.mesh) {
+          this.root.remove(this.mesh);
+          this.mesh.geometry.dispose();
+        }
+        const size = Math.max(hf.width, hf.depth) * 2;
+        const geometry = new THREE.PlaneGeometry(size, size);
+        geometry.rotateX(-Math.PI / 2);
+        this.mesh = new THREE.Mesh(geometry, this.material);
+        this.mesh.no_export = true;
+        this.mesh.frustumCulled = false;
+        this.mesh.renderOrder = 1;
+        this.root.add(this.mesh);
+      }
+      this.mesh.position.y = level;
+      uniforms.uMapOrigin.value.set(hf.originX, hf.originZ);
+      uniforms.uMapSize.value.set(hf.width, hf.depth);
+      uniforms.uSunDir.value.set(settings.sun[0], settings.sun[1], settings.sun[2]).normalize();
+      this.configure(settings.water);
+    }
+    /** Terrain albedo seen through the water. Called again whenever the terrain bake finishes. */
+    setBackdrop(texture) {
+      if (!this.uniforms) return;
+      this.uniforms.uBackdrop.value = texture;
+      this.uniforms.uHasBackdrop.value = texture ? 1 : 0;
+    }
+    /** Applies new water settings without rebuilding anything. */
+    configure(settings) {
+      if (this.uniforms) applyWaterSettings(this.uniforms, settings);
+      this.root.visible = settings.show;
+      this.animate = settings.animate;
+      this.updateClock();
+    }
+    /** Starts or stops the animation clock to match visibility and settings. */
+    updateClock() {
+      const wanted = this.animate && this.root.visible && this.mesh !== null;
+      if (wanted && !this.running) {
+        this.running = true;
+        this.frame = requestAnimationFrame((time) => this.tick(time));
+      } else if (!wanted && this.running) {
+        this.running = false;
+        cancelAnimationFrame(this.frame);
+      }
+    }
+    tick(now) {
+      if (!this.running) return;
+      this.frame = requestAnimationFrame((time) => this.tick(time));
+      if (now - this.lastFrame < 1e3 / ANIMATION_FPS || document.hidden || !this.isShown()) return;
+      this.lastFrame = now;
+      if (this.uniforms) this.uniforms.uTime.value = now / 1e3;
+      Canvas.updateAll();
+    }
+    /** True while the city is attached to the open project. */
+    isShown() {
+      let node = this.root;
+      while (node.parent) {
+        if (!node.visible) return false;
+        node = node.parent;
+      }
+      return node.visible && (typeof Project === "undefined" || node === Project?.model_3d);
     }
     dispose() {
+      this.running = false;
+      cancelAnimationFrame(this.frame);
       disposeTree(this.root);
+      this.material?.dispose();
+      this.depthTexture?.dispose();
+      for (const texture of Object.values(this.textures ?? {})) texture.dispose();
+      this.material = null;
+      this.mesh = null;
+      this.uniforms = null;
+      this.textures = null;
+      this.depthTexture = null;
+      this.signature = "";
     }
   };
 
   // plugins/citybuilder/src/editor/display/city_display.ts
-  var DEFAULT_DISPLAY = { districts: false, lots: false, buildings: true, trees: true, water: true };
+  var DEFAULT_DISPLAY = { districts: false, lots: false, buildings: true, trees: true };
   var CityDisplay = class {
     constructor(store) {
       __publicField(this, "store", store);
@@ -6564,6 +7825,7 @@ func _build_trees() -> void:
       __publicField(this, "attached", null);
       __publicField(this, "lastRevision", -1);
       this.trees = new TreeView();
+      this.terrain.onAlbedo = (texture) => this.water.setBackdrop(texture);
       this.root.name = "CityBuilder live city";
       this.root.no_export = true;
       this.root.add(this.terrain.root, this.water.root, this.lots.root, this.buildings.root, this.trees.root, this.cursor.root);
@@ -6610,7 +7872,12 @@ func _build_trees() -> void:
       this.lots.root.visible = o.lots;
       this.buildings.root.visible = o.buildings;
       this.trees.root.visible = o.trees;
-      this.water.root.visible = o.water;
+    }
+    /** Applies new water settings (colour, motion, visibility) without recomposing. */
+    updateWater() {
+      const state = this.store.state;
+      if (state) this.water.configure(state.settings.water);
+      Canvas.updateAll();
     }
     setOption(key, value) {
       this.options[key] = value;
@@ -6769,7 +8036,7 @@ func _build_trees() -> void:
   function cross2(a, b) {
     return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
   }
-  function dot2(a, b) {
+  function dot4(a, b) {
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   }
   function norm(a) {
@@ -6971,7 +8238,7 @@ func _build_trees() -> void:
       this.tris.forEach((t) => {
         if (!t.alive) return;
         const n = this.normal(t.v);
-        const d = -dot2(n, this.positions[t.v[0]]);
+        const d = -dot4(n, this.positions[t.v[0]]);
         for (const v of t.v) addPlane(this.quadrics[v], n, d, 1);
         for (let i = 0; i < 3; i++) {
           const a = t.v[i];
@@ -6983,7 +8250,7 @@ func _build_trees() -> void:
           const plane = cross2(e, n);
           const pl = norm(plane) || 1;
           const pn = [plane[0] / pl, plane[1] / pl, plane[2] / pl];
-          const pd = -dot2(pn, this.positions[a]);
+          const pd = -dot4(pn, this.positions[a]);
           const weight = (kind === "border" ? this.options.borderWeight : this.options.seamWeight) * Math.max(length3, 1e-3);
           addPlane(this.quadrics[a], pn, pd, weight);
           addPlane(this.quadrics[b], pn, pd, weight);
@@ -7019,7 +8286,7 @@ func _build_trees() -> void:
      * Cost of sliding `from` onto `to`, or Infinity when the move is illegal. When `apply` is
      * given, the new UV of every surviving triangle corner is written into it.
      */
-    evaluate(from, to, apply) {
+    evaluate(from, to, apply2) {
       const edge = this.edgeTris(from, to);
       if (edge.length === 0 || edge.length > 2) return this.reject("edge-nonmanifold");
       const fromConstraints = this.constraintNeighbours(from);
@@ -7070,7 +8337,7 @@ func _build_trees() -> void:
           const lb = norm(nb);
           const la = norm(na);
           if (la < 1e-10 || la < lb * 0.02) return this.reject("degenerate");
-          if (dot2(nb, na) / (lb * la) < FLIP_LIMIT) return this.reject("flip");
+          if (dot4(nb, na) / (lb * la) < FLIP_LIMIT) return this.reject("flip");
           const newUvs = [t.uv[0], t.uv[1], t.uv[2]];
           newUvs[index] = newUv;
           const ob = uvArea2(t.uv[0], t.uv[1], t.uv[2]);
@@ -7078,7 +8345,7 @@ func _build_trees() -> void:
           if (Math.abs(ob) > 1e-12 && ob * oa <= 0) return this.reject("uv-flip");
           const expected = this.extrapolateUv(t, target);
           uvError = Math.max(uvError, Math.hypot(expected[0] - newUv[0], expected[1] - newUv[1]) * this.uvToWorld);
-          if (apply) apply.set(id, newUv);
+          if (apply2) apply2.set(id, newUv);
         }
       }
       const geometric = evalQuadric(this.quadrics[from], target) + evalQuadric(this.quadrics[to], target);
@@ -7089,11 +8356,11 @@ func _build_trees() -> void:
       const e1 = sub3(this.positions[t.v[1]], a);
       const e2 = sub3(this.positions[t.v[2]], a);
       const d = sub3(p, a);
-      const d11 = dot2(e1, e1);
-      const d12 = dot2(e1, e2);
-      const d22 = dot2(e2, e2);
-      const p1 = dot2(d, e1);
-      const p2 = dot2(d, e2);
+      const d11 = dot4(e1, e1);
+      const d12 = dot4(e1, e2);
+      const d22 = dot4(e2, e2);
+      const p1 = dot4(d, e1);
+      const p2 = dot4(d, e2);
       const det = d11 * d22 - d12 * d12 || 1e-12;
       const s = (p1 * d22 - p2 * d12) / det;
       const u = (p2 * d11 - p1 * d12) / det;
@@ -7299,7 +8566,7 @@ func _build_trees() -> void:
       const f1 = tris[a];
       const f2 = tris[b];
       if (f1.material !== f2.material) continue;
-      if (dot2(normalOf2(f1), normalOf2(f2)) < 0.9995) continue;
+      if (dot4(normalOf2(f1), normalOf2(f2)) < 0.9995) continue;
       let shared = [-1, -1];
       let apex1 = -1;
       for (let i = 0; i < 3; i++) {
@@ -7326,8 +8593,8 @@ func _build_trees() -> void:
         const p2 = corners[(i + 2) % 4];
         const e1 = sub3(p1, p0);
         const e2 = sub3(p2, p1);
-        if (dot2(cross2(e1, e2), n) <= 1e-12) convex = false;
-        const cosine = Math.abs(dot2(e1, e2)) / (norm(e1) * norm(e2) || 1);
+        if (dot4(cross2(e1, e2), n) <= 1e-12) convex = false;
+        const cosine = Math.abs(dot4(e1, e2)) / (norm(e1) * norm(e2) || 1);
         worst = Math.max(worst, cosine);
       }
       if (!convex) continue;
@@ -7985,7 +9252,7 @@ func _build_trees() -> void:
   var RoadIndex = class {
     constructor(roads) {
       __publicField(this, "roads", roads);
-      __publicField(this, "hash", new SpatialHash(24));
+      __publicField(this, "hash", new SpatialHash2(24));
       for (const road of roads.corridors) {
         if (road.structure !== "ground") continue;
         const reach = Math.max(road.leftExtent, road.rightExtent) + 2;
@@ -8221,7 +9488,7 @@ func _build_trees() -> void:
       junctions: roads.junctions,
       settings,
       waterLevel,
-      placed: new SpatialHash(24)
+      placed: new SpatialHash2(24)
     };
     const lots = [];
     const ordered = roads.corridors.filter((r) => r.structure === "ground").sort((a, b) => a.id < b.id ? -1 : 1);
@@ -8236,10 +9503,10 @@ func _build_trees() -> void:
   // plugins/citybuilder/src/core/nature/scatter.ts
   function scatterTrees(input) {
     const { hf, districts } = input;
-    const hash = new SpatialHash(16);
+    const hash3 = new SpatialHash2(16);
     for (const f2 of input.footprints) {
       const reach = Math.hypot(f2.hw, f2.hd) + 1.5;
-      hash.insert(f2, f2.cx - reach, f2.cz - reach, f2.cx + reach, f2.cz + reach);
+      hash3.insert(f2, f2.cx - reach, f2.cz - reach, f2.cx + reach, f2.cz + reach);
     }
     const trees = [];
     for (let r = 0; r < hf.cellRows; r++) {
@@ -8262,7 +9529,7 @@ func _build_trees() -> void:
           const clearance = input.roads.clearance(x, z, 30);
           if (clearance < 2) continue;
           let blocked = false;
-          for (const f2 of hash.query(x - 1, z - 1, x + 1, z + 1)) {
+          for (const f2 of hash3.query(x - 1, z - 1, x + 1, z + 1)) {
             if (pointInObb(f2, x, z, 1.5)) {
               blocked = true;
               break;
@@ -8315,26 +9582,8 @@ func _build_trees() -> void:
   }
 
   // plugins/citybuilder/src/core/city/stats.ts
-  var FOOTPRINT_FACTOR = { rect: 1, L: 0.75, U: 0.7, T: 0.7, podium: 0.85, stepped: 0.8 };
-  function floorAreaOf(b) {
-    return b.width * b.depth * FOOTPRINT_FACTOR[b.spec.shape] * b.spec.floors * 0.85;
-  }
-  function computeStats(buildings, lotCount, treeCount, prefabCount) {
-    const stats = { lots: lotCount, buildings: buildings.length, trees: treeCount, prefabs: prefabCount, population: 0, jobs: 0, floorArea: 0, byDistrict: {} };
-    for (const b of buildings) {
-      const district = districtById(b.districtId);
-      const area = floorAreaOf(b);
-      stats.floorArea += area;
-      if (district) {
-        stats.population += area * district.residentsPerM2;
-        stats.jobs += area * district.jobsPerM2;
-      }
-      stats.byDistrict[b.districtId] = (stats.byDistrict[b.districtId] ?? 0) + 1;
-    }
-    stats.population = Math.round(stats.population);
-    stats.jobs = Math.round(stats.jobs);
-    stats.floorArea = Math.round(stats.floorArea);
-    return stats;
+  function computeStats(buildingCount, lotCount, treeCount, prefabCount) {
+    return { lots: lotCount, buildings: buildingCount, trees: treeCount, prefabs: prefabCount };
   }
 
   // plugins/citybuilder/src/core/city/compose.ts
@@ -8342,10 +9591,12 @@ func _build_trees() -> void:
     const [cx, cz] = localToWorld(lot.obb, plan.offsetX, plan.offsetZ);
     return { cx, cz, hw: plan.width / 2, hd: plan.depth / 2, ux: lot.obb.ux, uz: lot.obb.uz };
   }
-  function composeCity(state, roads) {
+  function composeCity(state, plainRoads) {
     const s = state.settings;
+    const roads = withRoundabouts(plainRoads, s.roundabouts);
     let terrain = conformRoads(state.terrain, roads.corridors, s.conform);
-    const lots = generateLots(roads, state.districts, terrain.heights, s.waterLevel, s.lot);
+    terrain = conformDiscs(terrain, s.roundabouts, s.conform);
+    const lots = s.features.buildings ? generateLots(roads, state.districts, terrain.heights, s.waterLevel, s.lot) : [];
     assignLandValue(lots, s.waterLevel, s.seed);
     terrain = conformLots(terrain, lots, s.conform);
     const prefabs = new PrefabLibrary(s.gameReady.prefabBudget);
@@ -8365,7 +9616,7 @@ func _build_trees() -> void:
     }
     const surfaces = classifyCells(terrain.heights, state.paint, s.surface);
     const index = new RoadIndex(roads);
-    const trees = scatterTrees({
+    const trees = s.features.trees ? scatterTrees({
       hf: terrain.heights,
       districts: state.districts,
       roads: index,
@@ -8376,8 +9627,13 @@ func _build_trees() -> void:
       density: s.treeScale,
       maxTrees: s.maxTrees,
       variants: s.variants
-    });
-    return { terrain, lots, buildings, trees, surfaces, prefabs, stats: computeStats(buildings, lots.length, trees.length, prefabs.count) };
+    }) : [];
+    return { terrain, lots, buildings, trees, surfaces, prefabs, stats: computeStats(buildings.length, lots.length, trees.length, prefabs.count) };
+  }
+  function withRoundabouts(roads, roundabouts) {
+    if (roundabouts.length === 0) return roads;
+    const islands = roundabouts.map((r, i) => ({ id: `roundabout:${i}`, x: r.x, y: r.y, z: r.z, radius: r.island, degree: 0 }));
+    return { corridors: roads.corridors, junctions: [...roads.junctions, ...islands] };
   }
 
   // plugins/citybuilder/src/core/district/types.ts
@@ -8486,7 +9742,7 @@ func _build_trees() -> void:
      * with its road-aligned brush. `depth` is measured from the road's outer edge.
      */
     paintAlongRoads(roads, id, depth, onlyUnzoned = true, sides = "both") {
-      const index = new SpatialHash(32);
+      const index = new SpatialHash2(32);
       for (const road of roads) {
         if (road.structure !== "ground") continue;
         const reach = Math.max(road.leftExtent, road.rightExtent) + depth;
@@ -8975,6 +10231,12 @@ func _build_trees() -> void:
       this.changed.emit("edited");
       this.invalidate(delay);
     }
+    /** For settings that only change how the city looks in the viewport (water colour, motion): saves, but does not recompose. */
+    displayEdited() {
+      if (typeof Project !== "undefined" && Project) Project.saved = false;
+      this.flush();
+      this.changed.emit("display");
+    }
     invalidate(delay = 250) {
       if (this.timer !== null) clearTimeout(this.timer);
       this.timer = window.setTimeout(() => this.recomposeNow(), delay);
@@ -9016,6 +10278,420 @@ func _build_trees() -> void:
       this.poll = null;
     }
   };
+
+  // plugins/roadscape/src/core/network_edit.ts
+  function counterIds(prefix = "~n") {
+    let n = 0;
+    return () => `${prefix}${++n}`;
+  }
+  function splitSegmentAt(network, key, along, newId) {
+    const segment = network.segments.get(key);
+    if (!segment) throw new Error("Cannot split a missing segment.");
+    const index = buildIndex(network);
+    for (const end of [segment.a, segment.b]) {
+      if (!isSmoothThrough(network, index, end)) continue;
+      for (const neighbour of index.incident.get(end) ?? []) if (neighbour !== segment) freezeHandles(network, index, neighbour);
+    }
+    freezeHandles(network, index, segment);
+    const curve = segmentCurve(network, index, segment);
+    const t = curve.tAtDistance(along);
+    const [low, high] = curve.splitAt(t);
+    const a = network.nodes.get(segment.a);
+    const b = network.nodes.get(segment.b);
+    const node = addNode(network, newId, low.p1);
+    const data = { profile: segment.profile, structure: segment.structure, smooth: segment.smooth, handleA: null, handleB: null };
+    network.segments.delete(key);
+    const first = addSegment(network, a.id, node.id, { ...data, handleA: sub(low.c0, low.p0), handleB: sub(low.c1, low.p1) });
+    const second = addSegment(network, node.id, b.id, { ...data, handleA: sub(high.c0, high.p0), handleB: sub(high.c1, high.p1) });
+    return { node, first, second };
+  }
+
+  // plugins/citybuilder/src/core/roads/road_paint.ts
+  var DEFAULT_ROAD_PAINT = { minPiece: 4, sample: 1.5 };
+  function differs(segment, change) {
+    return change.profile !== void 0 && segment.profile !== change.profile || change.structure !== void 0 && segment.structure !== change.structure;
+  }
+  function apply(segment, change) {
+    if (change.profile !== void 0) segment.profile = change.profile;
+    if (change.structure !== void 0) segment.structure = change.structure;
+  }
+  function spansInside(curve, region, options) {
+    const length3 = curve.length;
+    const metres = length3 * options.metresPerUnit;
+    const steps = Math.max(2, Math.ceil(metres / options.sample));
+    const inside = (s) => {
+      const p = options.toCity(curve.pointAt(curve.tAtDistance(s)));
+      return region(p[0], p[2]);
+    };
+    const flags = [];
+    for (let i = 0; i <= steps; i++) flags.push(inside(length3 * i / steps));
+    const refine = (outside, within) => {
+      let lo = outside;
+      let hi = within;
+      for (let i = 0; i < 10; i++) {
+        const mid = (lo + hi) / 2;
+        if (inside(mid)) hi = mid;
+        else lo = mid;
+      }
+      return hi;
+    };
+    const spans = [];
+    let start = null;
+    for (let i = 0; i <= steps; i++) {
+      const s = length3 * i / steps;
+      if (flags[i] && start === null) start = i === 0 ? 0 : refine(length3 * (i - 1) / steps, s);
+      if (start !== null && (!flags[i] || i === steps)) {
+        const end = flags[i] ? length3 : refineEnd(length3 * (i - 1) / steps, s, inside);
+        spans.push({ from: start, to: end });
+        start = null;
+      }
+    }
+    return spans;
+  }
+  function refineEnd(within, outside, inside) {
+    let lo = within;
+    let hi = outside;
+    for (let i = 0; i < 10; i++) {
+      const mid = (lo + hi) / 2;
+      if (inside(mid)) lo = mid;
+      else hi = mid;
+    }
+    return lo;
+  }
+  function tidy(spans, length3, minimum, gap) {
+    const merged = [];
+    for (const span of spans) {
+      const last = merged[merged.length - 1];
+      if (last && span.from - last.to < gap) last.to = span.to;
+      else merged.push({ ...span });
+    }
+    const result = [];
+    for (const span of merged) {
+      const from = span.from < minimum ? 0 : span.from;
+      const to = length3 - span.to < minimum ? length3 : span.to;
+      if (to - from >= minimum || from === 0 && to === length3) result.push({ from, to });
+    }
+    return result;
+  }
+  function paintRoadType(network, region, change, ids, options) {
+    const result = { changed: 0, split: 0 };
+    const minimum = options.minPiece / options.metresPerUnit;
+    for (const key of [...network.segments.keys()]) {
+      const segment = network.segments.get(key);
+      if (!segment) continue;
+      const curve = segmentCurve(network, buildIndex(network), segment);
+      const spans = tidy(spansInside(curve, region, options), curve.length, minimum, minimum);
+      if (spans.length === 0) continue;
+      if (spans.length === 1 && spans[0].from === 0 && spans[0].to === curve.length) {
+        if (differs(segment, change)) {
+          apply(segment, change);
+          result.changed++;
+        }
+        continue;
+      }
+      let head = segment;
+      let headLength = curve.length;
+      for (let i = spans.length - 1; i >= 0; i--) {
+        const span = spans[i];
+        if (!differs(head, change)) break;
+        let piece = head;
+        if (span.to < headLength - 1e-6) {
+          const cut = splitSegmentAt(network, head.key, span.to, ids());
+          head = cut.first;
+          piece = cut.first;
+          result.split++;
+        }
+        if (span.from > 1e-6) {
+          const cut = splitSegmentAt(network, piece.key, span.from, ids());
+          head = cut.first;
+          piece = cut.second;
+          result.split++;
+        }
+        apply(piece, change);
+        result.changed++;
+        headLength = span.from;
+        if (span.from <= 1e-6) break;
+      }
+    }
+    return result;
+  }
+
+  // plugins/citybuilder/src/core/roads/roundabout.ts
+  var DEFAULT_ROUNDABOUT = { profile: "auto", maxArc: 75 * Math.PI / 180, minArm: 2, hand: "right" };
+  function horizontal(a, b) {
+    return Math.hypot(a[0] - b[0], a[2] - b[2]);
+  }
+  function crossing2(curve, center, radius, fromStart) {
+    const L = curve.length;
+    const at2 = (s) => horizontal(curve.pointAt(curve.tAtDistance(fromStart ? s : L - s)), center);
+    if (at2(L) < radius) return null;
+    let lo = 0;
+    let hi = L;
+    for (let i = 0; i < 40; i++) {
+      const mid = (lo + hi) / 2;
+      if (at2(mid) < radius) lo = mid;
+      else hi = mid;
+    }
+    return hi;
+  }
+  function busiestProfile(arms) {
+    const votes = /* @__PURE__ */ new Map();
+    for (const a of arms) votes.set(a.profile, (votes.get(a.profile) ?? 0) + 1);
+    return [...votes.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  }
+  function ringProfileFor(network, requested, arms) {
+    if (requested !== "auto") return requested;
+    const base = busiestProfile(arms);
+    const id = `${base}_ring`;
+    if (!network.profiles.has(id)) {
+      const source = resolveProfileData(network, base);
+      network.profiles.set(id, {
+        ...source,
+        id,
+        name: `${source.name} (roundabout ring)`,
+        builtin: false,
+        carriageway: { ...source.carriageway, centerMarking: "none", crosswalks: "none", medianWidth: 0, medianBarrier: false, laneMarking: source.carriageway.lanes > 2 ? "dashed" : "none" }
+      });
+    }
+    return id;
+  }
+  function structureOf2(arms) {
+    const votes = /* @__PURE__ */ new Map();
+    for (const a of arms) votes.set(a.structure, (votes.get(a.structure) ?? 0) + 1);
+    return [...votes.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  }
+  function makeRoundabout(network, nodeId, options, ids) {
+    const centerNode = network.nodes.get(nodeId);
+    if (!centerNode) throw new Error("That junction no longer exists.");
+    const center = [centerNode.position[0], centerNode.position[1], centerNode.position[2]];
+    const index = buildIndex(network);
+    const incident = [...index.incident.get(nodeId) ?? []];
+    if (incident.length === 0) throw new Error("Pick a junction with at least one road.");
+    const radius = options.radius;
+    const profile = ringProfileFor(network, options.profile, incident);
+    const structure = structureOf2(incident);
+    const cuts = [];
+    for (const segment of incident) {
+      const curve = segmentCurve(network, index, segment);
+      const fromStart = segment.a === nodeId;
+      const s = crossing2(curve, center, radius, fromStart);
+      if (s === null || curve.length - s < options.minArm) throw new Error(`A road at this junction is too short for a roundabout of this size. Shrink the radius or lengthen the road.`);
+      cuts.push({ segment, along: fromStart ? s : curve.length - s });
+    }
+    const arms = [];
+    for (const cut of cuts) {
+      const fromStart = cut.segment.a === nodeId;
+      const split = splitSegmentAt(network, cut.segment.key, cut.along, ids());
+      const inner = fromStart ? split.first : split.second;
+      network.segments.delete(inner.key);
+      const node = split.node;
+      const angle = Math.atan2(node.position[2] - center[2], node.position[0] - center[0]);
+      node.position = [center[0] + Math.cos(angle) * radius, node.position[1], center[2] + Math.sin(angle) * radius];
+      arms.push({ segment: fromStart ? split.second : split.first, ringNode: node.id });
+    }
+    removeNode(network, nodeId);
+    const height = arms.reduce((sum, a) => sum + network.nodes.get(a.ringNode).position[1], 0) / arms.length;
+    const angleOf = (id) => {
+      const p = network.nodes.get(id).position;
+      return Math.atan2(p[2] - center[2], p[0] - center[0]);
+    };
+    for (const arm of arms) network.nodes.get(arm.ringNode).position[1] = height;
+    const turn = Math.PI * 2;
+    const sorted = arms.map((a) => ({ id: a.ringNode, angle: angleOf(a.ringNode) })).sort((a, b) => a.angle - b.angle);
+    const points = [];
+    sorted.forEach((p, i) => {
+      points.push(p);
+      const next = i + 1 < sorted.length ? sorted[i + 1].angle : sorted[0].angle + turn;
+      const gap = next - p.angle;
+      const extra = Math.max(0, Math.ceil(gap / options.maxArc) - 1);
+      for (let k = 1; k <= extra; k++) {
+        const a = p.angle + gap * k / (extra + 1);
+        const node = addRingNode(network, ids, center, radius, a, height);
+        points.push({ id: node.id, angle: a });
+      }
+    });
+    const ordered = options.hand === "right" ? points : [...points].reverse();
+    const direction = options.hand === "right" ? 1 : -1;
+    const keys = [];
+    for (let i = 0; i < ordered.length; i++) {
+      const from = ordered[i];
+      const to = ordered[(i + 1) % ordered.length];
+      let sweep = direction * (to.angle - from.angle);
+      while (sweep <= 1e-9) sweep += turn;
+      while (sweep > turn + 1e-9) sweep -= turn;
+      if (ordered.length === 1) sweep = turn;
+      const k = 4 / 3 * Math.tan(sweep / 4) * radius;
+      const tangent = (a) => [-Math.sin(a) * direction, 0, Math.cos(a) * direction];
+      const ta = tangent(from.angle);
+      const tb = tangent(to.angle);
+      const segment = addSegment(network, from.id, to.id, {
+        profile,
+        structure,
+        smooth: true,
+        handleA: [ta[0] * k, 0, ta[2] * k],
+        handleB: [-tb[0] * k, 0, -tb[2] * k]
+      });
+      keys.push(segment.key);
+    }
+    return { center, radius, ring: ordered.map((p) => p.id), segments: keys, profile };
+  }
+  function addRingNode(network, ids, center, radius, angle, height) {
+    const id = ids();
+    const node = { id, position: [center[0] + Math.cos(angle) * radius, height, center[2] + Math.sin(angle) * radius], options: { style: "auto", cornerRadius: -1 } };
+    network.nodes.set(id, node);
+    return node;
+  }
+
+  // plugins/citybuilder/src/editor/road_edit.ts
+  function frameOf(mesh, cityUnits) {
+    mesh.mesh.updateWorldMatrix(true, false);
+    const matrix = mesh.mesh.matrixWorld.clone();
+    const scale3 = mesh.mesh.getWorldScale(new THREE.Vector3());
+    const tmp = new THREE.Vector3();
+    return {
+      toCity: (p) => {
+        tmp.set(p[0], p[1], p[2]).applyMatrix4(matrix);
+        return [tmp.x / cityUnits, tmp.y / cityUnits, tmp.z / cityUnits];
+      },
+      metresPerUnit: (Math.abs(scale3.x) + Math.abs(scale3.y) + Math.abs(scale3.z)) / 3 / cityUnits
+    };
+  }
+  function documentOf(mesh) {
+    return readStoredDocument(mesh) ?? migrateLegacyRoad(mesh) ?? emptyDocument();
+  }
+  var RoadEditor = class {
+    constructor(store) {
+      __publicField(this, "store", store);
+      __publicField(this, "cache", null);
+      __publicField(this, "choices", null);
+    }
+    meshes() {
+      return Mesh.all.filter(hasNetwork);
+    }
+    /** Every road point in the project, in city metres. Reused until the roads change. */
+    points(state) {
+      const key = `${this.store.roadSignature}|${this.store.editRevision}|${state.settings.unitsPerMeter}`;
+      if (this.cache?.key === key) return this.cache.points;
+      const points = [];
+      for (const mesh of this.meshes()) {
+        const network = readNetwork(mesh, documentOf(mesh));
+        const index = buildIndex(network);
+        const frame = frameOf(mesh, state.settings.unitsPerMeter);
+        for (const node of network.nodes.values()) {
+          const p = frame.toCity(node.position);
+          points.push({ mesh, id: node.id, x: p[0], y: p[1], z: p[2], degree: index.incident.get(node.id)?.length ?? 0 });
+        }
+      }
+      this.cache = { key, points };
+      return points;
+    }
+    /** The road point nearest a ground position, if one lies within `reach` metres. Junctions win ties. */
+    nearest(state, x, z, reach) {
+      let best = null;
+      let bestScore = Infinity;
+      for (const p of this.points(state)) {
+        if (p.degree === 0) continue;
+        const d = Math.hypot(p.x - x, p.z - z);
+        const score = d - (p.degree >= 3 ? reach * 0.25 : 0);
+        if (d <= reach && score < bestScore) {
+          best = p;
+          bestScore = score;
+        }
+      }
+      return best;
+    }
+    /** Road types the user can paint: the built-in library plus anything made in this project. */
+    profileChoices() {
+      const key = this.store.roadSignature;
+      if (this.choices?.key === key) return this.choices.list;
+      const seen = new Map(BUILTIN_PROFILES.map((p) => [p.id, p.name]));
+      for (const mesh of this.meshes()) {
+        for (const [id, profile] of Object.entries(documentOf(mesh).profiles)) if (!seen.has(id)) seen.set(id, profile.name);
+      }
+      const list = [...seen.entries()].map(([id, name]) => ({ id, name }));
+      this.choices = { key, list };
+      return list;
+    }
+    /**
+     * Builds a roundabout at a road point. The road edit and the city's record of the island share one
+     * undo step. Returns the roundabout as stored in the city.
+     */
+    roundabout(state, point, radiusMetres, profile, hand) {
+      const mesh = point.mesh;
+      const frame = frameOf(mesh, state.settings.unitsPerMeter);
+      const network = readNetwork(mesh, documentOf(mesh));
+      const options = { ...DEFAULT_ROUNDABOUT, radius: radiusMetres / frame.metresPerUnit, profile: profile || "auto", hand };
+      this.store.history.begin();
+      Undo.initEdit({ elements: [mesh], selection: true });
+      try {
+        const result = makeRoundabout(network, point.id, options, counterIds("~rb"));
+        const written = writeNetwork(mesh, network);
+        writeStoredDocument(mesh, written.doc);
+        const ring = resolveProfileData(written.network, result.profile);
+        const extent = resolveProfile(ring, written.network.settings.unitsPerMeter, written.network.settings.weather).extent;
+        const reach = Math.max(extent.left, extent.right) / written.network.settings.unitsPerMeter * 1;
+        const center = frame.toCity(result.center);
+        const roundabout = { x: center[0], y: center[1], z: center[2], radius: radiusMetres, island: Math.max(1.5, radiusMetres - reach) };
+        state.settings.roundabouts = [...state.settings.roundabouts.filter((r) => Math.hypot(r.x - roundabout.x, r.z - roundabout.z) > 1), roundabout];
+        this.store.history.commit("Build roundabout", { elements: [mesh], outliner: false, selection: true });
+        Canvas.updateView({ elements: [mesh], element_aspects: { geometry: true, faces: true }, selection: true });
+        this.store.edited(0);
+        return roundabout;
+      } catch (error) {
+        this.store.history.discard();
+        Undo.cancelEdit(true);
+        throw error;
+      }
+    }
+    /** Changes the road type inside a region on every network that reaches it. One undo step. */
+    paint(state, region, change, bounds) {
+      const jobs = [];
+      const total = { changed: 0, split: 0 };
+      for (const mesh of this.meshes()) {
+        const frame = frameOf(mesh, state.settings.unitsPerMeter);
+        const network = readNetwork(mesh, documentOf(mesh));
+        const options = { toCity: frame.toCity, metresPerUnit: frame.metresPerUnit, ...DEFAULT_ROAD_PAINT };
+        const touches = [...network.nodes.values()].some((n) => {
+          const p = frame.toCity(n.position);
+          return p[0] >= bounds.minX - 400 && p[0] <= bounds.maxX + 400 && p[2] >= bounds.minZ - 400 && p[2] <= bounds.maxZ + 400;
+        });
+        if (!touches) continue;
+        const result = paintRoadType(network, region, change, counterIds("~pt"), options);
+        if (result.changed === 0) continue;
+        total.changed += result.changed;
+        total.split += result.split;
+        jobs.push({ mesh, network, frame });
+      }
+      if (jobs.length === 0) return total;
+      const meshes = jobs.map((j) => j.mesh);
+      Undo.initEdit({ elements: meshes, selection: true });
+      try {
+        for (const job of jobs) {
+          const written = writeNetwork(job.mesh, job.network);
+          writeStoredDocument(job.mesh, written.doc);
+        }
+        Undo.finishEdit(change.structure ? "Paint road structure" : "Paint road type", { elements: meshes, selection: true });
+        Canvas.updateView({ elements: meshes, element_aspects: { geometry: true, faces: true }, selection: true });
+        this.store.edited(0);
+      } catch (error) {
+        Undo.cancelEdit(true);
+        throw error;
+      }
+      return total;
+    }
+    /** Segments of a mesh, for tests and diagnostics. */
+    static segmentsOf(mesh) {
+      return [...readNetwork(mesh, documentOf(mesh)).segments.values()];
+    }
+  };
+  /** Structure names for the panel. */
+  __publicField(RoadEditor, "STRUCTURES", [
+    { id: "auto", label: "Automatic" },
+    { id: "ground", label: "Ground" },
+    { id: "bridge", label: "Bridge" },
+    { id: "tunnel", label: "Tunnel" },
+    { id: "air", label: "Open span / jump" }
+  ]);
 
   // plugins/citybuilder/src/core/terrain/ray.ts
   function raycastHeightfield(hf, origin, direction, maxDistance = 2e4) {
@@ -9377,6 +11053,317 @@ func _build_trees() -> void:
     }
   };
 
+  // plugins/citybuilder/src/core/roads/region.ts
+  function strokeRegion(stroke, radius) {
+    return (x, z) => {
+      if (stroke.length === 1) return Math.hypot(x - stroke[0][0], z - stroke[0][1]) <= radius;
+      for (let i = 0; i + 1 < stroke.length; i++) {
+        if (pointSegmentDistance(x, z, stroke[i][0], stroke[i][1], stroke[i + 1][0], stroke[i + 1][1]) <= radius) return true;
+      }
+      return false;
+    };
+  }
+  function rectRegion(x0, z0, x1, z1) {
+    const minX = Math.min(x0, x1);
+    const maxX = Math.max(x0, x1);
+    const minZ = Math.min(z0, z1);
+    const maxZ = Math.max(z0, z1);
+    return (x, z) => x >= minX && x <= maxX && z >= minZ && z <= maxZ;
+  }
+  function polygonRegion(polygon) {
+    return (x, z) => polygon.length >= 3 && pointInPolygon(x, z, polygon);
+  }
+  function strokeBounds(stroke, radius) {
+    let minX = Infinity;
+    let minZ = Infinity;
+    let maxX = -Infinity;
+    let maxZ = -Infinity;
+    for (const p of stroke) {
+      minX = Math.min(minX, p[0] - radius);
+      maxX = Math.max(maxX, p[0] + radius);
+      minZ = Math.min(minZ, p[1] - radius);
+      maxZ = Math.max(maxZ, p[1] + radius);
+    }
+    return { minX, minZ, maxX, maxZ };
+  }
+
+  // plugins/citybuilder/src/editor/tools/road_type_tool.ts
+  var PAINT2 = 16765286;
+  var RoadTypeTool = class {
+    constructor(store, display, roads, model, status, changed) {
+      __publicField(this, "store", store);
+      __publicField(this, "display", display);
+      __publicField(this, "roads", roads);
+      __publicField(this, "model", model);
+      __publicField(this, "status", status);
+      __publicField(this, "changed", changed);
+      __publicField(this, "tool");
+      __publicField(this, "input");
+      __publicField(this, "stroke", []);
+      __publicField(this, "start", null);
+      __publicField(this, "polygon", []);
+      __publicField(this, "dragging", false);
+      __publicField(this, "onKey");
+      this.tool = new Tool("citybuilder_road_type", {
+        name: "Road type",
+        description: "Paint where a road becomes a bridge, tunnel, or another road type",
+        icon: "alt_route",
+        category: "tools",
+        modes: ["edit"],
+        condition: () => !!Project && !!this.store.state,
+        selectElements: false,
+        transformerMode: "hidden",
+        cursor: "crosshair",
+        onSelect: () => {
+          this.reset();
+          this.status(this.hint());
+          this.changed();
+        },
+        onUnselect: () => {
+          this.reset();
+          this.display.cursor.hide();
+          this.changed();
+        }
+      });
+      this.input = new CanvasInput(
+        () => Toolbox.selected === this.tool && !!this.store.state,
+        () => this.store.state ? { hf: this.store.state.terrain, unitsPerMeter: this.store.unitsPerMeter, waterLevel: this.store.state.settings.waterLevel } : null,
+        this
+      );
+      this.onKey = (e) => {
+        if (Toolbox.selected !== this.tool || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+        if (e.key === "Enter") this.finishPolygon();
+        else if (e.key === "Escape") {
+          this.reset();
+          this.display.cursor.hide();
+          Canvas.updateAll();
+        } else if (e.key === "[" || e.key === "]") {
+          this.model.radius = Math.max(2, Math.min(200, Math.round(this.model.radius * (e.key === "[" ? 0.85 : 1 / 0.85))));
+          this.changed();
+        }
+      };
+      document.addEventListener("keydown", this.onKey);
+    }
+    get active() {
+      return Toolbox.selected === this.tool;
+    }
+    hint() {
+      switch (this.model.mode) {
+        case "brush":
+          return "Drag along a road to change its type. [ ] resize the brush.";
+        case "rect":
+          return "Drag a rectangle; roads inside it change type.";
+        case "polygon":
+          return "Click corners; Enter or double-click applies, Esc cancels.";
+      }
+    }
+    reset() {
+      this.stroke = [];
+      this.start = null;
+      this.polygon = [];
+      this.dragging = false;
+    }
+    change() {
+      const change = {};
+      if (this.model.profile) change.profile = this.model.profile;
+      if (this.model.structure !== "keep") change.structure = this.model.structure;
+      return change;
+    }
+    apply(label, region, bounds) {
+      const state = this.store.state;
+      if (!state) return;
+      const change = this.change();
+      if (change.profile === void 0 && change.structure === void 0) {
+        this.status("Choose a road type or structure to paint first.");
+        return;
+      }
+      try {
+        const result = this.roads.paint(state, region, change, bounds);
+        this.status(result.changed > 0 ? `${label}: changed ${result.changed} road piece${result.changed === 1 ? "" : "s"}${result.split > 0 ? `, cut ${result.split} road${result.split === 1 ? "" : "s"} at the edges` : ""}.` : "No roads in that area needed changing.");
+      } catch (error) {
+        this.status(error.message);
+      }
+    }
+    hover(hit) {
+      const state = this.store.state;
+      if (!state) return;
+      if (!hit) {
+        this.display.cursor.hide();
+      } else if (this.model.mode === "brush") {
+        this.display.cursor.brush(state.terrain, hit.x, hit.z, this.model.radius, "round", PAINT2);
+      } else if (this.model.mode === "polygon" && this.polygon.length > 0) {
+        this.display.cursor.path(state.terrain, [...this.polygon, [hit.x, hit.z]], false, PAINT2);
+      } else {
+        this.display.cursor.hide();
+      }
+      Canvas.updateAll();
+    }
+    down(hit, event) {
+      if (this.model.mode === "polygon") {
+        this.polygon.push([hit.x, hit.z]);
+        if (event.detail >= 2 && this.polygon.length >= 3) this.finishPolygon();
+        else this.hover(hit);
+        return;
+      }
+      this.dragging = true;
+      this.start = hit;
+      this.stroke = [[hit.x, hit.z]];
+    }
+    move(hit) {
+      const state = this.store.state;
+      if (!state || !this.dragging || !this.start) return;
+      if (this.model.mode === "brush") {
+        const last = this.stroke[this.stroke.length - 1];
+        if (Math.hypot(hit.x - last[0], hit.z - last[1]) >= Math.max(1, this.model.radius / 4)) this.stroke.push([hit.x, hit.z]);
+        this.display.cursor.path(state.terrain, this.stroke.length > 1 ? this.stroke : [[hit.x, hit.z], [hit.x + 0.01, hit.z]], false, PAINT2);
+      } else {
+        this.display.cursor.rect(state.terrain, this.start.x, this.start.z, hit.x, hit.z, PAINT2);
+        this.stroke = [[this.start.x, this.start.z], [hit.x, hit.z]];
+      }
+      Canvas.updateAll();
+    }
+    up() {
+      if (!this.dragging) return;
+      this.dragging = false;
+      const stroke = this.stroke;
+      this.display.cursor.hide();
+      if (this.model.mode === "brush" && stroke.length > 0) {
+        this.apply("Road type", strokeRegion(stroke, this.model.radius), strokeBounds(stroke, this.model.radius));
+      } else if (this.model.mode === "rect" && this.start && stroke.length === 2) {
+        this.apply("Road type", rectRegion(stroke[0][0], stroke[0][1], stroke[1][0], stroke[1][1]), strokeBounds(stroke, 0));
+      }
+      this.reset();
+      Canvas.updateAll();
+    }
+    cancel() {
+      this.reset();
+      this.display.cursor.hide();
+      Canvas.updateAll();
+    }
+    finishPolygon() {
+      if (this.polygon.length < 3) return;
+      const polygon = this.polygon;
+      this.polygon = [];
+      this.display.cursor.hide();
+      this.apply("Road type", polygonRegion(polygon), strokeBounds(polygon, 0));
+      Canvas.updateAll();
+    }
+    dispose() {
+      this.input.dispose();
+      document.removeEventListener("keydown", this.onKey);
+      this.tool.delete();
+    }
+  };
+
+  // plugins/citybuilder/src/editor/tools/roundabout_tool.ts
+  var VALID = 8117386;
+  var REACH = 14;
+  var RoundaboutTool = class {
+    constructor(store, display, roads, model, status, changed) {
+      __publicField(this, "store", store);
+      __publicField(this, "display", display);
+      __publicField(this, "roads", roads);
+      __publicField(this, "model", model);
+      __publicField(this, "status", status);
+      __publicField(this, "changed", changed);
+      __publicField(this, "tool");
+      __publicField(this, "input");
+      __publicField(this, "target", null);
+      __publicField(this, "onKey");
+      this.tool = new Tool("citybuilder_roundabout", {
+        name: "Roundabout",
+        description: "Click a road junction to replace it with a roundabout",
+        icon: "sync",
+        category: "tools",
+        modes: ["edit"],
+        condition: () => !!Project && !!this.store.state,
+        selectElements: false,
+        transformerMode: "hidden",
+        cursor: "crosshair",
+        onSelect: () => {
+          this.target = null;
+          this.status("Hover a junction and click to build a roundabout. [ ] change its size.");
+          this.changed();
+        },
+        onUnselect: () => {
+          this.target = null;
+          this.display.cursor.hide();
+          this.changed();
+        }
+      });
+      this.input = new CanvasInput(
+        () => Toolbox.selected === this.tool && !!this.store.state,
+        () => this.store.state ? { hf: this.store.state.terrain, unitsPerMeter: this.store.unitsPerMeter, waterLevel: this.store.state.settings.waterLevel } : null,
+        this
+      );
+      this.onKey = (e) => {
+        if (Toolbox.selected !== this.tool || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+        if (e.key === "[" || e.key === "]") {
+          this.model.radius = Math.max(8, Math.min(120, Math.round(this.model.radius * (e.key === "[" ? 0.9 : 1 / 0.9))));
+          this.drawPreview();
+          this.changed();
+        }
+      };
+      document.addEventListener("keydown", this.onKey);
+    }
+    get active() {
+      return Toolbox.selected === this.tool;
+    }
+    drawPreview() {
+      const state = this.store.state;
+      const target = this.target;
+      if (!state || !target) {
+        this.display.cursor.hide();
+      } else {
+        const ring = [];
+        for (let i = 0; i < 72; i++) {
+          const a = i / 72 * Math.PI * 2;
+          ring.push([target.x + Math.cos(a) * this.model.radius, target.z + Math.sin(a) * this.model.radius]);
+        }
+        this.display.cursor.path(state.terrain, ring, true, VALID);
+      }
+      Canvas.updateAll();
+    }
+    hover(hit) {
+      const state = this.store.state;
+      this.target = state && hit ? this.roads.nearest(state, hit.x, hit.z, REACH + this.model.radius * 0.25) : null;
+      this.drawPreview();
+    }
+    down(hit) {
+      const state = this.store.state;
+      if (!state) return;
+      const target = this.roads.nearest(state, hit.x, hit.z, REACH + this.model.radius * 0.25);
+      if (!target) {
+        this.status("Click on a road junction.");
+        return;
+      }
+      if (target.degree < 2) {
+        this.status("A roundabout needs at least two roads meeting at the point.");
+        return;
+      }
+      try {
+        this.roads.roundabout(state, target, this.model.radius, this.model.profile, this.model.hand);
+        this.status(`Built a roundabout with ${target.degree} exits.`);
+      } catch (error) {
+        this.status(error.message);
+      }
+      this.target = null;
+      this.display.cursor.hide();
+      this.changed();
+    }
+    move() {
+    }
+    up() {
+    }
+    cancel() {
+    }
+    dispose() {
+      this.input.dispose();
+      document.removeEventListener("keydown", this.onKey);
+      this.tool.delete();
+    }
+  };
+
   // plugins/citybuilder/src/core/terrain/surface_brush.ts
   function paintSurface(hf, grid, x, z, radius, id, shape) {
     const c0 = Math.max(0, Math.floor(hf.colAt(x - radius)));
@@ -9509,6 +11496,8 @@ func _build_trees() -> void:
   // plugins/citybuilder/src/editor/tools/models.ts
   var DEFAULT_LANDSCAPE = { mode: "raise", brush: { ...DEFAULT_BRUSH }, surface: 1 };
   var DEFAULT_DISTRICT = { mode: "brush", id: 2, radius: 24, shape: "round", depth: 36, onlyUnzoned: true };
+  var DEFAULT_ROAD_TYPE = { mode: "brush", profile: "", structure: "bridge", radius: 20 };
+  var DEFAULT_ROUNDABOUT_MODEL = { radius: 18, profile: "", hand: "right" };
 
   // plugins/citybuilder/src/editor/controller.ts
   function setPath(object, path, value) {
@@ -9523,9 +11512,15 @@ func _build_trees() -> void:
       __publicField(this, "display", new CityDisplay(this.store));
       __publicField(this, "landscape", { ...DEFAULT_LANDSCAPE, brush: { ...DEFAULT_LANDSCAPE.brush } });
       __publicField(this, "district", { ...DEFAULT_DISTRICT });
+      __publicField(this, "island", { ...DEFAULT_ISLAND });
+      __publicField(this, "roadType", { ...DEFAULT_ROAD_TYPE });
+      __publicField(this, "roundabout", { ...DEFAULT_ROUNDABOUT_MODEL });
+      __publicField(this, "roadEditor", new RoadEditor(this.store));
       __publicField(this, "changed", new Signal());
       __publicField(this, "landscapeTool");
       __publicField(this, "districtTool");
+      __publicField(this, "roadTypeTool");
+      __publicField(this, "roundaboutTool");
       __publicField(this, "presets", TERRAIN_PRESETS);
       __publicField(this, "districts", DISTRICT_TYPES.filter((d) => d.buildable || d.zone === "park" || d.zone === "forest").map((d) => ({ id: d.id, key: d.key, label: d.label, color: d.color, zone: d.zone })));
       __publicField(this, "surfaces", SURFACES.map((name) => {
@@ -9542,8 +11537,11 @@ func _build_trees() -> void:
       const refresh = () => this.changed.emit();
       this.landscapeTool = new LandscapeTool(this.store, this.display, this.landscape, status, refresh);
       this.districtTool = new DistrictTool(this.store, this.display, this.district, status, refresh);
+      this.roadTypeTool = new RoadTypeTool(this.store, this.display, this.roadEditor, this.roadType, status, refresh);
+      this.roundaboutTool = new RoundaboutTool(this.store, this.display, this.roadEditor, this.roundabout, status, refresh);
       this.unsubscribe.push(
         this.store.changed.on((kind) => {
+          if (kind === "display") this.display.updateWater();
           if (kind === "edited" || kind === "loaded" || kind === "cleared") Blockbench.dispatchEvent("citybuilder_terrain_changed", {});
           if (kind === "composed" || kind === "loaded" || kind === "cleared") this.display.sync();
           this.changed.emit();
@@ -9597,8 +11595,16 @@ func _build_trees() -> void:
     // ---- city -------------------------------------------------------------------------------
     create(options) {
       return this.run("Creating the city", () => {
-        const settings = { ...DEFAULT_CITY_SETTINGS, cols: options.size, rows: options.size, cellSize: options.cellSize, seed: options.seed };
+        const base = settingsForKind(DEFAULT_CITY_SETTINGS, options.kind ?? "city");
+        const settings = { ...base, cols: options.size, rows: options.size, cellSize: options.cellSize, seed: options.seed };
         this.store.create(settings, options.preset);
+        if (options.island && this.store.state) {
+          const state = this.store.state;
+          this.store.history.begin();
+          applyIsland(state.terrain, state.settings.waterLevel, { ...this.island, seed: options.seed });
+          this.store.history.commit("Island edges");
+          this.store.edited(0);
+        }
         this.say("City created. Draw roads with Roadscape, zone districts, and shape the land.");
       });
     }
@@ -9607,13 +11613,27 @@ func _build_trees() -> void:
       this.store.remove();
       this.say("City removed from this project.");
     }
-    regenerate(preset, seed) {
+    regenerate(preset, seed, island = false) {
       const state = this.store.state;
       if (!state) return;
       this.store.history.begin();
       state.settings.seed = seed;
       generateTerrain(state.terrain, { preset, seed });
+      if (island) applyIsland(state.terrain, state.settings.waterLevel, { ...this.island, seed });
       if (this.store.history.commit("Generate terrain")) this.store.edited(50);
+    }
+    setIsland(path, value) {
+      setPath(this.island, path, value);
+      this.changed.emit();
+    }
+    /** Bends the edges of the current terrain down into the sea. One undo step. */
+    islandEdges() {
+      const state = this.store.state;
+      if (!state) return;
+      this.store.history.begin();
+      applyIsland(state.terrain, state.settings.waterLevel, { ...this.island, seed: this.island.seed + state.settings.seed });
+      if (this.store.history.commit("Island edges")) this.store.edited(50);
+      this.say("Bent the map edges into the sea. Undo restores the land; change the sliders and apply again for another look.");
     }
     smoothTerrain() {
       const state = this.store.state;
@@ -9634,8 +11654,24 @@ func _build_trees() -> void:
       const state = this.store.state;
       if (!state) return;
       this.store.history.editSettings(`Change ${path}`, (settings) => setPath(settings, path, value));
+      if (path.startsWith("water.")) {
+        this.store.displayEdited();
+        return;
+      }
       this.store.edited(path === "unitsPerMeter" ? 0 : 300);
       if (path === "unitsPerMeter") this.display.sync();
+    }
+    /** Applies a project kind's defaults (what is generated and exported). */
+    setKind(kind) {
+      const state = this.store.state;
+      if (!state) return;
+      this.store.history.editSettings("Change project type", (settings) => {
+        const next = settingsForKind(settings, kind);
+        settings.kind = next.kind;
+        settings.features = next.features;
+        settings.export = next.export;
+      });
+      this.store.edited(50);
     }
     // ---- display ----------------------------------------------------------------------------
     setDisplay(key, value) {
@@ -9644,7 +11680,27 @@ func _build_trees() -> void:
     }
     // ---- tools ------------------------------------------------------------------------------
     deselectTools() {
-      if (this.landscapeTool.active || this.districtTool.active) BarItems.move_tool.select();
+      if (this.activeTool() !== "none") BarItems.move_tool.select();
+    }
+    activeTool() {
+      return this.landscapeTool.active ? "landscape" : this.districtTool.active ? "zoning" : this.roadTypeTool.active ? "roadtype" : this.roundaboutTool.active ? "roundabout" : "none";
+    }
+    pickRoadType(mode) {
+      this.roadType.mode = mode;
+      this.roadTypeTool.tool.select();
+      this.say(this.roadTypeTool.hint());
+    }
+    setRoadType(path, value) {
+      setPath(this.roadType, path, value);
+      this.changed.emit();
+    }
+    pickRoundabout() {
+      this.roundaboutTool.tool.select();
+      this.changed.emit();
+    }
+    setRoundabout(path, value) {
+      setPath(this.roundabout, path, value);
+      this.changed.emit();
     }
     pickLandscape(mode) {
       this.landscape.mode = mode;
@@ -9707,7 +11763,7 @@ func _build_trees() -> void:
         const plan = this.store.plan;
         if (!state || !plan) throw new Error("Create a city first.");
         const pkg = buildGamePackage(plan, state);
-        await addTreesToPackage(pkg, plan.trees);
+        await addTreesToPackage(pkg, state.settings.export.trees ? plan.trees : []);
         this.report = pkg.report;
         this.say(`Export would hold ${this.report.prefabs} building meshes on ${this.report.atlasPages} \xD7 ${this.report.atlasSize}px atlas pages.`);
       });
@@ -9723,7 +11779,7 @@ func _build_trees() -> void:
           return;
         }
         const pkg = buildGamePackage(plan, state);
-        await addTreesToPackage(pkg, plan.trees);
+        await addTreesToPackage(pkg, state.settings.export.trees ? plan.trees : []);
         const written = await writePackage(directory, pkg.files);
         this.report = pkg.report;
         this.say(`Exported ${written} files to ${directory}. Add city_loader.gd to a Godot 4 scene to build it.`);
@@ -9756,7 +11812,12 @@ func _build_trees() -> void:
         display: { ...this.display.options },
         stats: this.store.plan?.stats ?? null,
         composeMs: this.store.composeMs,
-        activeTool: this.landscapeTool.active ? "landscape" : this.districtTool.active ? "zoning" : "none",
+        activeTool: this.activeTool(),
+        island: { ...this.island },
+        roadType: { ...this.roadType },
+        roundabout: { ...this.roundabout },
+        profiles: state ? this.roadEditor.profileChoices() : [],
+        structures: RoadEditor.STRUCTURES,
         roadCount: this.store.roads.corridors.length,
         hasRoadscape: this.hasRoadscape,
         report: this.report,
@@ -9768,6 +11829,8 @@ func _build_trees() -> void:
       for (const handle of this.eventHandles) handle.delete();
       this.landscapeTool.dispose();
       this.districtTool.dispose();
+      this.roadTypeTool.dispose();
+      this.roundaboutTool.dispose();
       this.store.bridge.dispose();
       this.store.dispose();
       this.display.dispose();
@@ -9940,11 +12003,36 @@ func _build_trees() -> void:
     { value: "boxes", label: "Boxes" },
     { value: "none", label: "None" }
   ];
+  var ISLAND_SHAPES = [
+    { value: "round", label: "Round" },
+    { value: "rounded square", label: "Rounded square" }
+  ];
+  var KINDS = [
+    { value: "city", label: "City" },
+    { value: "track", label: "Race track / road scene" },
+    { value: "landscape", label: "Landscape only" }
+  ];
+  var KIND_HINTS = {
+    city: "Zoned districts fill with buildings and trees.",
+    track: "Terrain, roads and trees without buildings; export is ready for track scenery.",
+    landscape: "Terrain and roads only."
+  };
+  var HANDS = [
+    { value: "right", label: "The right" },
+    { value: "left", label: "The left" }
+  ];
+  var PAINT_MODES2 = [
+    { id: "brush", label: "Brush" },
+    { id: "rect", label: "Rectangle" },
+    { id: "polygon", label: "Polygon" }
+  ];
   var TEMPLATE = `<div class="rs_panel">
 	<p class="rs_status" role="status">{{status}}</p>
 	<p v-if="snap.busy" class="cb_busy">{{snap.busy}}\u2026</p>
 
 	<rs-section v-if="!snap.hasCity" title="New city">
+		<rs-select label="Project type" :value="create.kind" :options="kinds" @input="create.kind = $event"></rs-select>
+		<p class="rs_hint">{{kindHint(create.kind)}}</p>
 		<rs-select label="Map size" :value="String(create.size)" :options="sizes" @input="create.size = Number($event)"></rs-select>
 		<rs-number label="Point spacing" suffix="m" :value="create.cellSize" :min="2" :max="24" :step="1" @input="create.cellSize = $event"></rs-number>
 		<rs-select label="Landscape" :value="create.preset" :options="presetOptions" @input="create.preset = $event"></rs-select>
@@ -9955,13 +12043,24 @@ func _build_trees() -> void:
 
 	<template v-if="snap.hasCity">
 		<div class="cb_stats" v-if="snap.stats">
-			<div><b>{{snap.stats.population.toLocaleString()}}</b><small>residents</small></div>
-			<div><b>{{snap.stats.jobs.toLocaleString()}}</b><small>jobs</small></div>
-			<div><b>{{snap.stats.buildings}}</b><small>buildings</small></div>
-			<div><b>{{snap.stats.lots}}</b><small>lots</small></div>
-			<div><b>{{snap.stats.trees}}</b><small>trees</small></div>
+			<div v-if="snap.settings.features.buildings"><b>{{snap.stats.buildings}}</b><small>buildings</small></div>
+			<div v-if="snap.settings.features.buildings"><b>{{snap.stats.lots}}</b><small>lots</small></div>
+			<div v-if="snap.settings.features.trees"><b>{{snap.stats.trees}}</b><small>trees</small></div>
+			<div><b>{{snap.roadCount}}</b><small>road pieces</small></div>
 			<div><b>{{snap.composeMs}} ms</b><small>build time</small></div>
 		</div>
+
+		<rs-section title="Project">
+			<rs-select label="Project type" :value="snap.settings.kind" :options="kinds" @input="ctl.setKind($event)"></rs-select>
+			<p class="rs_hint">{{kindHint(snap.settings.kind)}} The type only picks defaults; every option below stays editable.</p>
+			<rs-toggle label="Generate buildings" :value="snap.settings.features.buildings" @input="ctl.setSetting('features.buildings', $event)"></rs-toggle>
+			<rs-toggle label="Generate trees" :value="snap.settings.features.trees" @input="ctl.setSetting('features.trees', $event)"></rs-toggle>
+			<p class="rs_hint">Export includes</p>
+			<rs-toggle label="Terrain" :value="snap.settings.export.terrain" @input="ctl.setSetting('export.terrain', $event)"></rs-toggle>
+			<rs-toggle label="Buildings" :value="snap.settings.export.buildings" @input="ctl.setSetting('export.buildings', $event)"></rs-toggle>
+			<rs-toggle label="Trees" :value="snap.settings.export.trees" @input="ctl.setSetting('export.trees', $event)"></rs-toggle>
+			<p class="rs_hint">Water is never exported. The manifest records the water level so your engine can place its own.</p>
+		</rs-section>
 
 		<rs-section title="Roads & layout">
 			<div class="rs_row"><button class="rs_primary" :disabled="!!snap.busy || !snap.hasRoadscape" @click="ctl.generateLayout()">Generate editable layout\u2026</button></div>
@@ -9971,6 +12070,18 @@ func _build_trees() -> void:
 			</div>
 			<p class="rs_hint" v-if="!snap.hasRoadscape">Load the Roadscape plugin to draw roads.</p>
 			<p class="rs_hint">{{snap.roadCount}} road segment{{snap.roadCount === 1 ? '' : 's'}} found.</p>
+			<p class="rs_hint"><b>Roundabout</b>: click a junction in the viewport.</p>
+			<rs-number label="Radius" suffix="m" :value="snap.roundabout.radius" :min="8" :max="120" :step="1" @input="ctl.setRoundabout('radius', $event)"></rs-number>
+			<rs-select label="Traffic drives on" :value="snap.roundabout.hand" :options="hands" @input="ctl.setRoundabout('hand', $event)"></rs-select>
+			<rs-select label="Ring profile" :value="snap.roundabout.profile" :options="profileOptions(snap.profiles, 'Automatic')" @input="ctl.setRoundabout('profile', $event)"></rs-select>
+			<div class="rs_row"><button :class="{cb_on: snap.activeTool === 'roundabout'}" @click="ctl.pickRoundabout()">Roundabout tool</button></div>
+			<p class="rs_hint"><b>Road type</b>: paint where a road becomes a bridge, tunnel, open span or another profile. Roads are cut at the edges of the painted area.</p>
+			<rs-select label="Structure" :value="snap.roadType.structure" :options="structureOptions(snap.structures)" @input="ctl.setRoadType('structure', $event)"></rs-select>
+			<rs-select label="Road profile" :value="snap.roadType.profile" :options="profileOptions(snap.profiles, 'Keep each road\u2019s own')" @input="ctl.setRoadType('profile', $event)"></rs-select>
+			<div class="cb_modes">
+				<button v-for="m in paintModes" :key="m.id" :class="{cb_on: snap.activeTool === 'roadtype' && snap.roadType.mode === m.id}" @click="ctl.pickRoadType(m.id)">{{m.label}}</button>
+			</div>
+			<rs-number v-if="snap.roadType.mode === 'brush'" label="Brush size" suffix="m" :value="snap.roadType.radius" :min="2" :max="200" :step="1" @input="ctl.setRoadType('radius', $event)"></rs-number>
 			<rs-toggle label="Terrain follows roads" :value="snap.settings.conform.roads" @input="ctl.setSetting('conform.roads', $event)"></rs-toggle>
 			<rs-number label="Ground tolerance" suffix="m" :value="snap.settings.conform.groundTolerance" :min="0" :max="60" :step="1" @input="ctl.setSetting('conform.groundTolerance', $event)"></rs-number>
 			<p class="rs_hint">Gap height threshold for automatic bridges. Water crossings are detected separately. Explicit Ground, Bridge, Tunnel and Open span segments keep their chosen behavior.</p>
@@ -10004,8 +12115,32 @@ func _build_trees() -> void:
 				<button @click="ctl.raiseTerrain(-1)">\u22121 m</button>
 			</div>
 			<rs-select label="Regenerate" :value="regen.preset" :options="presetOptions" @input="regen.preset = $event"></rs-select>
-			<div class="rs_row"><button @click="ctl.regenerate(regen.preset, snap.settings.seed + 1)" title="Replaces the terrain; undoable">Generate new terrain</button></div>
+			<rs-toggle label="With island edges" :value="regen.island" @input="regen.island = $event"></rs-toggle>
+			<div class="rs_row"><button @click="ctl.regenerate(regen.preset, snap.settings.seed + 1, regen.island)" title="Replaces the terrain; undoable">Generate new terrain</button></div>
+			<p class="rs_hint"><b>Island edges</b> bend the border of the current map down into the sea with a natural, ragged coastline. The water level decides where the shore is.</p>
+			<rs-number label="Edge width" :value="snap.island.width" :min="0.05" :max="0.7" :step="0.01" @input="ctl.setIsland('width', $event)"></rs-number>
+			<rs-number label="Sea floor depth" suffix="m" :value="snap.island.depth" :min="1" :max="80" :step="1" @input="ctl.setIsland('depth', $event)"></rs-number>
+			<rs-number label="Coast roughness" :value="snap.island.roughness" :min="0" :max="1" :step="0.05" @input="ctl.setIsland('roughness', $event)"></rs-number>
+			<rs-select label="Island shape" :value="snap.island.shape" :options="islandShapes" @input="ctl.setIsland('shape', $event)"></rs-select>
+			<div class="rs_row"><button @click="ctl.islandEdges()" title="Lowers the land near the border below the water line; undoable">Apply island edges</button></div>
 			<rs-number label="Water level" suffix="m" :value="snap.settings.waterLevel" :min="-50" :max="200" :step="0.5" @input="ctl.setSetting('waterLevel', $event)"></rs-number>
+		</rs-section>
+
+		<rs-section title="Water preview" :open="false">
+			<p class="rs_hint">Only for looking at the scene. Water is not exported; your engine renders its own with the same parameters.</p>
+			<rs-toggle label="Show water" :value="snap.settings.water.show" @input="ctl.setSetting('water.show', $event)"></rs-toggle>
+			<rs-toggle label="Animate" :value="snap.settings.water.animate" @input="ctl.setSetting('water.animate', $event)"></rs-toggle>
+			<div class="rs_row"><label>Colour <input type="color" :value="waterHex(snap.settings.water.color)" @change="setWaterColor($event.target.value)"></label></div>
+			<rs-number label="Colour ratio" :value="snap.settings.water.colorRatio" :min="0" :max="1" :step="0.01" @input="ctl.setSetting('water.colorRatio', $event)"></rs-number>
+			<rs-number label="Opacity" :value="snap.settings.water.alphaScale" :min="0" :max="1" :step="0.05" @input="ctl.setSetting('water.alphaScale', $event)"></rs-number>
+			<rs-number label="Roughness" :value="snap.settings.water.roughness" :min="0.02" :max="1" :step="0.02" @input="ctl.setSetting('water.roughness', $event)"></rs-number>
+			<rs-number label="Ripple strength" :value="snap.settings.water.normal" :min="0" :max="2" :step="0.05" @input="ctl.setSetting('water.normal', $event)"></rs-number>
+			<rs-number label="Ripple speed" :value="snap.settings.water.timeScale" :min="0" :max="5" :step="0.1" @input="ctl.setSetting('water.timeScale', $event)"></rs-number>
+			<rs-number label="Texture tiling" :value="snap.settings.water.uvScale" :min="1" :max="200" :step="1" @input="ctl.setSetting('water.uvScale', $event)"></rs-number>
+			<rs-number label="Depth fade" suffix="m" :value="snap.settings.water.depthDistance" :min="0.5" :max="60" :step="0.5" @input="ctl.setSetting('water.depthDistance', $event)"></rs-number>
+			<rs-number label="Foam" :value="snap.settings.water.foamIntensity" :min="0" :max="2" :step="0.05" @input="ctl.setSetting('water.foamIntensity', $event)"></rs-number>
+			<rs-number label="Foam width" suffix="m" :value="snap.settings.water.foamWidth" :min="0" :max="2" :step="0.05" @input="ctl.setSetting('water.foamWidth', $event)"></rs-number>
+			<rs-number label="Shore fade" suffix="m" :value="snap.settings.water.shoreFadeDistance" :min="0" :max="10" :step="0.1" @input="ctl.setSetting('water.shoreFadeDistance', $event)"></rs-number>
 		</rs-section>
 
 		<rs-section title="Districts">
@@ -10027,7 +12162,7 @@ func _build_trees() -> void:
 			<rs-toggle label="Show lots" :value="snap.display.lots" @input="ctl.setDisplay('lots', $event)"></rs-toggle>
 		</rs-section>
 
-		<rs-section title="Growth">
+		<rs-section v-if="snap.settings.features.buildings || snap.settings.features.trees" title="Growth">
 			<rs-number label="Development" :value="snap.settings.development" :min="0" :max="1" :step="0.05" @input="ctl.setSetting('development', $event)"></rs-number>
 			<p class="rs_hint">Raise it to watch zoned lots fill up and grow taller. Buildings never move; they only appear and rise.</p>
 			<rs-number label="Look variants" :value="snap.settings.variants" :min="1" :max="8" :step="1" @input="ctl.setSetting('variants', $event)"></rs-number>
@@ -10037,7 +12172,6 @@ func _build_trees() -> void:
 			<rs-toggle label="Level ground under buildings" :value="snap.settings.conform.lots" @input="ctl.setSetting('conform.lots', $event)"></rs-toggle>
 			<rs-toggle label="Show buildings" :value="snap.display.buildings" @input="ctl.setDisplay('buildings', $event)"></rs-toggle>
 			<rs-toggle label="Show trees" :value="snap.display.trees" @input="ctl.setDisplay('trees', $event)"></rs-toggle>
-			<rs-toggle label="Show water" :value="snap.display.water" @input="ctl.setDisplay('water', $event)"></rs-toggle>
 		</rs-section>
 
 		<rs-section title="Game ready">
@@ -10084,8 +12218,8 @@ func _build_trees() -> void:
         snap: ctl.snapshot(),
         status: ctl.status,
         ctl,
-        create: { size: 129, cellSize: 6, preset: "rolling", seed: 1 },
-        regen: { preset: "rolling" },
+        create: { size: 129, cellSize: 6, preset: "rolling", seed: 1, kind: "city", island: false },
+        regen: { preset: "rolling", island: false },
         landscapeModes: LANDSCAPE_MODES,
         districtModes: DISTRICT_MODES,
         districts: ctl.districts,
@@ -10095,8 +12229,19 @@ func _build_trees() -> void:
         shape: SHAPE,
         sizes: SIZES,
         atlas: ATLAS,
-        collision: COLLISION
+        collision: COLLISION,
+        kinds: KINDS,
+        islandShapes: ISLAND_SHAPES,
+        hands: HANDS,
+        paintModes: PAINT_MODES2
       }),
+      methods: {
+        kindHint: (kind) => KIND_HINTS[kind] ?? "",
+        profileOptions: (profiles, none) => [{ value: "", label: none }, ...profiles.map((p) => ({ value: p.id, label: p.name }))],
+        structureOptions: (items) => [{ value: "keep", label: "Keep each road\u2019s own" }, ...items.map((i) => ({ value: i.id, label: i.label }))],
+        waterHex: (c) => "#" + c.map((v) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, "0")).join(""),
+        setWaterColor: (hex) => ctl.setSetting("water.color", [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255))
+      },
       template: TEMPLATE,
       mounted() {
         onMounted(this);
@@ -10132,10 +12277,10 @@ func _build_trees() -> void:
     controller = null;
     if (globalThis[INSTANCE_KEY] === dispose) delete globalThis[INSTANCE_KEY];
   }
-  function defineAction(id, name, icon, click, meshMenu = false) {
+  function defineAction(id, name, icon2, click, meshMenu = false) {
     const action = new Action(id, {
       name,
-      icon,
+      icon: icon2,
       category: "tools",
       condition: () => !!Project && (id === "citybuilder_game_ready" || !!controller?.store.state),
       click: () => click()

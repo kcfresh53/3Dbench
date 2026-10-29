@@ -19,6 +19,8 @@ export interface PaintInput {
 	/** Colour for building pads, used where lotWeight is high. */
 	padColor?: Rgb;
 	waterLevel: number;
+	/** How strongly ground below the water line is darkened, 0..1. The default is none: the water draws itself. */
+	waterTint?: number;
 	/** Direction towards the sun. */
 	sun: Vec3;
 	/** Output size in pixels per side. */
@@ -108,6 +110,7 @@ export function createTerrainPainter(input: PaintInput): TerrainPainter {
 	const lotW: Float32Array | undefined = input.lotWeight;
 	const pad: Rgb | undefined = input.padColor;
 	const surfaces: ByteGrid = input.surfaces;
+	const waterTint: number = input.waterTint ?? 0;
 	const cellCols: number = surfaces.cols;
 	const cellRows: number = surfaces.rows;
 	const lattice: number = 1 / GRAIN_STEP;
@@ -200,7 +203,7 @@ export function createTerrainPainter(input: PaintInput): TerrainPainter {
 			}
 			const shade: number = ((light[a] + (light[b] - light[a]) * tu) * (1 - tv) + (light[d] + (light[e] - light[d]) * tu) * tv);
 			const height: number = (heights[a] + (heights[b] - heights[a]) * tu) * (1 - tv) + (heights[d] + (heights[e] - heights[d]) * tu) * tv;
-			const wet: number = wetnessOf(height, input.waterLevel) * 0.7;
+			const wet: number = waterTint > 0 ? wetnessOf(height, input.waterLevel) * 0.7 * waterTint : 0;
 			const o: number = (py * size + px) * 4;
 			for (let i: number = 0; i < 3; i++) {
 				let value: number = rgb[i] * grainValue;

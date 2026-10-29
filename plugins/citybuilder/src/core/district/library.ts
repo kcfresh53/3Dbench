@@ -29,8 +29,6 @@ export const DISTRICT_TYPES: DistrictType[] = [
 		palettes: [0, 3, 6, 7, 10],
 		treeDensity: 0.35,
 		treeSpecies: TREES_TEMPERATE,
-		residentsPerM2: 0.022,
-		jobsPerM2: 0,
 		buildable: true,
 	},
 	{
@@ -49,8 +47,6 @@ export const DISTRICT_TYPES: DistrictType[] = [
 		palettes: [0, 1, 2, 7, 10],
 		treeDensity: 0.18,
 		treeSpecies: TREES_TEMPERATE,
-		residentsPerM2: 0.026,
-		jobsPerM2: 0.002,
 		buildable: true,
 	},
 	{
@@ -69,8 +65,6 @@ export const DISTRICT_TYPES: DistrictType[] = [
 		palettes: [4, 5, 8, 9],
 		treeDensity: 0.08,
 		treeSpecies: TREES_TEMPERATE,
-		residentsPerM2: 0.03,
-		jobsPerM2: 0.003,
 		buildable: true,
 	},
 	{
@@ -89,8 +83,6 @@ export const DISTRICT_TYPES: DistrictType[] = [
 		palettes: [0, 1, 2, 6, 7, 10],
 		treeDensity: 0.04,
 		treeSpecies: TREES_TEMPERATE,
-		residentsPerM2: 0.006,
-		jobsPerM2: 0.03,
 		buildable: true,
 	},
 	{
@@ -109,8 +101,6 @@ export const DISTRICT_TYPES: DistrictType[] = [
 		palettes: [2, 4, 5, 8],
 		treeDensity: 0.02,
 		treeSpecies: TREES_TEMPERATE,
-		residentsPerM2: 0.004,
-		jobsPerM2: 0.045,
 		buildable: true,
 	},
 	{
@@ -129,8 +119,6 @@ export const DISTRICT_TYPES: DistrictType[] = [
 		palettes: [4, 5, 8, 9],
 		treeDensity: 0.05,
 		treeSpecies: TREES_TEMPERATE,
-		residentsPerM2: 0,
-		jobsPerM2: 0.06,
 		buildable: true,
 	},
 	{
@@ -149,8 +137,6 @@ export const DISTRICT_TYPES: DistrictType[] = [
 		palettes: [4, 5, 8, 10],
 		treeDensity: 0.03,
 		treeSpecies: TREES_CONIFER,
-		residentsPerM2: 0,
-		jobsPerM2: 0.012,
 		buildable: true,
 	},
 	{
@@ -169,8 +155,6 @@ export const DISTRICT_TYPES: DistrictType[] = [
 		palettes: [4, 5, 8],
 		treeDensity: 0.01,
 		treeSpecies: TREES_CONIFER,
-		residentsPerM2: 0,
-		jobsPerM2: 0.01,
 		buildable: true,
 	},
 	{
@@ -189,8 +173,6 @@ export const DISTRICT_TYPES: DistrictType[] = [
 		palettes: [2, 6, 7],
 		treeDensity: 0.25,
 		treeSpecies: TREES_TEMPERATE,
-		residentsPerM2: 0,
-		jobsPerM2: 0.02,
 		buildable: true,
 	},
 	{
@@ -209,8 +191,6 @@ export const DISTRICT_TYPES: DistrictType[] = [
 		palettes: [],
 		treeDensity: 0.9,
 		treeSpecies: TREES_TEMPERATE,
-		residentsPerM2: 0,
-		jobsPerM2: 0,
 		buildable: false,
 	},
 	{
@@ -229,8 +209,6 @@ export const DISTRICT_TYPES: DistrictType[] = [
 		palettes: [],
 		treeDensity: 2.2,
 		treeSpecies: TREES_CONIFER,
-		residentsPerM2: 0,
-		jobsPerM2: 0,
 		buildable: false,
 	},
 	{
@@ -249,8 +227,6 @@ export const DISTRICT_TYPES: DistrictType[] = [
 		palettes: [0, 1, 2, 6, 7, 10],
 		treeDensity: 0.04,
 		treeSpecies: TREES_TEMPERATE,
-		residentsPerM2: 0.02,
-		jobsPerM2: 0.02,
 		buildable: true,
 	},
 ];

@@ -29,10 +29,6 @@ export interface DistrictType {
 	treeDensity: number;
 	/** Tree presets with relative weights (Procedural Trees names). */
 	treeSpecies: Array<{ preset: string; weight: number }>;
-	/** Residents per square metre of floor area, 0 for non-residential. */
-	residentsPerM2: number;
-	/** Jobs per square metre of floor area. */
-	jobsPerM2: number;
 	/** Whether the district gets buildings at all. */
 	buildable: boolean;
 }

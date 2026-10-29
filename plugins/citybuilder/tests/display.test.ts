@@ -141,8 +141,17 @@ test('lot, water and cursor views build without errors', () => {
 	assert.equal(lots.root.children.length, 1);
 	assert.ok(((lots.root.children[0] as THREE_NS.LineSegments).geometry.getAttribute("position") as THREE_NS.BufferAttribute).count > 0, "lot outlines exist");
 	const water = new WaterView();
+	const g = globalThis as unknown as Record<string, unknown>;
+	const saved = { raf: g.requestAnimationFrame, caf: g.cancelAnimationFrame };
+	// The preview animates through requestAnimationFrame, which a node test does not have.
+	g.requestAnimationFrame = (): number => 1;
+	g.cancelAnimationFrame = (): void => {};
 	water.rebuild(ctx);
 	assert.equal(water.root.children.length, 1);
+	assert.equal((water.root as unknown as { no_export: boolean }).no_export, true, 'the water sheet is never exported');
+	assert.equal((water.root.children[0] as unknown as { no_export: boolean }).no_export, true);
+	water.configure({ ...ctx.state.settings.water, show: false });
+	assert.equal(water.root.visible, false, 'water can be hidden');
 	const cursor = new CursorView();
 	cursor.brush(ctx.plan.terrain.heights, 0, 0, 20, 'round', 0xffffff);
 	cursor.rect(ctx.plan.terrain.heights, -10, -10, 30, 20, 0xffffff);
@@ -150,5 +159,7 @@ test('lot, water and cursor views build without errors', () => {
 	cursor.hide();
 	lots.dispose();
 	water.dispose();
+	g.requestAnimationFrame = saved.raf;
+	g.cancelAnimationFrame = saved.caf;
 	cursor.dispose();
 });

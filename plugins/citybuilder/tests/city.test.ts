@@ -21,7 +21,7 @@ test('zoning beside roads produces lots, buildings and trees', () => {
 	const plan: CityPlan = composeCity(state, roads);
 	assert.ok(plan.lots.length > 10, `lots: ${plan.lots.length}`);
 	assert.ok(plan.buildings.length > 5, `buildings: ${plan.buildings.length}`);
-	assert.ok(plan.stats.population > 0);
+	assert.ok(plan.stats.lots > 0 && plan.stats.buildings > 0);
 });
 
 test('buildings stand clear of roads and on their pads', () => {

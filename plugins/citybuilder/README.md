@@ -57,3 +57,27 @@ Paint ground also paints the biome: beach sand grows palms, loamy soil/mud grows
 Trees within 24 metres of a ground road edge use shared realistic Procedural Trees meshes (up to 1,800 triangles); trees outside that band use four-triangle Roadscape cutouts. Trunks stay at least 2 metres outside roads and out of building footprints. Distant palms use cutouts rendered from the generator. Terrain uses bundled ambientCG color maps, with no runtime download. See ASSETS.md for sources and licensing.
 
 Bake includes trees in spatial chunks. Game export includes tree meshes, transparent atlases and manifest references; the Godot loader applies two-sided alpha cutout materials automatically. Custom tree scenes remain an optional override. The near-road model/cross selection is based on road distance, not camera distance.
+
+## Projects beyond cities: tracks and landscapes
+
+The **Project type** (City, Race track / road scene, Landscape only) only chooses defaults. A track generates and exports terrain, roads and trees without buildings; a landscape keeps just the ground. *Generate buildings*, *Generate trees* and the *Export includes* toggles stay editable afterwards. Switching off a feature also skips its work, so large tracks stay light.
+
+## Roundabouts
+
+Pick the **Roundabout** tool in the viewport toolbar and click a road junction. The roads are cut where they meet the circle, a ring of curved Roadscape segments joins them, and the ground on the island is levelled with no lots on it. Radius (`[` `]`), driving side and ring profile are adjustable. The ring is ordinary Roadscape data, so you can restyle or edit it afterwards. One undo step.
+
+## Road types
+
+The **Road type** tool paints where roads change: ground, bridge, tunnel, open span / jump, or any Roadscape road profile (including your own). Choose a structure and/or profile, then drag a brush along the road, drag a rectangle or click a polygon (Enter applies). Roads are cut at the edges of the painted area, so only the painted stretch changes; slivers shorter than a few metres are absorbed. Leave the structure at *Keep* to change only the profile, or the profile empty to change only the structure.
+
+## Water preview
+
+The water sheet is a preview only and is never exported or baked. The manifest records `waterLevel` so your engine places its own. Its look comes from a port of a Godot 4 water shader (MIT, by "Somebody"): the parameter names (`water_color`, `color_ratio`, `alpha_scale`, `roughness`, `normal`, `time_scale`, `uv_scale`, `depth_distance`, `foam_intensity`, `foam_width`, `shore_fade_distance`…) match, so values can be copied across. The viewport has no screen or depth texture to sample, so the ground colour behind the water comes from the terrain albedo and depth from a depth map of the terrain, and the textures are generated procedurally. Water settings never rebuild the city.
+
+## Street layout generator
+
+*Generate editable layout* grows a Roadscape network with a tensor-field street generator (after Chen et al., "Interactive Procedural Street Modeling", SIGGRAPH 2008). A direction field blends grids and radial patterns (and, with *Follow hillsides*, the contour lines of the terrain); streets are traced along it as evenly spaced streamlines, with seeds dropped one spacing to either side of every street so the area fills evenly. Main roads are laid out first with wide spacing, then streets fill in, closer together near the city centres. Streets stop at water and steep ground, end on the street they meet to form junctions, and dead-end stubs are pruned. Layouts: organic (several centres, each with rings and spokes giving way to its own grid), grid, radial (rings and spokes around a plaza) and closed circuit. The result is plain editable control points.
+
+## Island edges
+
+*Island edges* (Landscape section; also a toggle when creating or regenerating terrain) bends the border of the map down below the water line with a ragged coastline. Edge width, sea floor depth, roughness and shape are adjustable. It only ever lowers land and is one undo step.

@@ -60,11 +60,37 @@ const COLLISION: Array<{ value: string; label: string }> = [
 	{ value: 'none', label: 'None' },
 ];
 
+const ISLAND_SHAPES: Array<{ value: string; label: string }> = [
+	{ value: 'round', label: 'Round' },
+	{ value: 'rounded square', label: 'Rounded square' },
+];
+const KINDS: Array<{ value: string; label: string }> = [
+	{ value: 'city', label: 'City' },
+	{ value: 'track', label: 'Race track / road scene' },
+	{ value: 'landscape', label: 'Landscape only' },
+];
+const KIND_HINTS: Record<string, string> = {
+	city: 'Zoned districts fill with buildings and trees.',
+	track: 'Terrain, roads and trees without buildings; export is ready for track scenery.',
+	landscape: 'Terrain and roads only.',
+};
+const HANDS: Array<{ value: string; label: string }> = [
+	{ value: 'right', label: 'The right' },
+	{ value: 'left', label: 'The left' },
+];
+const PAINT_MODES: Array<{ id: string; label: string }> = [
+	{ id: 'brush', label: 'Brush' },
+	{ id: 'rect', label: 'Rectangle' },
+	{ id: 'polygon', label: 'Polygon' },
+];
+
 const TEMPLATE: string = `<div class="rs_panel">
 	<p class="rs_status" role="status">{{status}}</p>
 	<p v-if="snap.busy" class="cb_busy">{{snap.busy}}…</p>
 
 	<rs-section v-if="!snap.hasCity" title="New city">
+		<rs-select label="Project type" :value="create.kind" :options="kinds" @input="create.kind = $event"></rs-select>
+		<p class="rs_hint">{{kindHint(create.kind)}}</p>
 		<rs-select label="Map size" :value="String(create.size)" :options="sizes" @input="create.size = Number($event)"></rs-select>
 		<rs-number label="Point spacing" suffix="m" :value="create.cellSize" :min="2" :max="24" :step="1" @input="create.cellSize = $event"></rs-number>
 		<rs-select label="Landscape" :value="create.preset" :options="presetOptions" @input="create.preset = $event"></rs-select>
@@ -75,13 +101,24 @@ const TEMPLATE: string = `<div class="rs_panel">
 
 	<template v-if="snap.hasCity">
 		<div class="cb_stats" v-if="snap.stats">
-			<div><b>{{snap.stats.population.toLocaleString()}}</b><small>residents</small></div>
-			<div><b>{{snap.stats.jobs.toLocaleString()}}</b><small>jobs</small></div>
-			<div><b>{{snap.stats.buildings}}</b><small>buildings</small></div>
-			<div><b>{{snap.stats.lots}}</b><small>lots</small></div>
-			<div><b>{{snap.stats.trees}}</b><small>trees</small></div>
+			<div v-if="snap.settings.features.buildings"><b>{{snap.stats.buildings}}</b><small>buildings</small></div>
+			<div v-if="snap.settings.features.buildings"><b>{{snap.stats.lots}}</b><small>lots</small></div>
+			<div v-if="snap.settings.features.trees"><b>{{snap.stats.trees}}</b><small>trees</small></div>
+			<div><b>{{snap.roadCount}}</b><small>road pieces</small></div>
 			<div><b>{{snap.composeMs}} ms</b><small>build time</small></div>
 		</div>
+
+		<rs-section title="Project">
+			<rs-select label="Project type" :value="snap.settings.kind" :options="kinds" @input="ctl.setKind($event)"></rs-select>
+			<p class="rs_hint">{{kindHint(snap.settings.kind)}} The type only picks defaults; every option below stays editable.</p>
+			<rs-toggle label="Generate buildings" :value="snap.settings.features.buildings" @input="ctl.setSetting('features.buildings', $event)"></rs-toggle>
+			<rs-toggle label="Generate trees" :value="snap.settings.features.trees" @input="ctl.setSetting('features.trees', $event)"></rs-toggle>
+			<p class="rs_hint">Export includes</p>
+			<rs-toggle label="Terrain" :value="snap.settings.export.terrain" @input="ctl.setSetting('export.terrain', $event)"></rs-toggle>
+			<rs-toggle label="Buildings" :value="snap.settings.export.buildings" @input="ctl.setSetting('export.buildings', $event)"></rs-toggle>
+			<rs-toggle label="Trees" :value="snap.settings.export.trees" @input="ctl.setSetting('export.trees', $event)"></rs-toggle>
+			<p class="rs_hint">Water is never exported. The manifest records the water level so your engine can place its own.</p>
+		</rs-section>
 
 		<rs-section title="Roads & layout">
 			<div class="rs_row"><button class="rs_primary" :disabled="!!snap.busy || !snap.hasRoadscape" @click="ctl.generateLayout()">Generate editable layout…</button></div>
@@ -91,6 +128,18 @@ const TEMPLATE: string = `<div class="rs_panel">
 			</div>
 			<p class="rs_hint" v-if="!snap.hasRoadscape">Load the Roadscape plugin to draw roads.</p>
 			<p class="rs_hint">{{snap.roadCount}} road segment{{snap.roadCount === 1 ? '' : 's'}} found.</p>
+			<p class="rs_hint"><b>Roundabout</b>: click a junction in the viewport.</p>
+			<rs-number label="Radius" suffix="m" :value="snap.roundabout.radius" :min="8" :max="120" :step="1" @input="ctl.setRoundabout('radius', $event)"></rs-number>
+			<rs-select label="Traffic drives on" :value="snap.roundabout.hand" :options="hands" @input="ctl.setRoundabout('hand', $event)"></rs-select>
+			<rs-select label="Ring profile" :value="snap.roundabout.profile" :options="profileOptions(snap.profiles, 'Automatic')" @input="ctl.setRoundabout('profile', $event)"></rs-select>
+			<div class="rs_row"><button :class="{cb_on: snap.activeTool === 'roundabout'}" @click="ctl.pickRoundabout()">Roundabout tool</button></div>
+			<p class="rs_hint"><b>Road type</b>: paint where a road becomes a bridge, tunnel, open span or another profile. Roads are cut at the edges of the painted area.</p>
+			<rs-select label="Structure" :value="snap.roadType.structure" :options="structureOptions(snap.structures)" @input="ctl.setRoadType('structure', $event)"></rs-select>
+			<rs-select label="Road profile" :value="snap.roadType.profile" :options="profileOptions(snap.profiles, 'Keep each road’s own')" @input="ctl.setRoadType('profile', $event)"></rs-select>
+			<div class="cb_modes">
+				<button v-for="m in paintModes" :key="m.id" :class="{cb_on: snap.activeTool === 'roadtype' && snap.roadType.mode === m.id}" @click="ctl.pickRoadType(m.id)">{{m.label}}</button>
+			</div>
+			<rs-number v-if="snap.roadType.mode === 'brush'" label="Brush size" suffix="m" :value="snap.roadType.radius" :min="2" :max="200" :step="1" @input="ctl.setRoadType('radius', $event)"></rs-number>
 			<rs-toggle label="Terrain follows roads" :value="snap.settings.conform.roads" @input="ctl.setSetting('conform.roads', $event)"></rs-toggle>
 			<rs-number label="Ground tolerance" suffix="m" :value="snap.settings.conform.groundTolerance" :min="0" :max="60" :step="1" @input="ctl.setSetting('conform.groundTolerance', $event)"></rs-number>
 			<p class="rs_hint">Gap height threshold for automatic bridges. Water crossings are detected separately. Explicit Ground, Bridge, Tunnel and Open span segments keep their chosen behavior.</p>
@@ -124,8 +173,32 @@ const TEMPLATE: string = `<div class="rs_panel">
 				<button @click="ctl.raiseTerrain(-1)">−1 m</button>
 			</div>
 			<rs-select label="Regenerate" :value="regen.preset" :options="presetOptions" @input="regen.preset = $event"></rs-select>
-			<div class="rs_row"><button @click="ctl.regenerate(regen.preset, snap.settings.seed + 1)" title="Replaces the terrain; undoable">Generate new terrain</button></div>
+			<rs-toggle label="With island edges" :value="regen.island" @input="regen.island = $event"></rs-toggle>
+			<div class="rs_row"><button @click="ctl.regenerate(regen.preset, snap.settings.seed + 1, regen.island)" title="Replaces the terrain; undoable">Generate new terrain</button></div>
+			<p class="rs_hint"><b>Island edges</b> bend the border of the current map down into the sea with a natural, ragged coastline. The water level decides where the shore is.</p>
+			<rs-number label="Edge width" :value="snap.island.width" :min="0.05" :max="0.7" :step="0.01" @input="ctl.setIsland('width', $event)"></rs-number>
+			<rs-number label="Sea floor depth" suffix="m" :value="snap.island.depth" :min="1" :max="80" :step="1" @input="ctl.setIsland('depth', $event)"></rs-number>
+			<rs-number label="Coast roughness" :value="snap.island.roughness" :min="0" :max="1" :step="0.05" @input="ctl.setIsland('roughness', $event)"></rs-number>
+			<rs-select label="Island shape" :value="snap.island.shape" :options="islandShapes" @input="ctl.setIsland('shape', $event)"></rs-select>
+			<div class="rs_row"><button @click="ctl.islandEdges()" title="Lowers the land near the border below the water line; undoable">Apply island edges</button></div>
 			<rs-number label="Water level" suffix="m" :value="snap.settings.waterLevel" :min="-50" :max="200" :step="0.5" @input="ctl.setSetting('waterLevel', $event)"></rs-number>
+		</rs-section>
+
+		<rs-section title="Water preview" :open="false">
+			<p class="rs_hint">Only for looking at the scene. Water is not exported; your engine renders its own with the same parameters.</p>
+			<rs-toggle label="Show water" :value="snap.settings.water.show" @input="ctl.setSetting('water.show', $event)"></rs-toggle>
+			<rs-toggle label="Animate" :value="snap.settings.water.animate" @input="ctl.setSetting('water.animate', $event)"></rs-toggle>
+			<div class="rs_row"><label>Colour <input type="color" :value="waterHex(snap.settings.water.color)" @change="setWaterColor($event.target.value)"></label></div>
+			<rs-number label="Colour ratio" :value="snap.settings.water.colorRatio" :min="0" :max="1" :step="0.01" @input="ctl.setSetting('water.colorRatio', $event)"></rs-number>
+			<rs-number label="Opacity" :value="snap.settings.water.alphaScale" :min="0" :max="1" :step="0.05" @input="ctl.setSetting('water.alphaScale', $event)"></rs-number>
+			<rs-number label="Roughness" :value="snap.settings.water.roughness" :min="0.02" :max="1" :step="0.02" @input="ctl.setSetting('water.roughness', $event)"></rs-number>
+			<rs-number label="Ripple strength" :value="snap.settings.water.normal" :min="0" :max="2" :step="0.05" @input="ctl.setSetting('water.normal', $event)"></rs-number>
+			<rs-number label="Ripple speed" :value="snap.settings.water.timeScale" :min="0" :max="5" :step="0.1" @input="ctl.setSetting('water.timeScale', $event)"></rs-number>
+			<rs-number label="Texture tiling" :value="snap.settings.water.uvScale" :min="1" :max="200" :step="1" @input="ctl.setSetting('water.uvScale', $event)"></rs-number>
+			<rs-number label="Depth fade" suffix="m" :value="snap.settings.water.depthDistance" :min="0.5" :max="60" :step="0.5" @input="ctl.setSetting('water.depthDistance', $event)"></rs-number>
+			<rs-number label="Foam" :value="snap.settings.water.foamIntensity" :min="0" :max="2" :step="0.05" @input="ctl.setSetting('water.foamIntensity', $event)"></rs-number>
+			<rs-number label="Foam width" suffix="m" :value="snap.settings.water.foamWidth" :min="0" :max="2" :step="0.05" @input="ctl.setSetting('water.foamWidth', $event)"></rs-number>
+			<rs-number label="Shore fade" suffix="m" :value="snap.settings.water.shoreFadeDistance" :min="0" :max="10" :step="0.1" @input="ctl.setSetting('water.shoreFadeDistance', $event)"></rs-number>
 		</rs-section>
 
 		<rs-section title="Districts">
@@ -147,7 +220,7 @@ const TEMPLATE: string = `<div class="rs_panel">
 			<rs-toggle label="Show lots" :value="snap.display.lots" @input="ctl.setDisplay('lots', $event)"></rs-toggle>
 		</rs-section>
 
-		<rs-section title="Growth">
+		<rs-section v-if="snap.settings.features.buildings || snap.settings.features.trees" title="Growth">
 			<rs-number label="Development" :value="snap.settings.development" :min="0" :max="1" :step="0.05" @input="ctl.setSetting('development', $event)"></rs-number>
 			<p class="rs_hint">Raise it to watch zoned lots fill up and grow taller. Buildings never move; they only appear and rise.</p>
 			<rs-number label="Look variants" :value="snap.settings.variants" :min="1" :max="8" :step="1" @input="ctl.setSetting('variants', $event)"></rs-number>
@@ -157,7 +230,6 @@ const TEMPLATE: string = `<div class="rs_panel">
 			<rs-toggle label="Level ground under buildings" :value="snap.settings.conform.lots" @input="ctl.setSetting('conform.lots', $event)"></rs-toggle>
 			<rs-toggle label="Show buildings" :value="snap.display.buildings" @input="ctl.setDisplay('buildings', $event)"></rs-toggle>
 			<rs-toggle label="Show trees" :value="snap.display.trees" @input="ctl.setDisplay('trees', $event)"></rs-toggle>
-			<rs-toggle label="Show water" :value="snap.display.water" @input="ctl.setDisplay('water', $event)"></rs-toggle>
 		</rs-section>
 
 		<rs-section title="Game ready">
@@ -206,8 +278,8 @@ export function buildCityPanel(ctl: CityController, onMounted: (instance: PanelI
 			snap: ctl.snapshot(),
 			status: ctl.status,
 			ctl,
-			create: { size: 129, cellSize: 6, preset: 'rolling', seed: 1 },
-			regen: { preset: 'rolling' },
+			create: { size: 129, cellSize: 6, preset: 'rolling', seed: 1, kind: 'city', island: false },
+			regen: { preset: 'rolling', island: false },
 			landscapeModes: LANDSCAPE_MODES,
 			districtModes: DISTRICT_MODES,
 			districts: ctl.districts,
@@ -218,7 +290,18 @@ export function buildCityPanel(ctl: CityController, onMounted: (instance: PanelI
 			sizes: SIZES,
 			atlas: ATLAS,
 			collision: COLLISION,
+			kinds: KINDS,
+			islandShapes: ISLAND_SHAPES,
+			hands: HANDS,
+			paintModes: PAINT_MODES,
 		}),
+		methods: {
+			kindHint: (kind: string): string => KIND_HINTS[kind] ?? '',
+			profileOptions: (profiles: Array<{ id: string; name: string }>, none: string): Array<{ value: string; label: string }> => [{ value: '', label: none }, ...profiles.map((p) => ({ value: p.id, label: p.name }))],
+			structureOptions: (items: Array<{ id: string; label: string }>): Array<{ value: string; label: string }> => [{ value: 'keep', label: 'Keep each road’s own' }, ...items.map((i) => ({ value: i.id, label: i.label }))],
+			waterHex: (c: [number, number, number]): string => '#' + c.map((v: number): string => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0')).join(''),
+			setWaterColor: (hex: string): void => ctl.setSetting('water.color', [1, 3, 5].map((i: number): number => parseInt(hex.slice(i, i + 2), 16) / 255)),
+		},
 		template: TEMPLATE,
 		mounted(this: unknown): void {
 			onMounted(this as PanelInstance);

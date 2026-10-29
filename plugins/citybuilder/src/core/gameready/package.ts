@@ -57,7 +57,9 @@ function lodMeshes(prefab: Prefab, state: CityState): PropMesh[] {
 export function buildGamePackage(plan: CityPlan, state: CityState): GamePackage {
 	const g = state.settings.gameReady;
 	const warnings: string[] = [];
-	const prefabs: Prefab[] = plan.prefabs.all();
+	const include = state.settings.export;
+	// Water is never exported; the manifest only records its level. What else leaves is chosen in the export settings.
+	const prefabs: Prefab[] = include.buildings ? plan.prefabs.all() : [];
 	const inputs: BuildingInput[] = prefabs.map((p: Prefab, i: number): BuildingInput => ({ name: `building_${i}`, runs: g.bakeFacades ? p.model.facades : [], lods: lodMeshes(p, state) }));
 	const pages: AtlasResult[] = packBuildingPages(inputs,g.atlasSize,g.gutter,g.texelsPerMeter,g.preserveTextureDetail);
 	const atlas=pages[0];
@@ -86,22 +88,22 @@ export function buildGamePackage(plan: CityPlan, state: CityState): GamePackage 
 	const chunks: string[] = [], chunkAlbedos: string[] = [];
 	const textures=new Set<string>();
 	let terrainTriangles=0;
-	for(const piece of terrainBakePieces(plan,state.settings)) {
+	for(const piece of include.terrain ? terrainBakePieces(plan,state.settings) : []) {
 		const path=`terrain/${piece.name}.obj`, albedo=`terrain/${piece.texture}.png`;
 		files.push({path,text:patchToObj(piece.patch,piece.name)});
 		if(!textures.has(albedo)) {files.push({path:albedo,raster:piece.raster});textures.add(albedo);}
 		chunks.push(path);chunkAlbedos.push(albedo);terrainTriangles+=piece.patch.indices.length/3;
 	}
-	files.push({ path: 'terrain/heightmap.bin', bytes: heightmapBytes(plan) });
+	if (include.terrain) files.push({ path: 'terrain/heightmap.bin', bytes: heightmapBytes(plan) });
 
-	const manifest: CityManifest = buildManifest(plan, state.settings, names, { heightmap: 'terrain/heightmap.bin', albedo: chunkAlbedos[0], chunks, chunkAlbedos });
+	const manifest: CityManifest = buildManifest(plan, state.settings, names, { heightmap: include.terrain ? 'terrain/heightmap.bin' : '', albedo: chunkAlbedos[0] ?? '', chunks, chunkAlbedos });
 	for(const p of manifest.prefabs)p.atlas=buildingAtlases.get(p.id);
 	files.push({ path: 'city.json', text: JSON.stringify(manifest, null, 1) });
 	files.push({ path: 'city_loader.gd', text: GODOT_LOADER });
 
 	let cityTriangles: number = terrainTriangles;
 	const uses: Map<string, number> = new Map<string, number>(prefabs.map((p: Prefab): [string, number] => [p.key, 0]));
-	for (const b of plan.buildings) uses.set(b.prefab, (uses.get(b.prefab) ?? 0) + 1);
+	for (const b of include.buildings ? plan.buildings : []) uses.set(b.prefab, (uses.get(b.prefab) ?? 0) + 1);
 	pages.flatMap(a=>a.buildings).forEach((b): void => {
 		const i=Number(b.name.replace('building_',''));
 		cityTriangles += (uses.get(prefabs[i].key) ?? 0) * meshTriangles({ positions: b.lods[0].positions, faces: b.lods[0].faces.map((face) => ({ ...face, material: '' })) });
@@ -111,8 +113,8 @@ export function buildGamePackage(plan: CityPlan, state: CityState): GamePackage 
 		manifest,
 		report: {
 			prefabs: prefabs.length,
-			buildings: plan.buildings.length,
-			trees: plan.trees.length,
+			buildings: include.buildings ? plan.buildings.length : 0,
+			trees: include.trees ? plan.trees.length : 0,
 			atlasPages: pages.length,
 			atlasSize: atlas?.size ?? 0,
 			texelsPerMeter: atlas?.texelsPerMeter ?? 0,

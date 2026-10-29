@@ -14,10 +14,9 @@ export interface DisplayOptions {
 	lots: boolean;
 	buildings: boolean;
 	trees: boolean;
-	water: boolean;
 }
 
-export const DEFAULT_DISPLAY: DisplayOptions = { districts: false, lots: false, buildings: true, trees: true, water: true };
+export const DEFAULT_DISPLAY: DisplayOptions = { districts: false, lots: false, buildings: true, trees: true };
 
 /** The live 3D city: owns every view, attaches them to the open project and keeps them in sync with the store. */
 export class CityDisplay {
@@ -34,6 +33,7 @@ export class CityDisplay {
 
 	constructor(private readonly store: CityStore) {
 		this.trees = new TreeView();
+		this.terrain.onAlbedo = (texture): void => this.water.setBackdrop(texture);
 		this.root.name = 'CityBuilder live city';
 		(this.root as unknown as { no_export: boolean }).no_export = true;
 		this.root.add(this.terrain.root, this.water.root, this.lots.root, this.buildings.root, this.trees.root, this.cursor.root);
@@ -84,7 +84,13 @@ export class CityDisplay {
 		this.lots.root.visible = o.lots;
 		this.buildings.root.visible = o.buildings;
 		this.trees.root.visible = o.trees;
-		this.water.root.visible = o.water;
+	}
+
+	/** Applies new water settings (colour, motion, visibility) without recomposing. */
+	updateWater(): void {
+		const state = this.store.state;
+		if (state) this.water.configure(state.settings.water);
+		Canvas.updateAll();
 	}
 
 	setOption(key: keyof DisplayOptions, value: boolean): void {

@@ -12,8 +12,9 @@ import type { Lot } from '../lots/types';
 import { scatterTrees } from '../nature/scatter';
 import type { PlacedTree } from '../nature/scatter';
 import { RoadIndex } from '../roads/corridor';
-import type { RoadSet } from '../roads/corridor';
-import { conformLots, conformRoads } from '../terrain/conform';
+import type { RoadJunction, RoadSet } from '../roads/corridor';
+import type { Roundabout } from './settings';
+import { conformDiscs, conformLots, conformRoads } from '../terrain/conform';
 import type { ConformResult } from '../terrain/conform';
 import { classifyCells } from '../terrain/surfaces';
 import type { ByteGrid } from '../grid';
@@ -60,10 +61,12 @@ function footprint(lot: Lot, plan: Plan): Obb {
  * terrain, lots, buildings and trees. The result depends only on its inputs, so it can be rebuilt
  * at any time and growth never moves existing buildings.
  */
-export function composeCity(state: CityState, roads: RoadSet): CityPlan {
+export function composeCity(state: CityState, plainRoads: RoadSet): CityPlan {
 	const s = state.settings;
+	const roads: RoadSet = withRoundabouts(plainRoads, s.roundabouts);
 	let terrain: ConformResult = conformRoads(state.terrain, roads.corridors, s.conform);
-	const lots: Lot[] = generateLots(roads, state.districts, terrain.heights, s.waterLevel, s.lot);
+	terrain = conformDiscs(terrain, s.roundabouts, s.conform);
+	const lots: Lot[] = s.features.buildings ? generateLots(roads, state.districts, terrain.heights, s.waterLevel, s.lot) : [];
 	assignLandValue(lots, s.waterLevel, s.seed);
 	terrain = conformLots(terrain, lots, s.conform);
 
@@ -85,17 +88,26 @@ export function composeCity(state: CityState, roads: RoadSet): CityPlan {
 
 	const surfaces: ByteGrid = classifyCells(terrain.heights, state.paint, s.surface);
 	const index: RoadIndex = new RoadIndex(roads);
-	const trees: PlacedTree[] = scatterTrees({
-		hf: terrain.heights,
-		districts: state.districts,
-		roads: index,
-		footprints,
-		surfaces,
-		waterLevel: s.waterLevel,
-		seed: s.seed,
-		density: s.treeScale,
-		maxTrees: s.maxTrees,
-		variants: s.variants,
-	});
-	return { terrain, lots, buildings, trees, surfaces, prefabs, stats: computeStats(buildings, lots.length, trees.length, prefabs.count) };
+	const trees: PlacedTree[] = s.features.trees
+		? scatterTrees({
+				hf: terrain.heights,
+				districts: state.districts,
+				roads: index,
+				footprints,
+				surfaces,
+				waterLevel: s.waterLevel,
+				seed: s.seed,
+				density: s.treeScale,
+				maxTrees: s.maxTrees,
+				variants: s.variants,
+			})
+		: [];
+	return { terrain, lots, buildings, trees, surfaces, prefabs, stats: computeStats(buildings.length, lots.length, trees.length, prefabs.count) };
+}
+
+/** Roundabout islands keep lots away like a very wide junction. */
+function withRoundabouts(roads: RoadSet, roundabouts: Roundabout[]): RoadSet {
+	if (roundabouts.length === 0) return roads;
+	const islands: RoadJunction[] = roundabouts.map((r: Roundabout, i: number): RoadJunction => ({ id: `roundabout:${i}`, x: r.x, y: r.y, z: r.z, radius: r.island, degree: 0 }));
+	return { corridors: roads.corridors, junctions: [...roads.junctions, ...islands] };
 }

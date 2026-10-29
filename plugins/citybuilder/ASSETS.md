@@ -15,3 +15,7 @@ Roadscape v4.13.10 tree1.png through tree5.png were copied from the user's suppl
 Near-road trees use the existing Procedural Trees generator's realistic presets and bundled bark/foliage atlas, capped at 1,800 triangles per shared variant. Existing generator provenance: `assets/built_in_plugins/procedural_trees.LICENSE.md` in the repository. Distant palms are rendered to cutouts from this generator because the supplied Roadscape library has no palm cutout.
 
 Run `scripts/prepare_city_textures.py ZIP_DIRECTORY ROADSCAPE_TEXTURE_DIRECTORY` with Pillow to reproduce the embedded assets. Archive names are documented in that script. All assets are embedded in the built plugin for offline use.
+
+## Water preview shader
+
+`src/editor/display/water_shader.ts` is a port of a Godot 4 water shader (MIT licence, by "Somebody", as supplied by the project owner) to a three.js `ShaderMaterial`. Its ripple, glitter and foam textures are generated at run time by `src/core/water/textures.ts`; nothing is downloaded. The water is a viewport preview only and is not exported.

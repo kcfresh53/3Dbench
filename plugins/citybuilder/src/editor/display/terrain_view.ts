@@ -46,6 +46,8 @@ export class TerrainView implements View {
 	private albedo: THREE.DataTexture | null = null;
 	private albedoShape: string = '';
 	private albedoSignature: string = '';
+	/** Told whenever the terrain texture changes, so the water can show it through its surface. */
+	onAlbedo: ((texture: THREE.Texture | null) => void) | null = null;
 	private bakeToken: number = 0;
 	private bakeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -63,6 +65,7 @@ export class TerrainView implements View {
 			padColor: PAD_COLOR,
 			waterLevel: s.waterLevel,
 			sun: s.sun,
+			waterTint: 0,
 			size: DISPLAY_TEXTURE,
 			seed: s.seed,
 		};
@@ -121,6 +124,7 @@ export class TerrainView implements View {
 		this.albedo = texture;
 		this.albedoShape = shape;
 		this.albedoSignature = signature;
+		this.onAlbedo?.(texture);
 	}
 
 	/** Re-reads heights from `hf` for the patches that cover `rect`; used while a brush is dragging. */
