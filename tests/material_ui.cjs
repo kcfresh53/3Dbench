@@ -34,19 +34,29 @@ app.on('browser-window-created', (_, win) => {
     window.uiAssert = (value, message) => {if (!value) throw new Error(message);};
     window.uiRect = node => node.getBoundingClientRect();
     window.uiOriginalWidths = JSON.stringify([Interface.data.left_bar_width, Interface.data.right_bar_width]);
+    uiAssert(uiRect(document.querySelector('#main_toolbar')).height===36, 'Compact main toolbar still wastes height');
+    const headings=[...document.querySelectorAll('.panel_tab_bar')].filter(n=>n.offsetWidth);
+    uiAssert(headings.every(n=>uiRect(n).height===30), 'Compact panel heading height: '+headings.map(n=>uiRect(n).height));
+    uiAssert(uiRect(document.querySelector('#tab_bar')).height===30, 'Compact document tabs still waste height');
+    uiAssert([...document.querySelectorAll('.toolbar[toolbar_id^=element_] .nslide')].filter(n=>n.offsetWidth).every(n=>uiRect(n).height===26), 'Transform fields are not compact');
     for (const node of document.querySelectorAll('.sidebar .toolbar_menu, .preview_menu .tool, .panel_tab_bar > .panel_control, .panel_menu_button')) {
      if (!node.offsetWidth) continue;
      const box=uiRect(node), icon=uiRect(node.querySelector('i'));
-     uiAssert(box.width>=36 && box.height>=36, 'Undersized icon target: '+node.className);
+     uiAssert(box.width===28 && box.height===28, 'Incorrect compact icon target: '+node.className);
      uiAssert(Math.abs(box.x+box.width/2-icon.x-icon.width/2)<1, 'Icon is not horizontally centered: '+node.className);
      uiAssert(Math.abs(box.y+box.height/2-icon.y-icon.height/2)<1, 'Icon is not vertically centered: '+node.className);
     }
     const resolution=uiRect(document.querySelector('#uv_resolution_status'));
     const expand=uiRect(document.querySelector('.panel_expanding_button'));
     uiAssert(resolution.right<=expand.left, 'UV resolution overlaps the expand control');
-    uiAssert(uiRect(document.querySelector('.outliner_object')).height===32, 'Outliner target is too small');
+    uiAssert(uiRect(document.querySelector('.outliner_object')).height===24, 'Compact outliner row is too large');
    });
    await capture('workspace');
+   await run(() => {
+    new Menu(BarItems.preview_scene.children()).show(document.querySelector('#mode_selector'));
+    uiAssert([...document.querySelectorAll('.contextMenu li:not(.menu_separator)')].filter(n=>n.offsetWidth).every(n=>uiRect(n).height===28), 'Compact menu rows still waste height');
+    Menu.open?.hide();
+   });
    await run(() => { settings.interface_density.set('comfortable'); });
    await delay(200);
    await run(() => {
@@ -102,7 +112,7 @@ app.on('browser-window-created', (_, win) => {
     const dialog=uiRect(Settings.dialog.object), bar=uiRect(Settings.dialog.object.querySelector('.button_bar'));
     uiAssert(bar.bottom<=dialog.bottom-19,'Settings footer is outside its dialog');
     const toggle=Settings.dialog.object.querySelector('.toggle_switch');
-    uiAssert(uiRect(toggle).width===52 && uiRect(toggle).height===48,'Switch target geometry is incorrect');
+    uiAssert(uiRect(toggle).width===36 && uiRect(toggle).height===28,'Switch target geometry is incorrect');
    });
    await capture('settings');
    await run(() => {
@@ -121,7 +131,7 @@ app.on('browser-window-created', (_, win) => {
     uiAssert(dialog.left>=24 && dialog.right<=innerWidth-24 && dialog.bottom<=innerHeight-24, 'Compact dialog lost its screen margins');
     uiAssert(bar.bottom<=dialog.bottom-19,'Compact form actions are not visible');
     uiAssert(content.scrollHeight>content.clientHeight,'Long form content does not scroll');
-    uiAssert(uiRect(uiFixture.object.querySelector('input[type=text]')).height===56,'Text field height is incorrect');
+    uiAssert(uiRect(uiFixture.object.querySelector('input[type=text]')).height===32,'Compact text field height is incorrect');
     const confirm=uiRect(uiFixture.object.querySelector('.confirm_btn')), cancel=uiRect(uiFixture.object.querySelector('.cancel_btn'));
     uiAssert(confirm.left>cancel.left,'Confirm action is not the trailing action');
     uiAssert(uiFixture.getFormResult().count===12 && uiFixture.getFormResult().enabled===true,'Form values changed during resize');
@@ -161,7 +171,7 @@ app.on('browser-window-created', (_, win) => {
        if(!field.offsetWidth) continue;
        const f=uiRect(field);
        uiAssert(f.left>=box.left-1 && f.right<=box.right+1,'Field overflows row: '+Dialog.open.id+' '+row.className);
-       if(field.matches('input:not([type=checkbox]):not([type=radio]), .bb-select')) uiAssert(f.height>=56,'Field compressed: '+row.className);
+       if(field.matches('input:not([type=checkbox]):not([type=radio]), .bb-select')) uiAssert(f.height>=32,'Field clipped: '+row.className);
       }
       const label=row.querySelector(':scope > label');
       if(label && row.getAttribute('form_type')!=='checkbox') uiAssert(Math.abs(uiRect(label).left-box.left)<1,'Label keyline: '+row.className);
@@ -259,7 +269,7 @@ app.on('browser-window-created', (_, win) => {
    await capture('validation-error');
    await run(()=>{const input=validationFixture.object.querySelector('input');input.value='Model';input.dispatchEvent(new Event('input',{bubbles:true}));uiAssert(input.getAttribute('aria-invalid')==='false','Error state was not cleared');validationFixture.confirm();uiAssert(window.validationConfirmed,'Valid form was not accepted');validationFixture.delete();});
    await run(()=>{
-    window.longMenu=new Menu('long_menu',Array.from({length:30},(_,i)=>({name:'Option '+i,children:i===0?[{name:'Nested action',click(){}}]:undefined,click(){}}))).open({clientX:innerWidth-20,clientY:innerHeight-20});
+    window.longMenu=new Menu('long_menu',Array.from({length:60},(_,i)=>({name:'Option '+i,children:i===0?[{name:'Nested action',click(){}}]:undefined,click(){}}))).open({clientX:innerWidth-20,clientY:innerHeight-20});
     uiAssert(longMenu.node.scrollHeight>longMenu.node.clientHeight,'Long menu does not scroll');
     const r=uiRect(longMenu.node);uiAssert(r.top>=0 && r.bottom<=innerHeight,'Long menu extends off screen');
     longMenu.keyNavigate(new KeyboardEvent('keydown',{key:'End',keyCode:35}));

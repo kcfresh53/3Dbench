@@ -38,7 +38,7 @@
 	"appearance.accent.green": "Green",
 	"appearance.accent.lime": "Lime",
 	"settings.interface_density": "Interface density",
-	"settings.interface_density.desc": "Compact fits more editing controls on desktop. Comfortable uses larger targets. Dialogs and menus always retain standard targets.",
+	"settings.interface_density.desc": "Compact uses tighter desktop toolbars, panels, menus and forms. Comfortable uses larger controls and more spacing.",
 	"settings.interface_density.comfortable": "Comfortable",
 	"settings.interface_density.compact": "Compact",
 	"form.required": "required",

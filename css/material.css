@@ -708,56 +708,55 @@ input[type=range]::-moz-range-thumb { background: var(--md-primary); border: non
 	#start_screen .recent_project.thumbnail:hover, #plugin_list > li:hover { transform: none; }
 }
 
-/* Component families: keep editing density independent of modal task surfaces.
- * Material density guidance: https://m3.material.io/foundations/layout/grids-spacing/density
- * The requested compact desktop preset is reversible in Preferences > Interface.
- */
+/* Compact desktop geometry for precise mouse/keyboard editing.
+ * Comfortable and mobile layouts retain their larger interaction targets. */
 body[data-ui-density=compact]:not(.is_mobile) {
-	--bench-control-size: 36px;
-	--status-bar-height: 32px;
+	--bench-control-size: 28px;
+	--bench-icon-size: 20px;
+	--status-bar-height: 24px;
 }
-body[data-ui-density=compact]:not(.is_mobile) #work_screen { --toolbar-height: 48px; padding: 4px 8px; gap: 4px 8px; }
+body[data-ui-density=compact]:not(.is_mobile) #work_screen { --toolbar-height: 36px; padding: 2px 4px; gap: 2px 4px; }
 body[data-ui-density=compact]:not(.is_mobile) .sidebar { gap: 4px; }
-body[data-ui-density=compact]:not(.is_mobile) #main_toolbar { --bench-control-size: 36px; padding: 5px; gap: 4px; border-radius: 12px; }
-body[data-ui-density=compact]:not(.is_mobile) #tab_bar { height: 40px; padding: 2px 8px; }
+body[data-ui-density=compact]:not(.is_mobile) #main_toolbar { --bench-control-size: 28px; padding: 3px; gap: 2px; border-radius: 6px; }
+body[data-ui-density=compact]:not(.is_mobile) #tab_bar { height: 30px; padding: 1px 4px; }
 body[data-ui-density=compact]:not(.is_mobile) #tab_bar_list,
-body[data-ui-density=compact]:not(.is_mobile) #tab_bar .project_tab { height: 36px; }
-body[data-ui-density=compact]:not(.is_mobile) #tab_bar .project_tab_close_button { height: 36px; flex-basis: 36px; }
-body[data-ui-density=compact]:not(.is_mobile) :is(#new_tab_button, #search_tab_button) { width: 36px; height: 36px; }
-body[data-ui-density=compact]:not(.is_mobile) :is(#mode_selector, #mode_selector > li) { height: 36px; }
-body[data-ui-density=compact]:not(.is_mobile) #mode_selector > li { padding: 0 12px; font-size: 14px; }
-body[data-ui-density=compact]:not(.is_mobile) :is(.panel_tab_bar, .panel_tab_bar.single_tab) { height: 40px; padding: 2px 8px; }
-body[data-ui-density=compact]:not(.is_mobile) .panel_tab_list > .panel_handle { height: 36px; }
-body[data-ui-density=compact]:not(.is_mobile) :is(.panel_menu_button, .panel_folding_button, .panel_tab_bar > .tool.panel_control) { width: 36px; height: 36px; flex: 0 0 36px; }
+body[data-ui-density=compact]:not(.is_mobile) #tab_bar .project_tab { height: 28px; }
+body[data-ui-density=compact]:not(.is_mobile) #tab_bar .project_tab_close_button { height: 28px; flex-basis: 28px; }
+body[data-ui-density=compact]:not(.is_mobile) :is(#new_tab_button, #search_tab_button) { width: 28px; height: 28px; }
+body[data-ui-density=compact]:not(.is_mobile) :is(#mode_selector, #mode_selector > li) { height: 28px; }
+body[data-ui-density=compact]:not(.is_mobile) #mode_selector > li { padding: 0 8px; font-size: 13px; }
+body[data-ui-density=compact]:not(.is_mobile) :is(.panel_tab_bar, .panel_tab_bar.single_tab) { height: 30px; padding: 1px 4px; }
+body[data-ui-density=compact]:not(.is_mobile) .panel_tab_list > .panel_handle { height: 28px; }
+body[data-ui-density=compact]:not(.is_mobile) :is(.panel_menu_button, .panel_folding_button, .panel_tab_bar > .tool.panel_control) { width: 28px; height: 28px; flex: 0 0 28px; }
 body[data-ui-density=compact]:not(.is_mobile) .panel .toolbar:not(.vertical) { padding: 2px 8px; }
-body[data-ui-density=compact]:not(.is_mobile) .toolbar .tool.widget { min-height: 36px; }
-body[data-ui-density=compact]:not(.is_mobile) .tool.side_menu_tool { width: 60px; height: 36px; padding: 0; }
-body[data-ui-density=compact]:not(.is_mobile) .tool.side_menu_tool > i.icon.action_more_options { height: 36px; }
-body[data-ui-density=compact]:not(.is_mobile) .tool.bar_select.icon_mode { height: 36px; padding: 2px; }
-body[data-ui-density=compact]:not(.is_mobile) .tool.bar_select .select_option { height: 32px; min-width: 32px; }
-body[data-ui-density=compact]:not(.is_mobile) .toolbar .toolbar_separator.border { margin: 6px 4px; }
-body[data-ui-density=compact]:not(.is_mobile) .toolbar .tool.widget select { height: 32px; }
-body[data-ui-density=compact]:not(.is_mobile) .toolbar[toolbar_id^=element_] .nslide { height: 32px; padding: 6px 8px; }
+body[data-ui-density=compact]:not(.is_mobile) .toolbar .tool.widget { min-height: 28px; }
+body[data-ui-density=compact]:not(.is_mobile) .tool.side_menu_tool { width: 48px; height: 28px; padding: 0; }
+body[data-ui-density=compact]:not(.is_mobile) .tool.side_menu_tool > i.icon.action_more_options { height: 28px; }
+body[data-ui-density=compact]:not(.is_mobile) .tool.bar_select.icon_mode { height: 28px; padding: 2px; }
+body[data-ui-density=compact]:not(.is_mobile) .tool.bar_select .select_option { height: 24px; min-width: 24px; }
+body[data-ui-density=compact]:not(.is_mobile) .toolbar .toolbar_separator.border { height: 20px; margin: 4px 3px; }
+body[data-ui-density=compact]:not(.is_mobile) .toolbar .tool.widget select { height: 24px; }
+body[data-ui-density=compact]:not(.is_mobile) .toolbar[toolbar_id^=element_] .nslide { height: 26px; padding: 3px 6px; }
 body[data-ui-density=compact]:not(.is_mobile) #panel_element p.panel_toolbar_label { margin-top: 4px; }
-body[data-ui-density=compact]:not(.is_mobile) .panel .bar.next_to_title { top: -38px; right: 80px; height: 36px; }
-body[data-ui-density=compact]:not(.is_mobile) .panel .bar.next_to_title > .tool { width: 36px; height: 36px; }
+body[data-ui-density=compact]:not(.is_mobile) .panel .bar.next_to_title { top: -30px; right: 64px; height: 28px; }
+body[data-ui-density=compact]:not(.is_mobile) .panel .bar.next_to_title > .tool { width: 28px; height: 28px; }
 body[data-ui-density=compact]:not(.is_mobile) .preview .preview_menu { padding: 2px; }
-body[data-ui-density=compact]:not(.is_mobile) .preview .preview_menu .tool { width: 36px; height: 36px; }
-body[data-ui-density=compact]:not(.is_mobile) #status_bar .sidebar_toggle_button { width: 32px; height: 32px; }
-body[data-ui-density=compact]:not(.is_mobile) div.outliner_object { height: 32px; min-height: 32px; }
-body[data-ui-density=compact]:not(.is_mobile) .outliner_object > i { height: 32px; }
+body[data-ui-density=compact]:not(.is_mobile) .preview .preview_menu .tool { width: 28px; height: 28px; }
+body[data-ui-density=compact]:not(.is_mobile) #status_bar .sidebar_toggle_button { width: 24px; height: 24px; }
+body[data-ui-density=compact]:not(.is_mobile) div.outliner_object { height: 24px; min-height: 24px; }
+body[data-ui-density=compact]:not(.is_mobile) .outliner_object > i { height: 24px; }
 body[data-ui-density=compact]:not(.is_mobile) .outliner_object > :is(i.outliner_toggle, i.icon-open-state),
-body[data-ui-density=compact]:not(.is_mobile) .outliner_opener_placeholder { width: 32px; max-width: 32px; flex: 0 0 32px; }
-body[data-ui-density=compact]:not(.is_mobile) .outliner_object > input.cube_name { height: 32px; padding: 4px 8px; }
-body[data-ui-density=compact]:not(.is_mobile) .texture { min-height: 48px; padding: 4px 8px; }
-body[data-ui-density=compact]:not(.is_mobile) .texture > i.clickable { width: 36px; max-width: 36px; height: 36px; }
-body[data-ui-density=compact]:not(.is_mobile) .texture .texture_icon_wrapper { width: 32px; height: 32px; }
-body[data-ui-density=compact]:not(.is_mobile) .animation { min-height: 40px; padding: 2px 8px; }
-body[data-ui-density=compact]:not(.is_mobile) .animation .in_list_button { width: 36px; height: 36px; }
-body[data-ui-density=compact]:not(.is_mobile) .sidebar .search_bar { min-height: 36px; }
-body[data-ui-density=compact]:not(.is_mobile) .sidebar .search_bar input { height: 36px; padding: 6px 44px 6px 12px; }
-body[data-ui-density=compact]:not(.is_mobile) .sidebar .search_bar > i { width: 36px; max-width: 36px; height: 36px; padding: 6px; }
-body[data-ui-density=compact]:not(.is_mobile) .sidebar .search_bar.folded { width: 36px; }
+body[data-ui-density=compact]:not(.is_mobile) .outliner_opener_placeholder { width: 24px; max-width: 24px; flex: 0 0 24px; }
+body[data-ui-density=compact]:not(.is_mobile) .outliner_object > input.cube_name { height: 24px; padding: 2px 4px; line-height: 20px; }
+body[data-ui-density=compact]:not(.is_mobile) .texture { min-height: 36px; padding: 4px 8px; }
+body[data-ui-density=compact]:not(.is_mobile) .texture > i.clickable { width: 28px; max-width: 28px; height: 28px; }
+body[data-ui-density=compact]:not(.is_mobile) .texture .texture_icon_wrapper { width: 24px; height: 24px; }
+body[data-ui-density=compact]:not(.is_mobile) .animation { min-height: 30px; padding: 1px 4px; }
+body[data-ui-density=compact]:not(.is_mobile) .animation .in_list_button { width: 28px; height: 28px; }
+body[data-ui-density=compact]:not(.is_mobile) .sidebar .search_bar { min-height: 28px; }
+body[data-ui-density=compact]:not(.is_mobile) .sidebar .search_bar input { height: 28px; padding: 4px 32px 4px 8px; }
+body[data-ui-density=compact]:not(.is_mobile) .sidebar .search_bar > i { width: 28px; max-width: 28px; height: 28px; padding: 4px; }
+body[data-ui-density=compact]:not(.is_mobile) .sidebar .search_bar.folded { width: 28px; }
 /* Single-line editing must not inherit dialog typography or change row geometry. */
 .nslide { font: var(--md-sys-typescale-body-medium); white-space: nowrap; overflow: hidden; text-overflow: clip; }
 .nslide.editing { user-select: text; cursor: text; background: var(--md-surface-highest); box-shadow: inset 0 -2px var(--md-primary); }
@@ -874,7 +873,7 @@ dialog .dialog_bar > .molang_input { width: auto; flex: 1 1 160px; }
 @media (max-width: 839px) {
 	dialog, .dialog:not(.resizable) { --dialog-safe-margin: 24px; max-width: calc(100vw - 48px); max-height: calc(100vh - 48px); min-width: min(280px, calc(100vw - 48px)); }
 	#message_box { max-width: min(560px, calc(100vw - 48px)); }
-	body[data-ui-density=compact]:not(.is_mobile) #mode_selector > li { width: 36px; padding: 0; }
+	body[data-ui-density=compact]:not(.is_mobile) #mode_selector > li { width: 28px; padding: 0; }
 }
 @media (max-width: 599px) {
 	dialog.form_dialog:not(.config_dialog) { --dialog-safe-margin: 0px; border-radius: 0; inset: 0 !important; margin: 0; width: 100vw !important; min-width: 100vw; max-width: 100vw; height: 100vh; max-height: 100vh; }
@@ -1041,4 +1040,85 @@ button.accent_swatch.selected:not(:disabled):hover { box-shadow: inset 0 0 0 2px
 .accent_swatch_custom > i { opacity: 1; transform: none; }
 .accent_swatch_custom.selected { color: var(--md-on-primary); box-shadow: none; }
 .accent_swatch_custom > input[type=color] { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; opacity: 0; cursor: pointer; }
+
+/* Keep compact density consistent in editor chrome, menus and modal forms. */
+body[data-ui-density=compact]:not(.is_mobile) {
+	:is(.panel_container, #center, .panel_container.folded .panel_tab_bar) { border-radius: 6px; }
+	.panel_tab_bar { border-radius: 6px 6px 0 0; }
+	.panel_container > .panel, .panel .list { border-radius: 0 0 6px 6px; }
+	.panel_tab_list { gap: 2px; }
+	.panel_tab_list > .panel_handle { padding: 0 4px; font-size: 13px; }
+	.panel_menu_button { margin-left: 2px; }
+	:is(.panel_control, .panel_menu_button, .panel_folding_button, .toolbar_menu, .preview_menu .tool) > i {
+		font-size: 20px; width: 20px; max-width: 20px; height: 20px; line-height: 20px;
+	}
+	.toolbar .tool.has_label { min-height: 28px; gap: 4px; }
+	.toolbar .tool:not(.widget):not(.has_label):not(.nslide_tool):not(.side_menu_tool) { padding: 2px; }
+	#panel_element p.panel_toolbar_label { margin: 2px 8px 0; line-height: 14px; }
+	.bar.uv_editor_sliders { padding: 2px 4px; }
+	.outliner_object > i { font-size: 18px; line-height: 24px; }
+	.preview .preview_menu { top: 4px; right: 4px; }
+	.tab_bar, .tab_bar > * { min-height: 30px; }
+	.tab_bar > * { padding: 0 8px; }
+
+	.contextMenu { padding: 4px 0; }
+	/* A backdrop filter would contain fixed submenus inside the scrolling list. */
+	.contextMenu.scrollable { backdrop-filter: none; }
+	.contextMenu li { min-height: 28px; padding: 4px 10px; gap: 8px; line-height: 20px; font-size: 13px; }
+	.contextMenu li > :is(i, img) { flex-basis: 20px; width: 20px; max-width: 20px; height: 20px; font-size: 20px; }
+	.contextMenu li.enabled { padding-left: 10px; }
+	.contextMenu li.menu_separator { min-height: 0; height: 1px; padding: 0; margin: 4px 0; }
+	.contextMenu li.menu_separator.has_label { height: auto; min-height: 24px; padding: 4px 10px; margin: 4px 0 0; }
+	.contextMenu .menu_search_bar input { height: 30px; padding: 4px 8px; }
+	.contextMenu .menu_search_bar > div { width: 30px; padding: 3px; }
+
+	:is(dialog, .dialog:not(.resizable)) { border-radius: 10px; }
+	.dialog_handle { min-height: 48px; padding: 12px 48px 8px 16px; }
+	.dialog_handle .dialog_title { font-size: 18px; line-height: 24px; }
+	.dialog_close_button { top: 8px; right: 8px; width: 28px; height: 28px; padding: 4px; }
+	dialog .dialog_content { margin: 0 16px 16px; }
+	dialog .dialog_bar.button_bar { min-height: 32px; gap: 4px; margin: 0 16px 20px; }
+	button { min-height: 28px; padding: 4px 12px; }
+	dialog :is(input:is(:not([type]), [type=text], [type=password], [type=number]), div.bb-select, select),
+	dialog .form :is(input:is(:not([type]), [type=text], [type=password], [type=number]), .bb-select, select) {
+		height: 32px; padding: 6px 8px; font-size: 14px; line-height: 20px;
+	}
+	dialog .form .bb-select { padding-right: 32px; }
+	dialog .dialog_bar.form_bar, .form .form_bar { min-height: 32px; gap: 4px; margin-bottom: 8px; }
+	.form .form_bar[form_type=checkbox], .form_bar_radio { min-height: 32px; }
+	.form .form_supporting_text { padding: 0 8px; }
+	dialog .form :is(.form_extra_action, .form_input_tool, .linked_ratio_toggle),
+	dialog .form .input_wrapper > .material-icons,
+	dialog .numeric_input > .tool, #settings_profile_wrapper > .tool {
+		width: 28px; max-width: 28px; height: 28px; flex-basis: 28px;
+	}
+	dialog .numeric_input > .tool { top: 2px; }
+	dialog .form .tool > .icon { width: 20px; max-width: 20px; height: 20px; font-size: 18px; line-height: 20px; }
+	dialog .numeric_input > input, dialog .form .input_wrapper input { padding-right: 32px; }
+	dialog .form .nslide_tool, dialog .form .nslide, dialog .molang_input { min-height: 32px; }
+	dialog .form .nslide { padding: 6px 8px; font-size: 14px; line-height: 20px; }
+	.form_inline_select > li { min-height: 32px; padding: 6px 8px; }
+	ul.form_multi_select > li { height: 32px; }
+	ul.form_multi_select > li > .icon, ul.form_multi_select > .tool { width: 28px; max-width: 28px; height: 28px; padding: 4px; font-size: 20px; }
+	dialog .sp-replacer { min-height: 32px; height: 32px; padding: 4px 8px; }
+	dialog .dialog_sidebar :is(.dialog_sidebar_pages, .dialog_sidebar_actions) li { min-height: 32px; padding: 4px 12px; gap: 8px; }
+	dialog .dialog_sidebar_separator { margin: 4px 0; }
+	.config_dialog_title { padding: 12px 48px 8px 16px; }
+	.settings_list li { min-height: 44px; padding: 4px 0; gap: 8px; }
+	.settings_list .setting_name { font-size: 14px; line-height: 20px; }
+	.settings_list .setting_description { font-size: 12px; line-height: 16px; }
+	.keybind_line, .keybind_line > div.keybindslot { min-height: 32px; }
+	.keybind_line > div.keybindslot { padding: 6px 8px; }
+	.dialog_message_box_checkbox { min-height: 32px; }
+	.dialog_message_box_command, dialog .dialog_choices > button { min-height: 36px; padding: 8px 12px; }
+	input[type=range] { min-height: 28px; }
+	input:is([type=checkbox], [type=radio]):not(.toggle_switch) { width: 28px; min-width: 28px; height: 28px; }
+	input:is([type=checkbox], [type=radio]):not(.toggle_switch)::before { top: 5px; left: 5px; width: 18px; height: 18px; }
+	input[type=checkbox]:checked:not(.toggle_switch)::after { top: 7px; left: 11px; }
+	input[type=radio]:checked:not(.toggle_switch)::after { top: 9px; left: 9px; }
+	input[type=checkbox].toggle_switch { width: 36px; min-width: 36px; height: 28px; }
+	input[type=checkbox].toggle_switch::after { width: 36px; height: 20px; top: 4px; }
+	input[type=checkbox].toggle_switch::before { width: 12px; height: 12px; top: 8px; left: 4px; }
+	input[type=checkbox].toggle_switch:checked::before { width: 14px; height: 14px; top: 7px; left: 19px; }
+}
 }

@@ -75,6 +75,7 @@ export class MenuSeparator {
 }
 function handleMenuOverflow(node: HTMLElement) {
 	if (!node) return;
+	node.classList.add('scrollable');
 	const top = Blockbench.isMobile && Menu.open instanceof BarMenu ? (window.innerHeight > 400 ? 106 : 56) : 16;
 	node.style.maxHeight = `${window.innerHeight - top - 16}px`;
 	node.style.overflowY = 'auto';
