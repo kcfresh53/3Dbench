@@ -176,6 +176,8 @@ const TEMPLATE: string = `<div class="rs_panel">
 			<rs-toggle label="With island edges" :value="regen.island" @input="regen.island = $event"></rs-toggle>
 			<div class="rs_row"><button @click="ctl.regenerate(regen.preset, snap.settings.seed + 1, regen.island)" title="Replaces the terrain; undoable">Generate new terrain</button></div>
 			<p class="rs_hint"><b>Island edges</b> bend the border of the current map down into the sea with a natural, ragged coastline. The water level decides where the shore is.</p>
+			<rs-toggle label="Add ground first" :value="snap.island.grow" @input="ctl.setIsland('grow', $event)"></rs-toggle>
+			<p class="rs_hint">On: the map grows by new ground on every side and the island forms there, so existing roads, buildings and sculpting are not sunk. Off: the existing edges are lowered instead (shape applies only then).</p>
 			<rs-number label="Edge width" :value="snap.island.width" :min="0.05" :max="0.7" :step="0.01" @input="ctl.setIsland('width', $event)"></rs-number>
 			<rs-number label="Sea floor depth" suffix="m" :value="snap.island.depth" :min="1" :max="80" :step="1" @input="ctl.setIsland('depth', $event)"></rs-number>
 			<rs-number label="Coast roughness" :value="snap.island.roughness" :min="0" :max="1" :step="0.05" @input="ctl.setIsland('roughness', $event)"></rs-number>

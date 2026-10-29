@@ -6681,8 +6681,244 @@ func _build_trees() -> void:
     hf.touch();
   }
 
+  // plugins/citybuilder/src/core/district/types.ts
+  var NO_DISTRICT = 0;
+
+  // plugins/citybuilder/src/core/district/map.ts
+  var DistrictMap = class _DistrictMap {
+    constructor(hf, grid) {
+      __publicField(this, "hf", hf);
+      __publicField(this, "grid");
+      __publicField(this, "revision", 0);
+      this.grid = grid && grid.cols === hf.cellCols && grid.rows === hf.cellRows ? grid : new ByteGrid(hf.cellCols, hf.cellRows);
+    }
+    idAt(x, z) {
+      return this.grid.get(Math.floor(this.hf.colAt(x)), Math.floor(this.hf.rowAt(z)));
+    }
+    cellCentre(c, r) {
+      return [this.hf.worldX(c) + this.hf.cellSize / 2, this.hf.worldZ(r) + this.hf.cellSize / 2];
+    }
+    clampRect(c0, r0, c1, r1) {
+      return {
+        c0: Math.max(0, c0),
+        r0: Math.max(0, r0),
+        c1: Math.min(this.grid.cols - 1, c1),
+        r1: Math.min(this.grid.rows - 1, r1)
+      };
+    }
+    /** Paints a disc or square of cells. `only` restricts changes to cells currently holding that id (-1 for any). */
+    paintBrush(x, z, radius, id, shape = "round", only = -1) {
+      const rect = this.clampRect(
+        Math.floor(this.hf.colAt(x - radius)),
+        Math.floor(this.hf.rowAt(z - radius)),
+        Math.ceil(this.hf.colAt(x + radius)),
+        Math.ceil(this.hf.rowAt(z + radius))
+      );
+      for (let r = rect.r0; r <= rect.r1; r++) {
+        for (let c = rect.c0; c <= rect.c1; c++) {
+          const [cx, cz] = this.cellCentre(c, r);
+          const inside = shape === "square" ? Math.abs(cx - x) <= radius && Math.abs(cz - z) <= radius : Math.hypot(cx - x, cz - z) <= radius;
+          if (!inside) continue;
+          if (only >= 0 && this.grid.get(c, r) !== only) continue;
+          this.grid.set(c, r, id);
+        }
+      }
+      this.revision++;
+      return rect;
+    }
+    /** Fills the cells whose centres lie inside a world rectangle. */
+    paintRect(x0, z0, x1, z1, id) {
+      const rect = this.clampRect(
+        Math.floor(this.hf.colAt(Math.min(x0, x1))),
+        Math.floor(this.hf.rowAt(Math.min(z0, z1))),
+        Math.ceil(this.hf.colAt(Math.max(x0, x1))),
+        Math.ceil(this.hf.rowAt(Math.max(z0, z1)))
+      );
+      for (let r = rect.r0; r <= rect.r1; r++) {
+        for (let c = rect.c0; c <= rect.c1; c++) {
+          const [cx, cz] = this.cellCentre(c, r);
+          if (cx >= Math.min(x0, x1) && cx <= Math.max(x0, x1) && cz >= Math.min(z0, z1) && cz <= Math.max(z0, z1)) this.grid.set(c, r, id);
+        }
+      }
+      this.revision++;
+      return rect;
+    }
+    paintPolygon(polygon, id) {
+      if (polygon.length < 3) return { c0: 0, r0: 0, c1: -1, r1: -1 };
+      const xs = polygon.map((p) => p[0]);
+      const zs = polygon.map((p) => p[1]);
+      const rect = this.clampRect(
+        Math.floor(this.hf.colAt(Math.min(...xs))),
+        Math.floor(this.hf.rowAt(Math.min(...zs))),
+        Math.ceil(this.hf.colAt(Math.max(...xs))),
+        Math.ceil(this.hf.rowAt(Math.max(...zs)))
+      );
+      for (let r = rect.r0; r <= rect.r1; r++) {
+        for (let c = rect.c0; c <= rect.c1; c++) {
+          const [cx, cz] = this.cellCentre(c, r);
+          if (pointInPolygon(cx, cz, polygon)) this.grid.set(c, r, id);
+        }
+      }
+      this.revision++;
+      return rect;
+    }
+    /** Replaces the connected region of equal id around a cell. Returns how many cells changed. */
+    floodFill(x, z, id, limit = 4e4) {
+      const c0 = Math.floor(this.hf.colAt(x));
+      const r0 = Math.floor(this.hf.rowAt(z));
+      if (!this.grid.inside(c0, r0)) return 0;
+      const target = this.grid.get(c0, r0);
+      if (target === id) return 0;
+      const stack = [c0, r0];
+      let changed = 0;
+      while (stack.length > 0 && changed < limit) {
+        const r = stack.pop();
+        const c = stack.pop();
+        if (!this.grid.inside(c, r) || this.grid.get(c, r) !== target) continue;
+        this.grid.set(c, r, id);
+        changed++;
+        stack.push(c + 1, r, c - 1, r, c, r + 1, c, r - 1);
+      }
+      this.revision++;
+      return changed;
+    }
+    /**
+     * Zones a band beside every road, the quickest way to fill a city the way Cities: Skylines does
+     * with its road-aligned brush. `depth` is measured from the road's outer edge.
+     */
+    paintAlongRoads(roads, id, depth, onlyUnzoned = true, sides = "both") {
+      const index = new SpatialHash2(32);
+      for (const road of roads) {
+        if (road.structure !== "ground") continue;
+        const reach = Math.max(road.leftExtent, road.rightExtent) + depth;
+        for (let i = 0; i + 1 < road.points.length; i++) {
+          const a = road.points[i];
+          const b = road.points[i + 1];
+          index.insert({ road, a, b }, Math.min(a.x, b.x) - reach, Math.min(a.z, b.z) - reach, Math.max(a.x, b.x) + reach, Math.max(a.z, b.z) + reach);
+        }
+      }
+      let changed = 0;
+      for (let r = 0; r < this.grid.rows; r++) {
+        for (let c = 0; c < this.grid.cols; c++) {
+          if (onlyUnzoned && this.grid.get(c, r) !== NO_DISTRICT) continue;
+          const [cx, cz] = this.cellCentre(c, r);
+          if (this.nearRoad(index.query(cx, cz, cx, cz), cx, cz, depth, sides)) {
+            this.grid.set(c, r, id);
+            changed++;
+          }
+        }
+      }
+      this.revision++;
+      return changed;
+    }
+    nearRoad(pieces, x, z, depth, sides) {
+      for (const { road, a, b } of pieces) {
+        const d = pointSegmentDistance(x, z, a.x, a.z, b.x, b.z);
+        const dx = b.x - a.x;
+        const dz = b.z - a.z;
+        const side = dx * (z - a.z) - dz * (x - a.x);
+        const isRight = side > 0;
+        const extent = isRight ? road.rightExtent : road.leftExtent;
+        if (sides === "left" && isRight) continue;
+        if (sides === "right" && !isRight) continue;
+        if (d >= extent && d <= extent + depth) return true;
+      }
+      return false;
+    }
+    clear() {
+      this.grid.fill(NO_DISTRICT);
+      this.revision++;
+    }
+    /** Cell count per district id. */
+    histogram() {
+      const counts = /* @__PURE__ */ new Map();
+      for (let i = 0; i < this.grid.data.length; i++) {
+        const id = this.grid.data[i];
+        if (id !== NO_DISTRICT) counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
+      return counts;
+    }
+    clone() {
+      return new _DistrictMap(this.hf, this.grid.clone());
+    }
+  };
+
+  // plugins/citybuilder/src/core/city/grow.ts
+  function snapshotAll(state) {
+    return {
+      cols: state.terrain.cols,
+      rows: state.terrain.rows,
+      cellSize: state.terrain.cellSize,
+      heights: state.terrain.heights.slice(),
+      paint: state.paint.data.slice(),
+      districts: state.districts.grid.data.slice()
+    };
+  }
+  function restoreAll(state, snap) {
+    const revision = state.terrain.revision + 1;
+    const districtRevision = state.districts.revision + 1;
+    const terrain = new Heightfield({ cols: snap.cols, rows: snap.rows, cellSize: snap.cellSize }, snap.heights.slice());
+    terrain.revision = revision;
+    state.terrain = terrain;
+    state.paint = ByteGrid.from(terrain.cellCols, terrain.cellRows, snap.paint);
+    state.districts = new DistrictMap(terrain, ByteGrid.from(terrain.cellCols, terrain.cellRows, snap.districts));
+    state.districts.revision = districtRevision;
+    state.settings.cols = terrain.cols;
+    state.settings.rows = terrain.rows;
+    state.touch();
+  }
+  function growIsland(state, options) {
+    const old = state.terrain;
+    const wanted = Math.ceil(Math.max(0.05, Math.min(0.7, options.width)) * Math.min(old.width, old.depth) / 2 / old.cellSize);
+    const room = Math.floor((MAX_VERTICES - Math.max(old.cols, old.rows)) / 2);
+    const pad = Math.max(0, Math.min(wanted, room));
+    if (pad < 2) return 0;
+    const terrain = new Heightfield({ cols: old.cols + pad * 2, rows: old.rows + pad * 2, cellSize: old.cellSize });
+    const floor = state.settings.waterLevel - Math.max(0.5, options.depth);
+    const span = pad * old.cellSize;
+    for (let r = 0; r < terrain.rows; r++) {
+      for (let c = 0; c < terrain.cols; c++) {
+        const oc = c - pad;
+        const or = r - pad;
+        const edge = old.get(oc, or);
+        const dx = Math.max(0, -oc, oc - (old.cols - 1));
+        const dz = Math.max(0, -or, or - (old.rows - 1));
+        if (dx === 0 && dz === 0) {
+          terrain.heights[terrain.index(c, r)] = old.heights[old.index(oc, or)];
+          continue;
+        }
+        const t = Math.hypot(dx, dz) * old.cellSize / span;
+        const x = terrain.worldX(c);
+        const z = terrain.worldZ(r);
+        const ragged = (fbm(x / 160, z / 160, options.seed, 4) - 0.5) * options.roughness * 0.9 * smoothstep(0, 0.35, t);
+        const lift = (fbm(x / 90, z / 90, options.seed + 3, 3) - 0.5) * options.roughness * 3 * smoothstep(0, 0.3, t);
+        const f2 = smoothstep(0, 0.85, t + ragged);
+        const ground = edge + lift;
+        terrain.heights[terrain.index(c, r)] = Math.min(ground, ground + (floor - ground) * f2);
+      }
+    }
+    terrain.revision = old.revision + 1;
+    const paint = new ByteGrid(terrain.cellCols, terrain.cellRows);
+    const grid = new ByteGrid(terrain.cellCols, terrain.cellRows);
+    for (let r = 0; r < old.cellRows; r++) {
+      for (let c = 0; c < old.cellCols; c++) {
+        paint.set(c + pad, r + pad, state.paint.get(c, r));
+        grid.set(c + pad, r + pad, state.districts.grid.get(c, r));
+      }
+    }
+    const revision = state.districts.revision + 1;
+    state.terrain = terrain;
+    state.paint = paint;
+    state.districts = new DistrictMap(terrain, grid);
+    state.districts.revision = revision;
+    state.settings.cols = terrain.cols;
+    state.settings.rows = terrain.rows;
+    state.touch();
+    return pad;
+  }
+
   // plugins/citybuilder/src/core/terrain/island.ts
-  var DEFAULT_ISLAND = { width: 0.35, depth: 12, roughness: 0.5, shape: "round", seed: 11 };
+  var DEFAULT_ISLAND = { width: 0.35, depth: 12, roughness: 0.5, shape: "round", seed: 11, grow: true };
   function applyIsland(hf, waterLevel, options) {
     const halfW = Math.max(1, hf.width / 2);
     const halfD = Math.max(1, hf.depth / 2);
@@ -7586,7 +7822,7 @@ void main() {
 	water_albedo = mix(water_albedo, vec3(0.92, 0.96, 0.98), clamp(foam_pattern * foam_mask * uFoamIntensity, 0.0, 0.85));
 
 	float shore_alpha = smoothstep(0.0, max(uShoreFadeDistance, 0.0001), depth_diff);
-	float alpha = mix(uAlphaScale, 0.96, deep * 0.7) * shore_alpha;
+	float alpha = mix(uAlphaScale, 1.0, smoothstep(0.5, 1.0, deep)) * shore_alpha;
 	if (alpha < 0.003) discard;
 
 	// Sun and sky stand in for the engine's lighting.
@@ -9636,168 +9872,6 @@ void main() {
     return { corridors: roads.corridors, junctions: [...roads.junctions, ...islands] };
   }
 
-  // plugins/citybuilder/src/core/district/types.ts
-  var NO_DISTRICT = 0;
-
-  // plugins/citybuilder/src/core/district/map.ts
-  var DistrictMap = class _DistrictMap {
-    constructor(hf, grid) {
-      __publicField(this, "hf", hf);
-      __publicField(this, "grid");
-      __publicField(this, "revision", 0);
-      this.grid = grid && grid.cols === hf.cellCols && grid.rows === hf.cellRows ? grid : new ByteGrid(hf.cellCols, hf.cellRows);
-    }
-    idAt(x, z) {
-      return this.grid.get(Math.floor(this.hf.colAt(x)), Math.floor(this.hf.rowAt(z)));
-    }
-    cellCentre(c, r) {
-      return [this.hf.worldX(c) + this.hf.cellSize / 2, this.hf.worldZ(r) + this.hf.cellSize / 2];
-    }
-    clampRect(c0, r0, c1, r1) {
-      return {
-        c0: Math.max(0, c0),
-        r0: Math.max(0, r0),
-        c1: Math.min(this.grid.cols - 1, c1),
-        r1: Math.min(this.grid.rows - 1, r1)
-      };
-    }
-    /** Paints a disc or square of cells. `only` restricts changes to cells currently holding that id (-1 for any). */
-    paintBrush(x, z, radius, id, shape = "round", only = -1) {
-      const rect = this.clampRect(
-        Math.floor(this.hf.colAt(x - radius)),
-        Math.floor(this.hf.rowAt(z - radius)),
-        Math.ceil(this.hf.colAt(x + radius)),
-        Math.ceil(this.hf.rowAt(z + radius))
-      );
-      for (let r = rect.r0; r <= rect.r1; r++) {
-        for (let c = rect.c0; c <= rect.c1; c++) {
-          const [cx, cz] = this.cellCentre(c, r);
-          const inside = shape === "square" ? Math.abs(cx - x) <= radius && Math.abs(cz - z) <= radius : Math.hypot(cx - x, cz - z) <= radius;
-          if (!inside) continue;
-          if (only >= 0 && this.grid.get(c, r) !== only) continue;
-          this.grid.set(c, r, id);
-        }
-      }
-      this.revision++;
-      return rect;
-    }
-    /** Fills the cells whose centres lie inside a world rectangle. */
-    paintRect(x0, z0, x1, z1, id) {
-      const rect = this.clampRect(
-        Math.floor(this.hf.colAt(Math.min(x0, x1))),
-        Math.floor(this.hf.rowAt(Math.min(z0, z1))),
-        Math.ceil(this.hf.colAt(Math.max(x0, x1))),
-        Math.ceil(this.hf.rowAt(Math.max(z0, z1)))
-      );
-      for (let r = rect.r0; r <= rect.r1; r++) {
-        for (let c = rect.c0; c <= rect.c1; c++) {
-          const [cx, cz] = this.cellCentre(c, r);
-          if (cx >= Math.min(x0, x1) && cx <= Math.max(x0, x1) && cz >= Math.min(z0, z1) && cz <= Math.max(z0, z1)) this.grid.set(c, r, id);
-        }
-      }
-      this.revision++;
-      return rect;
-    }
-    paintPolygon(polygon, id) {
-      if (polygon.length < 3) return { c0: 0, r0: 0, c1: -1, r1: -1 };
-      const xs = polygon.map((p) => p[0]);
-      const zs = polygon.map((p) => p[1]);
-      const rect = this.clampRect(
-        Math.floor(this.hf.colAt(Math.min(...xs))),
-        Math.floor(this.hf.rowAt(Math.min(...zs))),
-        Math.ceil(this.hf.colAt(Math.max(...xs))),
-        Math.ceil(this.hf.rowAt(Math.max(...zs)))
-      );
-      for (let r = rect.r0; r <= rect.r1; r++) {
-        for (let c = rect.c0; c <= rect.c1; c++) {
-          const [cx, cz] = this.cellCentre(c, r);
-          if (pointInPolygon(cx, cz, polygon)) this.grid.set(c, r, id);
-        }
-      }
-      this.revision++;
-      return rect;
-    }
-    /** Replaces the connected region of equal id around a cell. Returns how many cells changed. */
-    floodFill(x, z, id, limit = 4e4) {
-      const c0 = Math.floor(this.hf.colAt(x));
-      const r0 = Math.floor(this.hf.rowAt(z));
-      if (!this.grid.inside(c0, r0)) return 0;
-      const target = this.grid.get(c0, r0);
-      if (target === id) return 0;
-      const stack = [c0, r0];
-      let changed = 0;
-      while (stack.length > 0 && changed < limit) {
-        const r = stack.pop();
-        const c = stack.pop();
-        if (!this.grid.inside(c, r) || this.grid.get(c, r) !== target) continue;
-        this.grid.set(c, r, id);
-        changed++;
-        stack.push(c + 1, r, c - 1, r, c, r + 1, c, r - 1);
-      }
-      this.revision++;
-      return changed;
-    }
-    /**
-     * Zones a band beside every road, the quickest way to fill a city the way Cities: Skylines does
-     * with its road-aligned brush. `depth` is measured from the road's outer edge.
-     */
-    paintAlongRoads(roads, id, depth, onlyUnzoned = true, sides = "both") {
-      const index = new SpatialHash2(32);
-      for (const road of roads) {
-        if (road.structure !== "ground") continue;
-        const reach = Math.max(road.leftExtent, road.rightExtent) + depth;
-        for (let i = 0; i + 1 < road.points.length; i++) {
-          const a = road.points[i];
-          const b = road.points[i + 1];
-          index.insert({ road, a, b }, Math.min(a.x, b.x) - reach, Math.min(a.z, b.z) - reach, Math.max(a.x, b.x) + reach, Math.max(a.z, b.z) + reach);
-        }
-      }
-      let changed = 0;
-      for (let r = 0; r < this.grid.rows; r++) {
-        for (let c = 0; c < this.grid.cols; c++) {
-          if (onlyUnzoned && this.grid.get(c, r) !== NO_DISTRICT) continue;
-          const [cx, cz] = this.cellCentre(c, r);
-          if (this.nearRoad(index.query(cx, cz, cx, cz), cx, cz, depth, sides)) {
-            this.grid.set(c, r, id);
-            changed++;
-          }
-        }
-      }
-      this.revision++;
-      return changed;
-    }
-    nearRoad(pieces, x, z, depth, sides) {
-      for (const { road, a, b } of pieces) {
-        const d = pointSegmentDistance(x, z, a.x, a.z, b.x, b.z);
-        const dx = b.x - a.x;
-        const dz = b.z - a.z;
-        const side = dx * (z - a.z) - dz * (x - a.x);
-        const isRight = side > 0;
-        const extent = isRight ? road.rightExtent : road.leftExtent;
-        if (sides === "left" && isRight) continue;
-        if (sides === "right" && !isRight) continue;
-        if (d >= extent && d <= extent + depth) return true;
-      }
-      return false;
-    }
-    clear() {
-      this.grid.fill(NO_DISTRICT);
-      this.revision++;
-    }
-    /** Cell count per district id. */
-    histogram() {
-      const counts = /* @__PURE__ */ new Map();
-      for (let i = 0; i < this.grid.data.length; i++) {
-        const id = this.grid.data[i];
-        if (id !== NO_DISTRICT) counts.set(id, (counts.get(id) ?? 0) + 1);
-      }
-      return counts;
-    }
-    clone() {
-      return new _DistrictMap(this.hf, this.grid.clone());
-    }
-  };
-
   // plugins/citybuilder/src/core/city/state.ts
   var CityState = class _CityState {
     constructor(settings, terrain, paint, districts) {
@@ -9963,6 +10037,21 @@ void main() {
       state.touch();
       return true;
     }
+    /** Runs a change that resizes the map as one undo step, keeping complete copies from before and after. */
+    editResize(label, change) {
+      const state = this.getState();
+      if (!state) return;
+      const before = snapshotAll(state);
+      const settingsBefore = JSON.stringify(state.settings);
+      change();
+      const after = snapshotAll(state);
+      const edit = { projectId: Project?.uuid ?? "", label, layers: [], settings: { before: settingsBefore, after: JSON.stringify(state.settings) }, resize: { before, after } };
+      Undo.initEdit({ elements: [] });
+      Undo.finishEdit(label, { elements: [] });
+      const entry = Undo.history[Undo.history.length - 1];
+      if (entry) entry.citybuilder = edit;
+      state.touch();
+    }
     /** Forgets a half-finished edit (for example when a stroke is cancelled). */
     discard() {
       const state = this.getState();
@@ -9978,6 +10067,7 @@ void main() {
     apply(edit, direction) {
       const state = this.getState();
       if (!state || (Project?.uuid ?? "") !== edit.projectId) return;
+      if (edit.resize) restoreAll(state, direction === "undo" ? edit.resize.before : edit.resize.after);
       for (const diff of edit.layers) dataOf(state, diff.layer).set(direction === "undo" ? diff.before : diff.after, diff.from);
       if (edit.settings) {
         state.settings = mergeSettings2(JSON.parse(direction === "undo" ? edit.settings.before : edit.settings.after));
@@ -11630,10 +11720,21 @@ void main() {
     islandEdges() {
       const state = this.store.state;
       if (!state) return;
+      const options = { ...this.island, seed: this.island.seed + state.settings.seed };
+      if (this.island.grow) {
+        let added = 0;
+        this.store.history.editResize("Island edges", () => {
+          added = growIsland(state, options);
+        });
+        this.store.edited(0);
+        this.display.sync();
+        this.say(added > 0 ? `Added ${added} rows of new ground on every side and bent it into the sea. The existing map is unchanged. Undo removes it.` : 'The map is already at its largest size, so no ground could be added. Turn off "Add ground first" to bend the existing edges instead.');
+        return;
+      }
       this.store.history.begin();
-      applyIsland(state.terrain, state.settings.waterLevel, { ...this.island, seed: this.island.seed + state.settings.seed });
+      applyIsland(state.terrain, state.settings.waterLevel, options);
       if (this.store.history.commit("Island edges")) this.store.edited(50);
-      this.say("Bent the map edges into the sea. Undo restores the land; change the sliders and apply again for another look.");
+      this.say("Bent the existing map edges into the sea. Undo restores the land.");
     }
     smoothTerrain() {
       const state = this.store.state;
@@ -12118,6 +12219,8 @@ void main() {
 			<rs-toggle label="With island edges" :value="regen.island" @input="regen.island = $event"></rs-toggle>
 			<div class="rs_row"><button @click="ctl.regenerate(regen.preset, snap.settings.seed + 1, regen.island)" title="Replaces the terrain; undoable">Generate new terrain</button></div>
 			<p class="rs_hint"><b>Island edges</b> bend the border of the current map down into the sea with a natural, ragged coastline. The water level decides where the shore is.</p>
+			<rs-toggle label="Add ground first" :value="snap.island.grow" @input="ctl.setIsland('grow', $event)"></rs-toggle>
+			<p class="rs_hint">On: the map grows by new ground on every side and the island forms there, so existing roads, buildings and sculpting are not sunk. Off: the existing edges are lowered instead (shape applies only then).</p>
 			<rs-number label="Edge width" :value="snap.island.width" :min="0.05" :max="0.7" :step="0.01" @input="ctl.setIsland('width', $event)"></rs-number>
 			<rs-number label="Sea floor depth" suffix="m" :value="snap.island.depth" :min="1" :max="80" :step="1" @input="ctl.setIsland('depth', $event)"></rs-number>
 			<rs-number label="Coast roughness" :value="snap.island.roughness" :min="0" :max="1" :step="0.05" @input="ctl.setIsland('roughness', $event)"></rs-number>

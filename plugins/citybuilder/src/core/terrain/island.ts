@@ -12,9 +12,11 @@ export interface IslandOptions {
 	/** `round` makes a circular island, `rounded square` keeps more of the corners. */
 	shape: 'round' | 'rounded square';
 	seed: number;
+	/** Add new ground around the map and bend that instead, so nothing already built is lowered. */
+	grow: boolean;
 }
 
-export const DEFAULT_ISLAND: IslandOptions = { width: 0.35, depth: 12, roughness: 0.5, shape: 'round', seed: 11 };
+export const DEFAULT_ISLAND: IslandOptions = { width: 0.35, depth: 12, roughness: 0.5, shape: 'round', seed: 11, grow: true };
 
 /**
  * Pulls the ground near the map edge below the water level, with a noisy coastline. Land that is already

@@ -112,3 +112,37 @@ test('island edges sink the border below the water without raising anything', ()
 	applyIsland(hf, water, DEFAULT_ISLAND);
 	assert.ok(hf.heights.every((h, i) => h <= again[i] + 1e-6));
 });
+
+import { growIsland, restoreAll, snapshotAll } from '../src/core/city/grow';
+
+test('growing an island adds ground around the map and leaves everything built untouched', () => {
+	const state = CityState.create({ seed: 5, cols: 65, rows: 65, cellSize: 8 });
+	generateTerrain(state.terrain, { preset: 'rolling', seed: 5 });
+	state.districts.paintBrush(0, 0, 60, 3);
+	state.paint.set(10, 12, 4);
+	const old = state.terrain;
+	const oldHeights = old.heights.slice();
+	const oldDistricts = state.districts.grid.data.slice();
+	const snap = snapshotAll(state);
+	const pad = growIsland(state, { ...DEFAULT_ISLAND, grow: true });
+	const hf = state.terrain;
+	assert.ok(pad >= 2 && hf.cols === 65 + pad * 2 && hf.rows === 65 + pad * 2);
+	assert.equal(state.settings.cols, hf.cols);
+	// Every old vertex keeps its world position and height.
+	for (let r = 0; r < 65; r++) for (let c = 0; c < 65; c++) {
+		assert.equal(hf.heights[hf.index(c + pad, r + pad)], oldHeights[old.index(c, r)]);
+		assert.equal(hf.worldX(c + pad), old.worldX(c));
+	}
+	// Zoning and painting moved with the ground.
+	assert.equal(state.paint.get(10 + pad, 12 + pad), 4);
+	for (let r = 0; r < old.cellRows; r++) for (let c = 0; c < old.cellCols; c++) assert.equal(state.districts.grid.get(c + pad, r + pad), oldDistricts[r * old.cellCols + c]);
+	// The new border lies under the water, and nothing outside the old map is zoned.
+	for (let c = 0; c < hf.cols; c++) assert.ok(hf.heights[hf.index(c, 0)] < state.settings.waterLevel);
+	assert.equal(state.districts.grid.get(0, 0), 0);
+	// Undo restores the original exactly.
+	restoreAll(state, snap);
+	assert.equal(state.terrain.cols, 65);
+	assert.deepEqual(state.terrain.heights, oldHeights);
+	assert.deepEqual(state.districts.grid.data, oldDistricts);
+	assert.equal(state.settings.cols, 65);
+});

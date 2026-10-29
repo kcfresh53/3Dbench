@@ -10,6 +10,7 @@ import { buildGamePackage } from '../core/gameready/package';
 import type { PackageReport } from '../core/gameready/package';
 import { offsetAll, smoothAll } from '../core/terrain/brush';
 import { generateTerrain, TERRAIN_PRESETS } from '../core/terrain/generate';
+import { growIsland } from '../core/city/grow';
 import { applyIsland, DEFAULT_ISLAND } from '../core/terrain/island';
 import type { IslandOptions } from '../core/terrain/island';
 import type { TerrainPreset } from '../core/terrain/generate';
@@ -212,10 +213,22 @@ export class CityController {
 	islandEdges(): void {
 		const state = this.store.state;
 		if (!state) return;
+		const options: IslandOptions = { ...this.island, seed: this.island.seed + state.settings.seed };
+		if (this.island.grow) {
+			// New ground is added around the map and bent into the sea, so roads, lots and sculpting stay put.
+			let added: number = 0;
+			this.store.history.editResize('Island edges', (): void => {
+				added = growIsland(state, options);
+			});
+			this.store.edited(0);
+			this.display.sync();
+			this.say(added > 0 ? `Added ${added} rows of new ground on every side and bent it into the sea. The existing map is unchanged. Undo removes it.` : 'The map is already at its largest size, so no ground could be added. Turn off "Add ground first" to bend the existing edges instead.');
+			return;
+		}
 		this.store.history.begin();
-		applyIsland(state.terrain, state.settings.waterLevel, { ...this.island, seed: this.island.seed + state.settings.seed });
+		applyIsland(state.terrain, state.settings.waterLevel, options);
 		if (this.store.history.commit('Island edges')) this.store.edited(50);
-		this.say('Bent the map edges into the sea. Undo restores the land; change the sliders and apply again for another look.');
+		this.say('Bent the existing map edges into the sea. Undo restores the land.');
 	}
 
 	smoothTerrain(): void {

@@ -127,7 +127,7 @@ void main() {
 	water_albedo = mix(water_albedo, vec3(0.92, 0.96, 0.98), clamp(foam_pattern * foam_mask * uFoamIntensity, 0.0, 0.85));
 
 	float shore_alpha = smoothstep(0.0, max(uShoreFadeDistance, 0.0001), depth_diff);
-	float alpha = mix(uAlphaScale, 0.96, deep * 0.7) * shore_alpha;
+	float alpha = mix(uAlphaScale, 1.0, smoothstep(0.5, 1.0, deep)) * shore_alpha;
 	if (alpha < 0.003) discard;
 
 	// Sun and sky stand in for the engine's lighting.

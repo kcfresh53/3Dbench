@@ -1,4 +1,6 @@
 import type { CityState } from '../core/city/state';
+import { restoreAll, snapshotAll } from '../core/city/grow';
+import type { FullSnapshot } from '../core/city/grow';
 import { mergeSettings } from '../core/city/settings';
 import type { CitySettings } from '../core/city/settings';
 
@@ -18,6 +20,8 @@ export interface CityEdit {
 	label: string;
 	layers: LayerDiff[];
 	settings?: { before: string; after: string };
+	/** Set when the edit changed the size of the map: complete copies from before and after. */
+	resize?: { before: FullSnapshot; after: FullSnapshot };
 }
 
 interface Snapshot {
@@ -95,6 +99,22 @@ export class CityHistory {
 		return true;
 	}
 
+	/** Runs a change that resizes the map as one undo step, keeping complete copies from before and after. */
+	editResize(label: string, change: () => void): void {
+		const state: CityState | null = this.getState();
+		if (!state) return;
+		const before: FullSnapshot = snapshotAll(state);
+		const settingsBefore: string = JSON.stringify(state.settings);
+		change();
+		const after: FullSnapshot = snapshotAll(state);
+		const edit: CityEdit = { projectId: Project?.uuid ?? '', label, layers: [], settings: { before: settingsBefore, after: JSON.stringify(state.settings) }, resize: { before, after } };
+		Undo.initEdit({ elements: [] } as never);
+		Undo.finishEdit(label, { elements: [] } as never);
+		const entry: UndoEntry | undefined = Undo.history[Undo.history.length - 1] as unknown as UndoEntry | undefined;
+		if (entry) entry.citybuilder = edit;
+		state.touch();
+	}
+
 	/** Forgets a half-finished edit (for example when a stroke is cancelled). */
 	discard(): void {
 		const state: CityState | null = this.getState();
@@ -111,6 +131,7 @@ export class CityHistory {
 	apply(edit: CityEdit, direction: 'undo' | 'redo'): void {
 		const state: CityState | null = this.getState();
 		if (!state || (Project?.uuid ?? '') !== edit.projectId) return;
+		if (edit.resize) restoreAll(state, direction === 'undo' ? edit.resize.before : edit.resize.after);
 		for (const diff of edit.layers) dataOf(state, diff.layer).set(direction === 'undo' ? diff.before : diff.after, diff.from);
 		if (edit.settings) {
 			state.settings = mergeSettings(JSON.parse(direction === 'undo' ? edit.settings.before : edit.settings.after) as Partial<CitySettings>);

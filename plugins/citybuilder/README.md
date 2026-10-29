@@ -81,3 +81,5 @@ The water sheet is a preview only and is never exported or baked. The manifest r
 ## Island edges
 
 *Island edges* (Landscape section; also a toggle when creating or regenerating terrain) bends the border of the map down below the water line with a ragged coastline. Edge width, sea floor depth, roughness and shape are adjustable. It only ever lowers land and is one undo step.
+
+With **Add ground first** on (the default), island edges do not lower the existing map: new ground is added around all four sides and sloped into the sea, so roads, lots, zoning and sculpting stay exactly where they are. World coordinates of the old map do not change, and the whole step is one undo (it restores the previous map size). The map is capped at 513 vertices per side, so a large map may only grow a little. Turn it off to bend the existing edges instead.
