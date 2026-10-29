@@ -1,3 +1,6 @@
+import { addFacadeDetail } from './facade_detail';
+import { buildTurbine } from './turbine';
+import { buildTower, isTowerShape } from './towers';
 import type { Vec2, Vec3 } from '../types';
 import { Rng, dot3 } from '../math';
 import type { BuildingModel, BuildingSpec, FacadeRow, FacadeRun, ModelPiece, PieceTag, RoofProp, Volume } from './types';
@@ -400,6 +403,8 @@ function addAwnings(spec: BuildingSpec, runs: FacadeRun[], list: PieceList): voi
 
 /** Builds the structured model of a building from its spec. Pure and deterministic. */
 export function buildModel(spec: BuildingSpec): BuildingModel {
+	if (spec.archetype === 'wind_turbine') return buildTurbine(spec);
+	if (isTowerShape(spec.shape)) return addFacadeDetail(buildTower(spec));
 	const rng: Rng = new Rng(spec.seed * 1013904223 + 0x1234567);
 	const grid: FloorGrid = makeShape(spec.shape, spec.nx, spec.nz, spec.floors, rng);
 	const width: number = spec.nx * spec.bay;
@@ -417,6 +422,6 @@ export function buildModel(spec: BuildingSpec): BuildingModel {
 		z1: -depth / 2 + (r.r1 + 1) * spec.bay,
 		height: roofHeight(spec, r.floors),
 	}));
-	return { spec, width, depth, height: Math.max(roofTop, propTop), facades, pieces: list.pieces, volumes };
+	return addFacadeDetail({ spec, width, depth, height: Math.max(roofTop, propTop), facades, pieces: list.pieces, volumes });
 }
 

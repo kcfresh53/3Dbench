@@ -1,4 +1,4 @@
-import type { NodeOptions, RoadNetwork, RoadNode, RoadSegment, SegmentData } from './model';
+import type { Flow, NodeOptions, RoadNetwork, RoadNode, RoadSegment, SegmentData } from './model';
 import type { Vec3 } from './types';
 import { buildIndex, cloneNetwork, addNode, addSegment, freezeHandles, isSmoothThrough, removeNode, segmentCurve, otherEnd } from './network';
 import type { NetworkIndex } from './network';
@@ -75,6 +75,12 @@ export function splitSegmentAt(network: RoadNetwork, key: string, along: number,
 	network.segments.delete(key);
 	const first: RoadSegment = addSegment(network, a.id, node.id, { ...data, handleA: sub(low.c0, low.p0), handleB: sub(low.c1, low.p1) });
 	const second: RoadSegment = addSegment(network, node.id, b.id, { ...data, handleA: sub(high.c0, high.p0), handleB: sub(high.c1, high.p1) });
+	if (segment.flow) {
+		// New segments order their nodes by id, so restate the original direction of travel for each half.
+		const travelsFrom = (half: RoadSegment, start: string): Flow => (half.a === start ? 'forward' : 'reverse');
+		first.flow = travelsFrom(first, segment.flow === 'forward' ? a.id : node.id);
+		second.flow = travelsFrom(second, segment.flow === 'forward' ? node.id : b.id);
+	}
 	return { node, first, second };
 }
 

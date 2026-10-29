@@ -1,10 +1,8 @@
-import type { Vec2 } from '../types';
 
-/** Pixels per tile edge in the shared building atlas. */
-export const TILE_PX = 32;
-/** Tiles per atlas row and column. */
-export const ATLAS_TILES = 16;
-export const ATLAS_PX = TILE_PX * ATLAS_TILES;
+/** Pixels per tile edge in the shared building atlas. Tiles are painted analytically, so this is only a sharpness budget. */
+export const TILE_PX = 128;
+/** The world size a tile is painted for in the shared atlas: one bay wide, one storey high, in metres. */
+export const NOMINAL_TILE_M: [number, number] = [3, 3.2];
 
 /**
  * Surface patterns a facade, roof or prop can use. Each is painted once per palette, so a
@@ -33,6 +31,9 @@ export const TILE_KINDS = [
 	'awning',
 	'sign',
 	'brick',
+	'helipad',
+	'glass_tower',
+	'glass_room',
 ] as const;
 export type TileKind = (typeof TILE_KINDS)[number];
 
@@ -58,6 +59,16 @@ export const PALETTES: Palette[] = [
 	{ name: 'Sage', wall: [150, 168, 146], trim: [226, 226, 214], accent: [160, 84, 70], roof: [96, 106, 92], glass: [92, 128, 150], frame: [58, 70, 58] },
 	{ name: 'Modern dark', wall: [70, 78, 88], trim: [38, 42, 48], accent: [92, 190, 220], roof: [52, 56, 62], glass: [60, 104, 136], frame: [26, 30, 34] },
 	{ name: 'Ochre', wall: [214, 170, 82], trim: [240, 224, 180], accent: [112, 62, 44], roof: [134, 86, 52], glass: [90, 124, 146], frame: [92, 66, 36] },
+	// Skyline looks: reflective blue and teal glass towers, bright white blocks, and low-rise with vivid roofs.
+	{ name: 'Glass blue', wall: [128, 142, 160], trim: [196, 204, 214], accent: [60, 130, 200], roof: [96, 104, 114], glass: [104, 146, 176], frame: [176, 186, 198] },
+	{ name: 'Glass teal', wall: [124, 148, 156], trim: [196, 210, 214], accent: [40, 160, 170], roof: [96, 108, 112], glass: [92, 148, 162], frame: [168, 184, 190] },
+	{ name: 'Glass steel', wall: [118, 128, 144], trim: [184, 192, 204], accent: [180, 190, 205], roof: [90, 96, 106], glass: [128, 148, 170], frame: [160, 170, 184] },
+	{ name: 'Skyline white', wall: [238, 240, 242], trim: [214, 218, 224], accent: [64, 140, 210], roof: [150, 156, 164], glass: [92, 160, 214], frame: [180, 186, 194] },
+	{ name: 'Skyline sand', wall: [232, 222, 204], trim: [210, 200, 182], accent: [220, 120, 60], roof: [150, 140, 128], glass: [96, 150, 200], frame: [170, 160, 146] },
+	{ name: 'Roof orange', wall: [236, 232, 224], trim: [250, 250, 248], accent: [220, 120, 50], roof: [236, 138, 44], glass: [90, 146, 196], frame: [120, 116, 110] },
+	{ name: 'Roof teal', wall: [226, 232, 234], trim: [248, 250, 250], accent: [40, 150, 170], roof: [48, 160, 196], glass: [90, 146, 196], frame: [110, 118, 122] },
+	{ name: 'Roof red', wall: [244, 238, 224], trim: [250, 248, 242], accent: [196, 64, 56], roof: [176, 66, 54], glass: [90, 146, 196], frame: [120, 112, 106] },
+	{ name: 'Roof slate', wall: [214, 222, 228], trim: [244, 246, 248], accent: [92, 128, 170], roof: [86, 104, 128], glass: [90, 146, 196], frame: [96, 106, 118] },
 ];
 
 export const PALETTE_COUNT = PALETTES.length;
@@ -83,22 +94,6 @@ export interface PixelRect {
 	y: number;
 	w: number;
 	h: number;
-}
-
-/** Position of a tile in the shared atlas, in pixels. */
-export function tileRect(ref: TileRef): PixelRect {
-	return { x: (ref % ATLAS_TILES) * TILE_PX, y: Math.floor(ref / ATLAS_TILES) * TILE_PX, w: TILE_PX, h: TILE_PX };
-}
-
-const INSET: number = 0.5 / ATLAS_PX;
-
-/** Atlas UV (0..1, origin top-left) for a point (u, v) inside a tile; v grows downward. */
-export function tileUv(ref: TileRef, u: number, v: number): Vec2 {
-	const rect: PixelRect = tileRect(ref);
-	const u0: number = rect.x / ATLAS_PX + INSET;
-	const v0: number = rect.y / ATLAS_PX + INSET;
-	const size: number = TILE_PX / ATLAS_PX - 2 * INSET;
-	return [u0 + u * size, v0 + v * size];
 }
 
 /** Whether a tile is see-through glass, which never hides what is behind it. */

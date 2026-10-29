@@ -53,4 +53,22 @@ export interface RoundaboutModel {
 	hand: 'right' | 'left';
 }
 
+/** What the ramp tool builds on a highway. */
+export interface RampModel {
+	/** `exit` leaves the highway, `entry` joins it. */
+	kind: 'exit' | 'entry';
+	/** Direction of highway traffic the ramp serves: along the road's drawing order or against it. */
+	travel: 'forward' | 'backward';
+	/** Distance from the highway to the far end, metres. */
+	length: number;
+	/** How far the ramp swings away from the highway, degrees. */
+	turn: number;
+	/** Height of the far end above (+) or below (-) the highway, metres. */
+	rise: number;
+	/** Ramp road type; empty uses the built-in ramp. */
+	profile: string;
+}
+
+export const DEFAULT_RAMP_MODEL: RampModel = { kind: 'exit', travel: 'forward', length: 90, turn: 35, rise: 0, profile: '' };
+
 export const DEFAULT_ROUNDABOUT_MODEL: RoundaboutModel = { radius: 18, profile: '', hand: 'right' };

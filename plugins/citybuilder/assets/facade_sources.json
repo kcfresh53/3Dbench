@@ -1,0 +1,13 @@
+{
+  "source": "FlexiBuilding.blend",
+  "sha256": "a72f48707d24f9d64c3db9263569b727c62150b031deeab354f22ca0c39fd249",
+  "modules": [
+    "1_GF",
+    "1_Floor",
+    "7_GF",
+    "7_Floor",
+    "10_GF",
+    "10_Floor"
+  ],
+  "note": "Selected source meshes; source material classes mapped to the city PBR materials. Source images are in the surface library."
+}

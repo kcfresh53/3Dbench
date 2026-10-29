@@ -166,7 +166,9 @@ export function renameNodes(network: RoadNetwork, map: Map<string, string>): Roa
 	const name = (id: string): string => map.get(id) ?? id;
 	for (const node of network.nodes.values()) addNode(result, name(node.id), node.position, node.options);
 	for (const s of network.segments.values()) {
-		addSegment(result, name(s.a), name(s.b), { profile: s.profile, structure: s.structure, smooth: s.smooth, handleA: s.handleA, handleB: s.handleB });
+		const created: RoadSegment = addSegment(result, name(s.a), name(s.b), { profile: s.profile, structure: s.structure, smooth: s.smooth, handleA: s.handleA, handleB: s.handleB });
+		// New ids can swap the order of the two ends, which also swaps what "forward" means.
+		if (s.flow) created.flow = (created.a === name(s.a)) === (s.flow === 'forward') ? 'forward' : 'reverse';
 	}
 	return result;
 }

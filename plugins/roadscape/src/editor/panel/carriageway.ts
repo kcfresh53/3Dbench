@@ -6,6 +6,11 @@ import type { Option } from './side_stack';
 
 const MARKINGS: Option[] = (['none', 'solid', 'dashed', 'double'] as MarkingStyle[]).map((m: MarkingStyle): Option => ({ value: m, label: m[0].toUpperCase() + m.slice(1) }));
 const STRUCTURES: Option[] = (['auto', 'ground', 'bridge', 'tunnel', 'air'] as Structure[]).map((m: Structure): Option => ({ value: m, label: m[0].toUpperCase() + m.slice(1) }));
+const SUPPORTS: Option[] = [
+	{ value: 'pier', label: 'Piers' },
+	{ value: 'cantilever', label: 'Cantilever (T support)' },
+	{ value: 'twin', label: 'Twin piers' },
+];
 const LINE_COLORS: Option[] = [
 	{ value: 'white', label: 'White' },
 	{ value: 'yellow', label: 'Yellow' },
@@ -19,8 +24,8 @@ const CROSSWALKS: Option[] = [
 export const CarriagewayEditor: ComponentDefinition = {
 	name: 'rs-carriageway',
 	components: { 'rs-number': NumberField, 'rs-select': SelectField, 'rs-toggle': ToggleField },
-	props: ['value', 'structure'],
-	data: (): Record<string, unknown> => ({ markings: MARKINGS, structures: STRUCTURES, colors: LINE_COLORS, crosswalks: CROSSWALKS, surfaces: SURFACE_OPTIONS }),
+	props: ['value', 'structure', 'support'],
+	data: (): Record<string, unknown> => ({ markings: MARKINGS, structures: STRUCTURES, supports: SUPPORTS, colors: LINE_COLORS, crosswalks: CROSSWALKS, surfaces: SURFACE_OPTIONS }),
 	template: `<div class="rs_body">
 		<rs-number label="Lanes" :value="value.lanes" :min="1" :max="12" :step="1" @input="v => $emit('patch', {lanes: Math.round(v)})"></rs-number>
 		<rs-number label="Lane width" suffix="m" :value="value.laneWidth" :min="2" :max="6" :step="0.05" @input="v => $emit('patch', {laneWidth: v})" @preview="v => $emit('preview', {laneWidth: v})"></rs-number>
@@ -34,6 +39,7 @@ export const CarriagewayEditor: ComponentDefinition = {
 		<rs-select label="Line colour" :value="value.lineColor" :options="colors" @input="v => $emit('patch', {lineColor: v})"></rs-select>
 		<rs-select label="Crossings" :value="value.crosswalks" :options="crosswalks" @input="v => $emit('patch', {crosswalks: v})"></rs-select>
 		<rs-select label="Built as" :value="structure" :options="structures" @input="v => $emit('structure', v)"></rs-select>
+		<rs-select v-if="structure === 'bridge' || structure === 'auto'" label="Bridge supports" :value="support || 'pier'" :options="supports" @input="v => $emit('support', v)"></rs-select>
 	</div>`,
 };
 

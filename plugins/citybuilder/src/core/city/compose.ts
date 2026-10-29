@@ -32,6 +32,8 @@ export interface PlacedBuilding {
 	/** Rotation about +Y, Three.js convention. */
 	yaw: number;
 	spec: BuildingSpec;
+	/** Horizontal fit when an instanced prefab is larger than this lot. */
+	scale?: [number, number, number];
 	width: number;
 	depth: number;
 	/** Key of the shared mesh this building instances. */
@@ -47,6 +49,8 @@ export interface CityPlan {
 	/** Surface id per terrain cell. */
 	surfaces: ByteGrid;
 	prefabs: PrefabLibrary;
+	/** The road network the city was built around, in city metres. */
+	roads: RoadSet;
 	stats: CityStats;
 }
 
@@ -82,7 +86,7 @@ export function composeCity(state: CityState, plainRoads: RoadSet): CityPlan {
 		if (!plan) continue;
 		const prefab: Prefab = prefabs.resolve(plan.spec);
 		const [x, z] = localToWorld(lot.obb, plan.offsetX, plan.offsetZ);
-		buildings.push({ lotId: lot.id, districtId: lot.districtId, x, y: lot.padHeight, z, yaw: yawOf(lot.obb), spec: prefab.model.spec, width: plan.width, depth: plan.depth, prefab: prefab.key });
+		buildings.push({ lotId: lot.id, districtId: lot.districtId, x, y: lot.padHeight, z, yaw: yawOf(lot.obb), spec: prefab.model.spec, scale: [Math.min(1, plan.width / prefab.model.width), 1, Math.min(1, plan.depth / prefab.model.depth)], width: Math.min(plan.width, prefab.model.width), depth: Math.min(plan.depth, prefab.model.depth), prefab: prefab.key });
 		footprints.push(footprint(lot, plan));
 	}
 
@@ -102,7 +106,7 @@ export function composeCity(state: CityState, plainRoads: RoadSet): CityPlan {
 				variants: s.variants,
 			})
 		: [];
-	return { terrain, lots, buildings, trees, surfaces, prefabs, stats: computeStats(buildings.length, lots.length, trees.length, prefabs.count) };
+	return { terrain, lots, buildings, trees, surfaces, prefabs, roads, stats: computeStats(buildings.length, lots.length, trees.length, prefabs.count) };
 }
 
 /** Roundabout islands keep lots away like a very wide junction. */

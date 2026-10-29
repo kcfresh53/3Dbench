@@ -38,6 +38,8 @@ export interface LayoutOptions {
 	zone: boolean;
 	district: number;
 	zoneDepth: number;
+	/** Mixed skyline: offices in the core, white apartment blocks, then low-rise suburbs. */
+	zonePattern?: 'uniform' | 'skyline';
 }
 
 export const DEFAULT_LAYOUT: LayoutOptions = {

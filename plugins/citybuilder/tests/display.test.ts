@@ -41,7 +41,7 @@ test('terrain view builds patches that cover the map and follow live edits', () 
 	view.rebuild(ctx);
 	const hf = ctx.plan.terrain.heights;
 	assert.ok(view.root.children.length > 0);
-	assert.equal(countTriangles(view.root) / 2, (hf.cols - 1) * (hf.rows - 1) * 2, 'ground plus overlay share each triangle');
+	assert.equal(countTriangles(view.root) / 3, (hf.cols - 1) * (hf.rows - 1) * 2, 'ground, shadow receiver and overlay share each triangle');
 	const first = view.root.children[0] as THREE_NS.Mesh;
 	const before = (first.geometry.getAttribute('position') as THREE_NS.BufferAttribute).getY(5);
 	hf.heights.fill(50);
@@ -56,9 +56,10 @@ test('terrain view builds patches that cover the map and follow live edits', () 
 });
 
 test('terrain texture bakes in the background, shows a preview first, and is not redone for unchanged ground', async () => {
-	const g = globalThis as unknown as { Canvas?: { updateAll: () => void } };
+	const g = globalThis as unknown as { Canvas?: object; Preview?: { all: Array<{ canvas: { isConnected: boolean; offsetParent: object }; render: () => void }> } };
 	let redraws = 0;
-	g.Canvas = { updateAll: (): void => void redraws++ };
+	g.Canvas = {};
+	g.Preview = { all: [{ canvas: { isConnected: true, offsetParent: {} }, render: (): void => void redraws++ }] };
 	const ctx = context();
 	const view = new TerrainView();
 	view.rebuild(ctx);
@@ -74,6 +75,7 @@ test('terrain texture bakes in the background, shows a preview first, and is not
 	assert.equal(view.textureSize, 2048);
 	view.dispose();
 	delete g.Canvas;
+	delete g.Preview;
 });
 
 test('district overlay colours follow the district map', () => {
@@ -162,4 +164,23 @@ test('lot, water and cursor views build without errors', () => {
 	g.requestAnimationFrame = saved.raf;
 	g.cancelAnimationFrame = saved.caf;
 	cursor.dispose();
+});
+
+test('daylight owns its sky and shadow resources and restores renderer preferences', async () => {
+ const {LightingView}=await import('../src/editor/display/lighting_view');
+ const previous=(globalThis as any).Preview;
+ const renderer={shadowMap:{enabled:false,type:THREE_NS.BasicShadowMap}};
+ (globalThis as any).Preview={all:[{renderer}]};
+ const view=new LightingView();
+ try {
+  view.rebuild(context());
+  assert.equal(renderer.shadowMap.enabled,true);
+  assert.ok(view.root.children.some(o=>(o as THREE_NS.DirectionalLight).isDirectionalLight));
+  view.setEnabled(false);assert.equal(renderer.shadowMap.enabled,false);
+  view.setEnabled(true);assert.equal(renderer.shadowMap.enabled,true);
+  view.dispose();
+  assert.equal(renderer.shadowMap.enabled,false);
+  assert.equal(renderer.shadowMap.type,THREE_NS.BasicShadowMap);
+  assert.equal(view.root.children.length,0);
+ }finally{view.dispose();if(previous)(globalThis as any).Preview=previous;else delete (globalThis as any).Preview;}
 });

@@ -1,5 +1,5 @@
 import type { SettingsPatch } from '../../core/defaults';
-import type { Carriageway, LiningElement, RoadProfile, SideElement, Structure, StripElement } from '../../core/model';
+import type { Carriageway, LiningElement, RoadProfile, SideElement, Structure, StripElement, SupportStyle } from '../../core/model';
 import { addLining, addStrip, mirrorSide, moveElement, removeElement, updateLining, updateStrip } from '../../core/profile_edit';
 import type { LiningType, StripType } from '../../core/model';
 import type { RoadSession, Snapshot } from '../session';
@@ -60,6 +60,9 @@ function methods(): Record<string, (this: PanelInstance, ...args: never[]) => un
 		},
 		previewCarriageway(patch: Partial<Carriageway>): void {
 			guard(this, (): void => this.session.previewProfile((p: RoadProfile): RoadProfile => ({ ...p, carriageway: { ...p.carriageway, ...patch } })));
+		},
+		editProfileSupport(support: SupportStyle): void {
+			guard(this, (): void => this.session.editProfile((p: RoadProfile): RoadProfile => ({ ...p, support })));
 		},
 		editProfileStructure(structure: Structure): void {
 			guard(this, (): void => this.session.editProfile((p: RoadProfile): RoadProfile => ({ ...p, structure })));
@@ -181,7 +184,7 @@ const TEMPLATE: string = `<div class="rs_panel">
 	</rs-section>
 
 	<rs-section title="Road surface and lanes" :open="false">
-		<rs-carriageway :value="snap.profile.carriageway" :structure="snap.profile.structure" @patch="editCarriageway" @preview="previewCarriageway" @structure="editProfileStructure"></rs-carriageway>
+		<rs-carriageway :value="snap.profile.carriageway" :structure="snap.profile.structure" :support="snap.profile.support" @patch="editCarriageway" @preview="previewCarriageway" @structure="editProfileStructure" @support="editProfileSupport"></rs-carriageway>
 	</rs-section>
 
 	<rs-section title="Roadside">

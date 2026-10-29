@@ -34,7 +34,7 @@ export function emptyDocument(settings?: Partial<NetworkSettings>): RoadDocument
 export function documentFromNetwork(network: RoadNetwork): RoadDocument {
 	const segments: Record<string, SegmentData> = {};
 	for (const s of network.segments.values()) {
-		segments[s.key] = { profile: s.profile, structure: s.structure, smooth: s.smooth, handleA: s.handleA, handleB: s.handleB };
+		segments[s.key] = { profile: s.profile, structure: s.structure, smooth: s.smooth, handleA: s.handleA, handleB: s.handleB, ...(s.flow ? { flow: s.flow } : {}) };
 	}
 	const nodes: Record<string, NodeOptions> = {};
 	for (const n of network.nodes.values()) {

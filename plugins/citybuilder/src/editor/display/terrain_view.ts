@@ -7,7 +7,7 @@ import type { PatchRange, TerrainPatch } from '../../core/terrain/mesh';
 import { createTerrainPainter, paintSignature, paintTerrain } from '../../core/terrain/paint';
 import type { PaintInput, TerrainPainter } from '../../core/terrain/paint';
 import type { GridRect } from '../../core/types';
-import { disposeTree, rasterTexture } from './gl';
+import { disposeTree, rasterTexture, mappedTexture, redraw } from './gl';
 import type { View, ViewContext } from './view';
 
 const PATCH_CELLS: number = 32;
@@ -16,11 +16,12 @@ const DISPLAY_TEXTURE: number = 2048;
 const PREVIEW_TEXTURE: number = 512;
 /** Milliseconds of baking per slice, leaving the rest of each frame to the editor. */
 const BAKE_SLICE_MS: number = 8;
-const PAD_COLOR: [number, number, number] = [150, 148, 140];
+const PAD_COLOR: [number, number, number] = [136, 146, 118];
 
 interface PatchMesh {
 	range: PatchRange;
 	ground: THREE.Mesh;
+	shadow: THREE.Mesh;
 	overlay: THREE.Mesh;
 }
 
@@ -71,9 +72,9 @@ export class TerrainView implements View {
 		};
 		const signature: string = paintSignature(input);
 		const shape: string = `${hf.cols}x${hf.rows}x${hf.cellSize}`;
-		if (this.albedo === null || this.albedoShape !== shape) {
+		if (this.albedo === null || this.albedoShape !== shape || signature !== this.albedoSignature) {
 			// First view of this terrain: a small bake appears at once, the sharp one follows.
-			this.setAlbedo(rasterTexture(paintTerrain({ ...input, size: PREVIEW_TEXTURE }), false), shape, '');
+			this.setAlbedo(mappedTexture(paintTerrain({ ...input, size: PREVIEW_TEXTURE }), { srgb: false, anisotropy: 8 }), shape, '');
 		}
 		this.groundMaterial = new THREE.MeshBasicMaterial({ map: this.albedo });
 		this.overlayRaster = new Raster(hf.cellCols, hf.cellRows);
@@ -85,8 +86,10 @@ export class TerrainView implements View {
 			const overlay: THREE.Mesh = new THREE.Mesh(geometry, this.overlayMaterial);
 			overlay.visible = false;
 			overlay.renderOrder = 2;
-			this.root.add(ground, overlay);
-			this.patches.push({ range, ground, overlay });
+			const shadow = new THREE.Mesh(geometry, new THREE.ShadowMaterial({ opacity: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+			shadow.receiveShadow = true;
+			this.root.add(ground, shadow, overlay);
+			this.patches.push({ range, ground, shadow, overlay });
 		}
 		this.setDistricts(ctx.state.districts);
 		if (signature !== this.albedoSignature) this.bake(input, shape, signature);
@@ -109,12 +112,12 @@ export class TerrainView implements View {
 				this.bakeTimer = setTimeout(step, 0);
 				return;
 			}
-			this.setAlbedo(rasterTexture(painter.raster, false), shape, signature);
+			this.setAlbedo(mappedTexture(painter.raster, { srgb: false, anisotropy: 8 }), shape, signature);
 			if (this.groundMaterial) {
 				this.groundMaterial.map = this.albedo;
 				this.groundMaterial.needsUpdate = true;
 			}
-			Canvas.updateAll();
+			redraw();
 		};
 		this.bakeTimer = setTimeout(step, 0);
 	}

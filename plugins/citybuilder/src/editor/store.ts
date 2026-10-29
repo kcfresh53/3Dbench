@@ -36,6 +36,8 @@ export class CityStore {
 	private timer: number | null = null;
 	roadSignature: string = '';
 	private poll: number | null = null;
+	private roadEvents: Array<{ delete(): void }> = [];
+	private flushTimer: number | null = null;
 	private composing: boolean = false;
 
 	constructor() {
@@ -43,7 +45,9 @@ export class CityStore {
 			(): CityState | null => this.state,
 			(): void => this.edited(0),
 		);
-		this.poll = window.setInterval((): void => this.checkRoads(), 700);
+		// Road edits announce themselves through Blockbench events; the slow poll only catches anything that does not.
+		this.poll = window.setInterval((): void => this.checkRoads(), 4000);
+		this.roadEvents = (['finished_edit', 'undo', 'redo'] as const).map((name) => Blockbench.on(name, (): void => this.checkRoads()) as unknown as { delete(): void });
 	}
 
 	get unitsPerMeter(): number {
@@ -65,8 +69,18 @@ export class CityStore {
 		if (this.state) this.recomposeNow();
 	}
 
+	/** Writes the city into the project shortly after the last change. */
+	flushSoon(): void {
+		if (this.flushTimer !== null) clearTimeout(this.flushTimer);
+		this.flushTimer = window.setTimeout((): void => this.flush(), 300);
+	}
+
 	/** Writes the city into the project so it is saved with it. */
 	flush(): void {
+		if (this.flushTimer !== null) {
+			clearTimeout(this.flushTimer);
+			this.flushTimer = null;
+		}
 		if (!this.state || typeof Project === 'undefined' || !Project) return;
 		(Project as unknown as Stored)[PROJECT_KEY] = serializeCity(this.state);
 	}
@@ -92,8 +106,9 @@ export class CityStore {
 	edited(delay: number = 250): void {
 		this.editRevision++;
 		if (typeof Project !== 'undefined' && Project) Project.saved = false;
-		// Project properties are copied when the project is saved, so the document must always be current.
-		this.flush();
+		// Project properties are copied when the project is saved, so the document must be current soon after
+		// every edit, but writing it on every brush dab is wasted work.
+		this.flushSoon();
 		this.changed.emit('edited');
 		this.invalidate(delay);
 	}
@@ -101,7 +116,7 @@ export class CityStore {
 	/** For settings that only change how the city looks in the viewport (water colour, motion): saves, but does not recompose. */
 	displayEdited(): void {
 		if (typeof Project !== 'undefined' && Project) Project.saved = false;
-		this.flush();
+		this.flushSoon();
 		this.changed.emit('display');
 	}
 
@@ -148,5 +163,7 @@ export class CityStore {
 		this.cancelTimers();
 		if (this.poll !== null) clearInterval(this.poll);
 		this.poll = null;
+		for (const handle of this.roadEvents) handle.delete();
+		this.roadEvents = [];
 	}
 }

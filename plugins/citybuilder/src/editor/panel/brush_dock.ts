@@ -92,7 +92,7 @@ export class BrushDock {
 		this.attach();
 		const c: CityController = this.ctl;
 		const active: ActiveTool = c.activeTool();
-		const signature: string = JSON.stringify([active, c.landscape, c.district, c.roadType, c.roundabout, c.roadEditor.profileChoices(), this.collapsed, c.busy]);
+		const signature: string = JSON.stringify([active, c.landscape, c.district, c.roadType, c.roundabout, c.ramp, c.roadEditor.profileChoices(), this.collapsed, c.busy]);
 		if (signature === this.last) return;
 		this.last = signature;
 		this.tools.replaceChildren();
@@ -108,12 +108,14 @@ export class BrushDock {
 		const roadTools: ToolButton[] = [
 			{ id: 'draw', icon: 'road', label: 'Draw roads (Roadscape)', isActive: () => false, run: (k) => k.drawRoads() },
 			{ id: 'roundabout', icon: 'roundabout', label: 'Roundabout: click a junction', isActive: (_k, a) => a === 'roundabout', run: (k) => k.pickRoundabout() },
+			{ id: 'ramp', icon: 'ramp', label: 'Highway ramp: click beside a road', isActive: (_k, a) => a === 'ramp', run: (k) => k.pickRamp() },
 			{ id: 'roadtype', icon: 'roadtype', label: 'Road type: paint bridges, tunnels and road profiles', isActive: (_k, a) => a === 'roadtype', run: (k) => k.pickRoadType(k.roadType.mode) },
 		];
 		this.group(roadTools.map((t: ToolButton) => this.button(t.icon, t.label, (): void => t.run(c), t.isActive(c, active))), this.tools);
 		if (active === 'none') return;
 		if (active === 'roadtype') this.roadTypeOptions();
 		else if (active === 'roundabout') this.roundaboutOptions();
+		else if (active === 'ramp') this.rampOptions();
 		else this.paintOptions(active);
 	}
 
@@ -167,6 +169,24 @@ export class BrushDock {
 		this.options.append(this.select('Ring road profile', profiles, c.roundabout.profile, (v: string): void => c.setRoundabout('profile', v)));
 	}
 
+	private rampOptions(): void {
+		const c: CityController = this.ctl;
+		this.group(
+			[
+				this.button('ramp', 'Exit ramp: traffic leaves the highway', (): void => c.setRamp('kind', 'exit'), c.ramp.kind === 'exit'),
+				this.button('road', 'Entry ramp: traffic joins the highway', (): void => c.setRamp('kind', 'entry'), c.ramp.kind === 'entry'),
+				this.button('hand_right', 'Highway traffic runs in the order the road was drawn', (): void => c.setRamp('travel', 'forward'), c.ramp.travel === 'forward'),
+				this.button('hand_left', 'Highway traffic runs against the order the road was drawn', (): void => c.setRamp('travel', 'backward'), c.ramp.travel === 'backward'),
+			],
+			this.options,
+		);
+		this.options.append(this.slider('Length', 'm', 30, 300, c.ramp.length, (v: number): void => c.setRamp('length', v)));
+		this.options.append(this.slider('Turn', '°', 10, 80, c.ramp.turn, (v: number): void => c.setRamp('turn', v)));
+		this.options.append(this.slider('Height', 'm', -12, 12, c.ramp.rise, (v: number): void => c.setRamp('rise', v)));
+		const profiles: Array<[string, string]> = [['', 'Ramp profile: built-in ramp'], ...c.roadEditor.profileChoices().map((p): [string, string] => [p.id, p.name])];
+		this.options.append(this.select('Ramp road profile', profiles, c.ramp.profile, (v: string): void => c.setRamp('profile', v)));
+	}
+
 	private paintOptions(active: ActiveTool): void {
 		const c: CityController = this.ctl;
 		const zoning: boolean = active === 'zoning';
@@ -199,4 +219,4 @@ export class BrushDock {
 	}
 }
 
-export const BRUSH_DOCK_CSS: string = `.city_brush_dock{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:12;width:max-content;max-width:calc(100% - 32px);padding:6px;background:var(--color-back);color:var(--color-text);border:1px solid var(--color-border);border-radius:12px;box-shadow:0 4px 20px #0006;pointer-events:auto}.city_brush_dock[hidden]{display:none}.city_brush_dock>div{display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap}.city_brush_dock>div+div:not(:empty){margin-top:6px}.city_brush_dock button{min-width:0;min-height:0;width:32px;height:32px;padding:0;border-radius:6px;display:inline-flex;align-items:center;justify-content:center}.city_brush_dock button svg{display:block;pointer-events:none}.city_brush_dock button.active{background:var(--color-accent);color:var(--color-accent_text)}.city_dock_sep{width:1px;height:22px;background:var(--color-border);margin:0 3px}.city_brush_dock label{font-size:12px;white-space:nowrap}.city_brush_dock input[type=range]{width:100px;vertical-align:middle}.city_brush_dock input[type=number]{width:60px}.city_brush_dock select{max-width:170px}`;
+export const BRUSH_DOCK_CSS: string = `.city_brush_dock{position:absolute;bottom:16px;left:16px;z-index:12;width:max-content;max-width:calc(100% - 32px);padding:6px;background:var(--color-back);color:var(--color-text);border:1px solid var(--color-border);border-radius:12px;box-shadow:0 4px 20px #0006;pointer-events:auto}.city_brush_dock[hidden]{display:none}.city_brush_dock>div{display:flex;align-items:center;justify-content:flex-start;gap:4px;flex-wrap:wrap}.city_brush_dock>div+div:not(:empty){margin-top:6px}.city_brush_dock button{min-width:0;min-height:0;width:32px;height:32px;padding:0;border-radius:6px;display:inline-flex;align-items:center;justify-content:center}.city_brush_dock button svg{display:block;pointer-events:none}.city_brush_dock button.active{background:var(--color-accent);color:var(--color-accent_text)}.city_dock_sep{width:1px;height:22px;background:var(--color-border);margin:0 3px}.city_brush_dock label{font-size:12px;white-space:nowrap}.city_brush_dock input[type=range]{width:100px;vertical-align:middle}.city_brush_dock input[type=number]{width:60px}.city_brush_dock select{max-width:170px}`;

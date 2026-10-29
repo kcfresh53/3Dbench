@@ -38,16 +38,30 @@ export class RoadBridge {
 		return Mesh.all.filter(hasNetwork);
 	}
 
-	/** Changes whenever a road is added, moved, restyled or the mesh is transformed. */
+	/** Changes whenever a road is added, moved, restyled or the mesh is transformed. A hash, so checking is cheap. */
 	signature(unitsPerMeter: number): string {
-		const parts: unknown[] = [unitsPerMeter];
+		let h: number = 2166136261;
+		const mix = (n: number): void => {
+			h = Math.imul(h ^ (n | 0), 16777619);
+		};
+		const text = (t: string): void => {
+			for (let i: number = 0; i < t.length; i++) mix(t.charCodeAt(i));
+		};
+		mix(Math.round(unitsPerMeter * 1000));
 		for (const mesh of this.meshes()) {
 			mesh.mesh.updateWorldMatrix(true, false);
-			const edges: string[] = [];
-			for (const face of Object.values(mesh.faces)) if (face.vertices.length === 2) edges.push(face.vertices.join('|'));
-			parts.push(mesh.vertices, edges, (mesh as unknown as Record<string, string>)['roadscape_net'] ?? '', mesh.mesh.matrixWorld.elements);
+			for (const key in mesh.vertices) {
+				text(key);
+				const v: ArrayVector3 = mesh.vertices[key];
+				mix(Math.round(v[0] * 1000));
+				mix(Math.round(v[1] * 1000));
+				mix(Math.round(v[2] * 1000));
+			}
+			for (const face of Object.values(mesh.faces)) if (face.vertices.length === 2) text(face.vertices.join('|'));
+			text((mesh as unknown as Record<string, string>)['roadscape_net'] ?? '');
+			for (const e of mesh.mesh.matrixWorld.elements) mix(Math.round(e * 1000));
 		}
-		return JSON.stringify(parts);
+		return h.toString(36);
 	}
 
 	collect(state: CityState, unitsPerMeter: number): RoadSet {

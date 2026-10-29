@@ -1,4 +1,5 @@
 import type { CityState } from '../../core/city/state';
+import { redraw } from '../display/gl';
 import { applyDab, newStroke, strokeTo } from '../../core/terrain/brush';
 import type { StrokeState } from '../../core/terrain/brush';
 import { paintSurface } from '../../core/terrain/surface_brush';
@@ -71,11 +72,11 @@ export class LandscapeTool implements PointerHandler {
 		const state: CityState | null = this.store.state;
 		if (!hit || !state) {
 			this.display.cursor.hide();
-			Canvas.updateAll();
+			redraw();
 			return;
 		}
 		this.display.cursor.brush(state.terrain, hit.x, hit.z, this.model.brush.radius, this.model.brush.shape, COLORS[this.model.mode] ?? 0xffffff);
-		Canvas.updateAll();
+		redraw();
 	}
 
 	down(hit: CityHit, event: PointerEvent): void {

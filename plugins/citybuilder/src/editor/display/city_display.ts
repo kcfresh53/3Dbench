@@ -1,3 +1,5 @@
+import { LightingView } from './lighting_view';
+import { redraw, refreshShadows } from './gl';
 import type { GridRect } from '../../core/types';
 import type { Heightfield } from '../../core/terrain/heightfield';
 import { CityStore } from '../store';
@@ -10,19 +12,21 @@ import type { ViewContext } from './view';
 import { WaterView } from './water_view';
 
 export interface DisplayOptions {
+	daylight: boolean;
 	districts: boolean;
 	lots: boolean;
 	buildings: boolean;
 	trees: boolean;
 }
 
-export const DEFAULT_DISPLAY: DisplayOptions = { districts: false, lots: false, buildings: true, trees: true };
+export const DEFAULT_DISPLAY: DisplayOptions = { daylight: true, districts: false, lots: false, buildings: true, trees: true };
 
 /** The live 3D city: owns every view, attaches them to the open project and keeps them in sync with the store. */
 export class CityDisplay {
 	readonly root: THREE.Object3D = new THREE.Object3D();
 	readonly options: DisplayOptions = { ...DEFAULT_DISPLAY };
 	readonly terrain: TerrainView = new TerrainView();
+	private readonly lighting = new LightingView();
 	readonly cursor: CursorView = new CursorView();
 	private readonly water: WaterView = new WaterView();
 	private readonly buildings: BuildingView = new BuildingView();
@@ -36,7 +40,7 @@ export class CityDisplay {
 		this.terrain.onAlbedo = (texture): void => this.water.setBackdrop(texture);
 		this.root.name = 'CityBuilder live city';
 		(this.root as unknown as { no_export: boolean }).no_export = true;
-		this.root.add(this.terrain.root, this.water.root, this.lots.root, this.buildings.root, this.trees.root, this.cursor.root);
+		this.root.add(this.lighting.root, this.terrain.root, this.water.root, this.lots.root, this.buildings.root, this.trees.root, this.cursor.root);
 	}
 
 	/** Puts the city into the open project's scene. */
@@ -51,6 +55,7 @@ export class CityDisplay {
 	}
 
 	detach(): void {
+		this.lighting.dispose();
 		this.attached?.remove(this.root);
 		this.attached = null;
 	}
@@ -61,6 +66,8 @@ export class CityDisplay {
 		const plan = this.store.plan;
 		if (!state || !plan || !this.attached) {
 			this.root.visible = false;
+			this.lighting.dispose();
+			this.lastRevision = -1;
 			return;
 		}
 		this.root.visible = true;
@@ -68,18 +75,21 @@ export class CityDisplay {
 		if (this.lastRevision !== this.store.planRevision) {
 			this.lastRevision = this.store.planRevision;
 			const ctx: ViewContext = { state, plan };
+			this.lighting.rebuild(ctx);
 			this.terrain.rebuild(ctx);
 			this.water.rebuild(ctx);
 			this.buildings.rebuild(ctx);
 			this.trees.rebuild(ctx);
 			this.lots.rebuild(ctx);
+			refreshShadows();
 		}
 		this.applyOptions();
-		Canvas.updateAll();
+		redraw();
 	}
 
 	applyOptions(): void {
 		const o: DisplayOptions = this.options;
+		this.lighting.setEnabled(o.daylight);
 		this.terrain.showOverlay(o.districts);
 		this.lots.root.visible = o.lots;
 		this.buildings.root.visible = o.buildings;
@@ -90,24 +100,24 @@ export class CityDisplay {
 	updateWater(): void {
 		const state = this.store.state;
 		if (state) this.water.configure(state.settings.water);
-		Canvas.updateAll();
+		redraw();
 	}
 
 	setOption(key: keyof DisplayOptions, value: boolean): void {
 		this.options[key] = value;
 		this.applyOptions();
-		Canvas.updateAll();
+		redraw();
 	}
 
 	/** Shows brush edits straight away, before the plan is recomposed. */
 	liveTerrain(hf: Heightfield, rect: GridRect): void {
 		this.terrain.liveEdit(hf, rect);
-		Canvas.updateAll();
+		redraw();
 	}
 
 	liveDistricts(): void {
 		if (this.store.state) this.terrain.setDistricts(this.store.state.districts);
-		Canvas.updateAll();
+		redraw();
 	}
 
 	dispose(): void {

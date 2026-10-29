@@ -9,7 +9,7 @@ import type { TerrainPatch } from './mesh';
 export function* terrainBakePieces(plan: CityPlan, settings: CitySettings): Generator<{name:string; patch:TerrainPatch; raster:Raster; texture:string}> {
 	const hf=plan.terrain.heights, size=settings.terrainTexture;
 	const input={hf,surfaces:plan.surfaces,roadWeight:plan.terrain.roadWeight,lotWeight:plan.terrain.lotWeight,
-		padColor:[150,148,140] as [number,number,number],waterLevel:settings.waterLevel,sun:settings.sun,size,seed:settings.seed};
+		padColor:[136,146,118] as [number,number,number],waterLevel:settings.waterLevel,sun:settings.sun,size,seed:settings.seed};
 	const single=settings.terrainTextureMode==='single';
 	const shared=single?paintTerrain(input):null;
 	for(const r of patchRanges(hf,32)) {

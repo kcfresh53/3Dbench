@@ -12,8 +12,8 @@ const VERSION: string = '1.0.0';
 const ABOUT: string =
 	'Build a game-ready city the way city builders do. Create a city, draw roads with Roadscape, sculpt the land with the Landscape tool, ' +
 	'paint districts with the Zoning tool, and watch lots fill with buildings that grow taller as land value and development rise. ' +
-	'Export a game package (meshes in three levels of detail on one atlas, terrain chunks, collision, manifest, Godot loader), ' +
-	'bake everything to ordinary meshes, or make any selected mesh game ready (hidden faces removed, simplified, LODs). ' +
+	'Export a game package (meshes in three levels of detail on one atlas, terrain chunks, collision, manifest) ' +
+	'or bake everything to ordinary meshes. ' +
 	'Reuses Roadscape (roads) and Procedural Trees (trees).';
 
 let dock: BrushDock | null = null;
@@ -41,17 +41,16 @@ function dispose(): void {
 	if ((globalThis as unknown as Record<symbol, unknown>)[INSTANCE_KEY] === dispose) delete (globalThis as unknown as Record<symbol, unknown>)[INSTANCE_KEY];
 }
 
-function defineAction(id: string, name: string, icon: string, click: () => void, meshMenu: boolean = false): void {
+function defineAction(id: string, name: string, icon: string, click: () => void): void {
 	const action: Action = new Action(id, {
 		name,
 		icon,
 		category: 'tools',
-		condition: (): boolean => !!Project && (id === 'citybuilder_game_ready' || !!controller?.store.state),
+		condition: (): boolean => !!Project && !!controller?.store.state,
 		click: (): void => click(),
 	} as never) as Action;
 	actions.push(action);
 	MenuBar.addAction(action, 'tools');
-	if (meshMenu) Mesh.prototype.menu?.addAction(action, 0);
 }
 
 export default function initializeCityBuilder(api: typeof BBPlugin): void {
@@ -96,7 +95,6 @@ export default function initializeCityBuilder(api: typeof BBPlugin): void {
 			defineAction('citybuilder_export', 'City Builder — Export Game Package', 'upload_file', (): void => void ctl.exportPackage());
 			defineAction('citybuilder_bake', 'City Builder — Bake City to Meshes', 'view_in_ar', (): void => void ctl.bake());
 			defineAction('citybuilder_drape', 'City Builder — Drape Roads on Terrain', 'terrain', (): void => ctl.drape());
-			defineAction('citybuilder_game_ready', 'Make Game Ready (remove hidden faces, LODs)', 'speed', (): void => void ctl.gameReadySelection(), true);
 		},
 		onunload: dispose,
 	} as never);

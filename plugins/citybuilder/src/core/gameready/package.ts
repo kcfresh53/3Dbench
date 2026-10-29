@@ -9,8 +9,7 @@ import { terrainBakePieces } from '../terrain/bake';
 import type { PropMesh } from '../types';
 import { packBuildingPages } from './atlas';
 import type { AtlasResult, BuildingInput } from './atlas';
-import { GODOT_LOADER } from './godot_loader';
-import { partToObj, patchToObj } from './obj';
+import { partToGlb, patchToGlb } from './gltf';
 
 export interface PackageFile {
 	path: string;
@@ -24,6 +23,7 @@ export interface PackageReport {
 	prefabs: number;
 	buildings: number;
 	trees: number;
+	roads: number;
 	atlasPages: number;
 	atlasSize: number;
 	texelsPerMeter: number;
@@ -52,7 +52,7 @@ function lodMeshes(prefab: Prefab, state: CityState): PropMesh[] {
 
 /**
  * Builds everything a game needs: building meshes in three levels of detail on one packed atlas,
- * terrain chunks with a baked albedo, collision boxes, a heightmap, a manifest and a Godot loader.
+ * terrain chunks with a baked albedo, collision boxes, a heightmap, and a manifest.
  */
 export function buildGamePackage(plan: CityPlan, state: CityState): GamePackage {
 	const g = state.settings.gameReady;
@@ -64,6 +64,7 @@ export function buildGamePackage(plan: CityPlan, state: CityState): GamePackage 
 	const pages: AtlasResult[] = packBuildingPages(inputs,g.atlasSize,g.gutter,g.texelsPerMeter,g.preserveTextureDetail);
 	const atlas=pages[0];
 	const buildingAtlases=new Map<string,string>();
+	const pbrPages=new Map<string,[string,string]>();
 	if (atlas && atlas.texelsPerMeter < g.texelsPerMeter) warnings.push(`Facade resolution was lowered from ${g.texelsPerMeter} to ${atlas.texelsPerMeter} texels per metre to fit a ${g.atlasSize}px atlas.`);
 
 	const files: PackageFile[] = [];
@@ -72,12 +73,17 @@ export function buildGamePackage(plan: CityPlan, state: CityState): GamePackage 
 	for (const [page,atlas] of pages.entries()) {
 		const atlasPath=page===0?'buildings/atlas.png':`buildings/atlas_${page}.png`;
 		files.push({path:atlasPath,raster:atlas.raster});
+		const ormPath=atlasPath.replace('.png','_orm.png'), normalPath=atlasPath.replace('.png','_n.png');
+		if(g.pbr) {
+			files.push({path:ormPath,raster:atlas.orm},{path:normalPath,raster:atlas.normal});
+			pbrPages.set(atlasPath,[ormPath,normalPath]);
+		}
 		atlas.buildings.forEach((b): void => {
 			const i=Number(b.name.replace('building_',''));
 			buildingAtlases.set(prefabs[i].key,atlasPath);
 			const list: string[] = [];
 			b.lods.forEach((part, lod: number): void => {
-				files.push({ path: `buildings/${part.name}.obj`, text: partToObj(part, part.name) });
+				files.push({ path: `buildings/${part.name}.glb`, bytes: partToGlb(part, part.name, { baseColor: atlasPath.split('/').pop() as string, orm: g.pbr ? ormPath.split('/').pop() : undefined, normal: g.pbr ? normalPath.split('/').pop() : undefined }) });
 				list.push(part.name);
 				prefabTriangles[lod] += meshTriangles({ positions: part.positions, faces: part.faces.map((face) => ({ ...face, material: '' })) });
 			});
@@ -89,17 +95,20 @@ export function buildGamePackage(plan: CityPlan, state: CityState): GamePackage 
 	const textures=new Set<string>();
 	let terrainTriangles=0;
 	for(const piece of include.terrain ? terrainBakePieces(plan,state.settings) : []) {
-		const path=`terrain/${piece.name}.obj`, albedo=`terrain/${piece.texture}.png`;
-		files.push({path,text:patchToObj(piece.patch,piece.name)});
+		const path=`terrain/${piece.name}.glb`, albedo=`terrain/${piece.texture}.png`;
+		files.push({path,bytes:patchToGlb(piece.patch,piece.name,{baseColor:`${piece.texture}.png`})});
 		if(!textures.has(albedo)) {files.push({path:albedo,raster:piece.raster});textures.add(albedo);}
 		chunks.push(path);chunkAlbedos.push(albedo);terrainTriangles+=piece.patch.indices.length/3;
 	}
 	if (include.terrain) files.push({ path: 'terrain/heightmap.bin', bytes: heightmapBytes(plan) });
 
 	const manifest: CityManifest = buildManifest(plan, state.settings, names, { heightmap: include.terrain ? 'terrain/heightmap.bin' : '', albedo: chunkAlbedos[0] ?? '', chunks, chunkAlbedos });
-	for(const p of manifest.prefabs)p.atlas=buildingAtlases.get(p.id);
+	for(const p of manifest.prefabs) {
+		p.atlas=buildingAtlases.get(p.id);
+		const pbr=p.atlas?pbrPages.get(p.atlas):undefined;
+		if(pbr) {p.atlasOrm=pbr[0];p.atlasNormal=pbr[1];}
+	}
 	files.push({ path: 'city.json', text: JSON.stringify(manifest, null, 1) });
-	files.push({ path: 'city_loader.gd', text: GODOT_LOADER });
 
 	let cityTriangles: number = terrainTriangles;
 	const uses: Map<string, number> = new Map<string, number>(prefabs.map((p: Prefab): [string, number] => [p.key, 0]));
@@ -115,6 +124,7 @@ export function buildGamePackage(plan: CityPlan, state: CityState): GamePackage 
 			prefabs: prefabs.length,
 			buildings: include.buildings ? plan.buildings.length : 0,
 			trees: include.trees ? plan.trees.length : 0,
+			roads: manifest.roads?.length ?? 0,
 			atlasPages: pages.length,
 			atlasSize: atlas?.size ?? 0,
 			texelsPerMeter: atlas?.texelsPerMeter ?? 0,

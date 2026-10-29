@@ -1,7 +1,7 @@
 /** Toolbar icons: 24×24, drawn with strokes so they follow the theme's text colour. */
 export type IconName =
 	| 'select' | 'raise' | 'lower' | 'smooth' | 'flatten' | 'level' | 'biome'
-	| 'district' | 'erase' | 'road' | 'roundabout' | 'roadtype'
+	| 'district' | 'erase' | 'road' | 'roundabout' | 'roadtype' | 'ramp'
 	| 'brush' | 'rect' | 'polygon'
 	| 'ground' | 'bridge' | 'tunnel' | 'air' | 'keep'
 	| 'chevron_down' | 'chevron_up' | 'hand_right' | 'hand_left';
@@ -17,6 +17,7 @@ const PATHS: Record<IconName, string> = {
 	district: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
 	erase: 'M4 16l9-9 6 6-6 6H8zM9 12l6 6M12 20h8',
 	road: 'M8 3L4 21M16 3l4 18M12 4v3M12 10.5v3M12 17v3',
+	ramp: 'M5 21V3M5 21c0-8 4-11 11-13M13 4.5l3.5 3.5-4 2.5',
 	roundabout: 'M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM12 3v5.5M12 15.5V21M3 12h5.5M15.5 12H21',
 	roadtype: 'M2 15h20M4 15v-3a8 8 0 0 1 16 0v3M8 15v-6M12 15V8M16 15v-6M3 19h18',
 	brush: 'M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z',

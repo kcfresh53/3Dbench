@@ -1,4 +1,5 @@
 import type { CityState } from '../../core/city/state';
+import { redraw } from '../display/gl';
 import { pointSegmentDistance } from '../../core/geometry2d';
 import type { RoadCorridor } from '../../core/roads/corridor';
 import type { Vec2 } from '../../core/types';
@@ -61,7 +62,7 @@ export class DistrictTool implements PointerHandler {
 			else if (e.key === 'Escape') {
 				this.reset();
 				this.display.cursor.hide();
-				Canvas.updateAll();
+				redraw();
 			} else if (e.key === '[' || e.key === ']') {
 				this.model.radius = Math.max(4, Math.min(300, Math.round(this.model.radius * (e.key === '[' ? 0.85 : 1 / 0.85))));
 				this.changed();
@@ -106,7 +107,7 @@ export class DistrictTool implements PointerHandler {
 		if (!state) return;
 		if (!hit) {
 			this.display.cursor.hide();
-			Canvas.updateAll();
+			redraw();
 			return;
 		}
 		const m: DistrictModel = this.model;
@@ -114,7 +115,7 @@ export class DistrictTool implements PointerHandler {
 		else if (m.mode === 'polygon' && this.polygon.length > 0) this.display.cursor.path(state.terrain, [...this.polygon, [hit.x, hit.z]], false, PAINT);
 		else if (m.mode === 'fill' || m.mode === 'road') this.display.cursor.brush(state.terrain, hit.x, hit.z, 6, 'round', PAINT);
 		else this.display.cursor.hide();
-		Canvas.updateAll();
+		redraw();
 	}
 
 	down(hit: CityHit, event: PointerEvent): void {
@@ -162,7 +163,7 @@ export class DistrictTool implements PointerHandler {
 		} else if (m.mode === 'rect') {
 			this.display.cursor.rect(state.terrain, this.start.x, this.start.z, hit.x, hit.z, PAINT);
 			this.last = hit;
-			Canvas.updateAll();
+			redraw();
 		}
 	}
 

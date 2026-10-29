@@ -1,7 +1,7 @@
 import licenses from '../texture/asset_licenses.json';
 import type { GamePackage } from '../core/gameready/package';
 import type { PlacedTree } from '../core/nature/scatter';
-import { partToObj } from '../core/gameready/obj';
+import { partToGlb } from '../core/gameready/gltf';
 import { treeAssets, treeKey } from './tree_assets';
 
 /** Add the exact displayed tree prefabs and cutouts to the portable package. */
@@ -11,8 +11,8 @@ export async function addTreesToPackage(pkg: GamePackage, trees: PlacedTree[]): 
 	pkg.manifest.treeAssets = {};
 	for (const [key,asset] of assets) {
 		const triangles = asset.part.faces.reduce((n,f)=>n+f.indices.length-2,0);
-		const mesh=`trees/${key}.obj`, texture=`trees/${key}.png`;
-		pkg.files.push({path:mesh,text:partToObj(asset.part,key)});
+		const mesh=`trees/${key}.glb`, texture=`trees/${key}.png`;
+		pkg.files.push({path:mesh,bytes:partToGlb(asset.part,key,{baseColor:`${key}.png`,cutout:0.45,doubleSided:true})});
 		pkg.files.push({path:texture,bytes:Uint8Array.from(atob(asset.dataUrl.split(',')[1]),c=>c.charCodeAt(0))});
 		pkg.manifest.treeAssets[key]={mesh,texture,triangles};
 	}

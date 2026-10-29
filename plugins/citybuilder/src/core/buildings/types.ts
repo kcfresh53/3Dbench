@@ -2,7 +2,7 @@ import type { Vec2, Vec3 } from '../types';
 import type { TileRef } from './tiles';
 
 export type RoofKind = 'flat' | 'gable' | 'hip' | 'shed';
-export type ShapeKind = 'rect' | 'L' | 'U' | 'T' | 'podium' | 'stepped';
+export type ShapeKind = 'rect' | 'L' | 'U' | 'T' | 'podium' | 'stepped' | 'rounded' | 'chamfered' | 'tapered' | 'sail';
 export type FacadeStyle = 'house' | 'apartment' | 'shop' | 'curtain' | 'industrial' | 'civic';
 export type RoofProp = 'hvac' | 'tank' | 'vent' | 'antenna' | 'chimney' | 'spire';
 export type PieceTag = 'roof' | 'gable' | 'parapet' | 'awning' | 'prop' | 'trim';
@@ -34,6 +34,10 @@ export interface BuildingSpec {
 }
 
 export interface FacadeRow {
+	/** Optional lofted wall corners: bottom-left, bottom-right, top-right, top-left. */
+	corners?: [Vec3, Vec3, Vec3, Vec3];
+	/** LOD0 has a real source-module facade instead of this flat proxy. */
+	nativeDetail?: boolean;
 	/** Height of the row's bottom above the ground, metres. */
 	y0: number;
 	height: number;
@@ -60,6 +64,7 @@ export interface FacadeRun {
 
 /** A free polygon (3 or 4 corners) with its own tile: roofs, trim, awnings, props. */
 export interface ModelPiece {
+	normals?: Vec3[];
 	corners: Vec3[];
 	uvs: Vec2[];
 	tile: TileRef;
@@ -86,5 +91,12 @@ export interface BuildingModel {
 	height: number;
 	facades: FacadeRun[];
 	pieces: ModelPiece[];
+	/**
+	 * The same pieces without the facade-module detail, which is only built the first time `pieces` is read.
+	 * Coarser levels of detail never show that detail, so they read this and never pay for it.
+	 */
+	corePieces?: ModelPiece[];
 	volumes: Volume[];
+	/** Coarse architectural shell for non-rectangular towers, retained by all LODs. */
+	hull?: ModelPiece[];
 }

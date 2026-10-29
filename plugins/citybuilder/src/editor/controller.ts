@@ -19,7 +19,6 @@ import { bakeCity } from './bake';
 import { CityDisplay } from './display/city_display';
 import type { DisplayOptions } from './display/city_display';
 import { writePackage } from './files';
-import { makeMeshesGameReady } from './game_ready_action';
 import { Signal } from './signal';
 import { CityStore } from './store';
 import { RoadEditor } from './road_edit';
@@ -27,9 +26,10 @@ import type { ProfileChoice } from './road_edit';
 import { DistrictTool } from './tools/district_tool';
 import { RoadTypeTool } from './tools/road_type_tool';
 import { RoundaboutTool } from './tools/roundabout_tool';
+import { RampTool } from './tools/ramp_tool';
 import { LandscapeTool } from './tools/landscape_tool';
-import { DEFAULT_DISTRICT, DEFAULT_LANDSCAPE, DEFAULT_ROAD_TYPE, DEFAULT_ROUNDABOUT_MODEL } from './tools/models';
-import type { DistrictMode, DistrictModel, LandscapeMode, LandscapeModel, RoadPaintMode, RoadTypeModel, RoundaboutModel } from './tools/models';
+import { DEFAULT_DISTRICT, DEFAULT_LANDSCAPE, DEFAULT_ROAD_TYPE, DEFAULT_ROUNDABOUT_MODEL, DEFAULT_RAMP_MODEL } from './tools/models';
+import type { DistrictMode, DistrictModel, LandscapeMode, LandscapeModel, RoadPaintMode, RoadTypeModel, RoundaboutModel, RampModel } from './tools/models';
 
 export interface NewCityOptions {
 	size: number;
@@ -41,7 +41,7 @@ export interface NewCityOptions {
 	island?: boolean;
 }
 
-export type ActiveTool = 'landscape' | 'zoning' | 'roadtype' | 'roundabout' | 'none';
+export type ActiveTool = 'landscape' | 'zoning' | 'roadtype' | 'roundabout' | 'ramp' | 'none';
 
 export interface PanelSnapshot {
 	hasCity: boolean;
@@ -56,6 +56,7 @@ export interface PanelSnapshot {
 	island: IslandOptions;
 	roadType: RoadTypeModel;
 	roundabout: RoundaboutModel;
+	ramp: RampModel;
 	profiles: ProfileChoice[];
 	structures: Array<{ id: string; label: string }>;
 	roadCount: number;
@@ -86,12 +87,14 @@ export class CityController {
 	readonly island: IslandOptions = { ...DEFAULT_ISLAND };
 	readonly roadType: RoadTypeModel = { ...DEFAULT_ROAD_TYPE };
 	readonly roundabout: RoundaboutModel = { ...DEFAULT_ROUNDABOUT_MODEL };
+	readonly ramp: RampModel = { ...DEFAULT_RAMP_MODEL };
 	readonly roadEditor: RoadEditor = new RoadEditor(this.store);
 	readonly changed: Signal<void> = new Signal<void>();
 	readonly landscapeTool: LandscapeTool;
 	readonly districtTool: DistrictTool;
 	readonly roadTypeTool: RoadTypeTool;
 	readonly roundaboutTool: RoundaboutTool;
+	readonly rampTool: RampTool;
 	readonly presets: Array<{ id: TerrainPreset; label: string }> = TERRAIN_PRESETS;
 	readonly districts: Array<{ id: number; key: string; label: string; color: string; zone: string }> = DISTRICT_TYPES.filter((d) => d.buildable || d.zone === 'park' || d.zone === 'forest').map((d) => ({ id: d.id, key: d.key, label: d.label, color: d.color, zone: d.zone }));
 	readonly surfaces: Array<{ id: number; label: string; color: string }> = SURFACES.map((name) => {
@@ -112,6 +115,7 @@ export class CityController {
 		this.districtTool = new DistrictTool(this.store, this.display, this.district, status, refresh);
 		this.roadTypeTool = new RoadTypeTool(this.store, this.display, this.roadEditor, this.roadType, status, refresh);
 		this.roundaboutTool = new RoundaboutTool(this.store, this.display, this.roadEditor, this.roundabout, status, refresh);
+		this.rampTool = new RampTool(this.store, this.display, this.roadEditor, this.ramp, status, refresh);
 		this.unsubscribe.push(
 			this.store.changed.on((kind): void => {
 				if (kind === 'display') this.display.updateWater();
@@ -186,6 +190,26 @@ export class CityController {
 			}
 			this.say('City created. Draw roads with Roadscape, zone districts, and shape the land.');
 		});
+	}
+
+	/** A reproducible starting composition with editable roads and painted districts. */
+	async createSkyline(seed: number = 8): Promise<void> {
+		if (this.store.state) { this.say('Create the skyline starter in a new city project.'); return; }
+		if (!this.hasRoadscape) { this.say('Load Roadscape before creating the skyline starter.'); return; }
+		await this.create({ size: 513, cellSize: 6, preset: 'river_city', seed, kind: 'city' });
+		if (!this.store.state) return;
+		this.store.state.settings.development = 1;
+		this.store.state.settings.maxTrees = 30000;
+		this.store.state.settings.surface.snowLine = 150;
+		await this.generateLayout({ kind: 'organic', seed, blockSize: 88, centers: 3, hierarchy: true,
+			terrainFollow: .3, wiggle: .25, maxSlope: .35, mainProfile: 'avenue', coverage: .39,
+			rotation: 12, profile: 'street', elevation: .2, zone: true, district: 6, zoneDepth: 38, zonePattern: 'skyline' });
+		const preview = typeof Preview !== 'undefined' ? Preview.selected : null;
+		if (preview) {
+			preview.camera.position.set(780, 580, 1020);
+			preview.controls.target.set(0, 25, -110);
+			preview.controls.update();
+		}
 	}
 
 	remove(): void {
@@ -288,7 +312,7 @@ export class CityController {
 	}
 
 	activeTool(): ActiveTool {
-		return this.landscapeTool.active ? 'landscape' : this.districtTool.active ? 'zoning' : this.roadTypeTool.active ? 'roadtype' : this.roundaboutTool.active ? 'roundabout' : 'none';
+		return this.landscapeTool.active ? 'landscape' : this.districtTool.active ? 'zoning' : this.roadTypeTool.active ? 'roadtype' : this.roundaboutTool.active ? 'roundabout' : this.rampTool.active ? 'ramp' : 'none';
 	}
 
 	pickRoadType(mode: RoadPaintMode): void {
@@ -310,6 +334,16 @@ export class CityController {
 
 	pickRoundabout(): void {
 		this.roundaboutTool.tool.select();
+		this.changed.emit();
+	}
+
+	pickRamp(): void {
+		this.rampTool.tool.select();
+		this.changed.emit();
+	}
+
+	setRamp(path: string, value: unknown): void {
+		setPath(this.ramp as unknown as Bag, path, value);
 		this.changed.emit();
 	}
 
@@ -409,7 +443,7 @@ export class CityController {
 			await addTreesToPackage(pkg, state.settings.export.trees ? plan.trees : []);
 			const written: number = await writePackage(directory, pkg.files);
 			this.report = pkg.report;
-			this.say(`Exported ${written} files to ${directory}. Add city_loader.gd to a Godot 4 scene to build it.`);
+			this.say(`Exported ${written} files to ${directory}. city.json describes what to place.`);
 		});
 	}
 
@@ -417,15 +451,6 @@ export class CityController {
 		return this.run('Baking the city to meshes', async (): Promise<void> => {
 			const result = await bakeCity(this.store);
 			this.say(`Baked ${result.meshes} meshes (${result.triangles.toLocaleString()} triangles, ${result.buildings} buildings).`);
-		});
-	}
-
-	gameReadySelection(): Promise<void> {
-		return this.run('Making meshes game ready', (): void => {
-			const settings = this.store.state?.settings.gameReady ?? DEFAULT_CITY_SETTINGS.gameReady;
-			const summary = makeMeshesGameReady(settings);
-			if (summary.length === 0) throw new Error('The selection has no faces.');
-			this.say(summary.map((s) => `${s.name}: ${s.before} → ${s.after.join(' / ')} triangles${s.hidden ? `, ${s.hidden} hidden faces removed` : ''}`).join('; '));
 		});
 	}
 
@@ -447,6 +472,7 @@ export class CityController {
 			island: { ...this.island },
 			roadType: { ...this.roadType },
 			roundabout: { ...this.roundabout },
+			ramp: { ...this.ramp },
 			profiles: state ? this.roadEditor.profileChoices() : [],
 			structures: RoadEditor.STRUCTURES,
 			roadCount: this.store.roads.corridors.length,
@@ -463,6 +489,7 @@ export class CityController {
 		this.districtTool.dispose();
 		this.roadTypeTool.dispose();
 		this.roundaboutTool.dispose();
+		this.rampTool.dispose();
 		this.store.bridge.dispose();
 		this.store.dispose();
 		this.display.dispose();

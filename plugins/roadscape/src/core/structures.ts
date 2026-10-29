@@ -2,7 +2,7 @@ import type { RoadTerrain } from './terrain_context';
 import type { MeshPart, Vec3 } from './types';
 import type { CurveFrame, RoadCurve } from './curve';
 import { offsetPoint } from './curve';
-import type { NetworkSettings, RoadProfile, RoadSegment, Structure } from './model';
+import type { NetworkSettings, RoadProfile, RoadSegment, Structure, SupportStyle } from './model';
 import type { PartSet } from './part_set';
 import type { GenerationContext } from './context';
 import { propSource, ROAD_ATLAS } from './library_types';
@@ -61,46 +61,63 @@ function emitBridge(job: StructureJob): void {
 	emitBand(set, ctx.library, ribbon, { part: 'Bridge deck', tile, lat0: left, y0: -thickness, lat1: right, y1: -thickness }, DOWN);
 	emitRiser(set, ctx.library, ribbon, 'Bridge deck', tile, left, -thickness, 0, -1);
 	emitRiser(set, ctx.library, ribbon, 'Bridge deck', tile, right, -thickness, 0, 1);
-	const spacing: number = Math.max(2, settings.structures.pierSpacing || 14) * unit;
+	const support: SupportStyle = profile.profile.support ?? 'pier';
+	// A cantilever carries the whole deck on one column, so it can stand further apart than plain piers.
+	const spacing: number = Math.max(2, settings.structures.pierSpacing || 14) * unit * (support === 'cantilever' ? 1.5 : 1);
 	const count: number = Math.max(1, Math.ceil((job.to - job.from) / spacing));
-	const lanes: number[] = right - left > 12 * unit ? [left * 0.5, right * 0.5] : [(left + right) / 2];
+	const lanes: number[] = support === 'cantilever' ? [0] : support === 'twin' || right - left > 12 * unit ? [left * 0.5, right * 0.5] : [(left + right) / 2];
 	for (let i: number = 0; i < count; i++) {
-        const station = job.from + ((i + 0.5) * (job.to - job.from)) / count;
-        for (const lateral of lanes) {
-            // Search a bounded neighbourhood; omit a pier when the road below needs the space.
-            for (const shift of [0, -0.2, 0.2, -0.4, 0.4]) {
-                const along = station + shift * (job.to-job.from)/count;
-                const frame = job.curve.frameAt(along);
-                const centre = offsetPoint(frame,lateral,0);
-                const ground = ctx.terrain?.groundAt(centre[0],centre[2]) ?? settings.groundY;
-                if (!Number.isFinite(ground) || frame.position[1]-thickness-ground < 0.5*unit) continue;
-                if (ctx.supports && !ctx.supports.allows(job.segmentKey ?? '', centre, ground, frame.position[1]-thickness, 0.6*unit)) continue;
-                emitPier(set,ctx,frame,lateral,ground,thickness,unit,column);
-                break;
-            }
-        }
+		const station: number = job.from + ((i + 0.5) * (job.to - job.from)) / count;
+		for (const lateral of lanes) {
+			// Search a bounded neighbourhood; omit a support when the road below needs the space.
+			for (const shift of [0, -0.2, 0.2, -0.4, 0.4]) {
+				const along: number = station + (shift * (job.to - job.from)) / count;
+				const frame: CurveFrame = job.curve.frameAt(along);
+				const centre: Vec3 = offsetPoint(frame, lateral, 0);
+				const ground: number = ctx.terrain?.groundAt(centre[0], centre[2]) ?? settings.groundY;
+				if (!Number.isFinite(ground) || frame.position[1] - thickness - ground < 0.5 * unit) continue;
+				if (ctx.supports && !ctx.supports.allows(job.segmentKey ?? '', centre, ground, frame.position[1] - thickness, 0.6 * unit)) continue;
+				if (support === 'cantilever') emitCantilever(set, ctx, frame, ground, thickness, unit, column, left, right);
+				else emitPier(set, ctx, frame, lateral, ground, thickness, unit, column);
+				break;
+			}
+		}
 	}
+}
+
+/** Vertical box standing on the ground: `lat0`..`lat1` across the road, `depth` along it, from `y0` up to `y1` (world heights). */
+function emitBox(set: PartSet, ctx: GenerationContext, frame: CurveFrame, lat0: number, lat1: number, depth: number, y0: number, y1: number, tile: string, bottom: boolean): void {
+	const part: MeshPart = set.part('Bridge pier', ROAD_ATLAS);
+	const at = (lateral: number, along: number, y: number): Vec3 => {
+		const c: Vec3 = offsetPoint(frame, lateral, 0);
+		return [c[0] + frame.forward[0] * along, y, c[2] + frame.forward[2] * along];
+	};
+	const ring: Array<[number, number]> = [[lat0, -depth], [lat1, -depth], [lat1, depth], [lat0, depth]];
+	for (let i: number = 0; i < 4; i++) {
+		const [l0, d0]: [number, number] = ring[i];
+		const [l1, d1]: [number, number] = ring[(i + 1) % 4];
+		// Facing is the outward direction of this side, built from the road's own axes.
+		const sx: number = l0 === l1 ? Math.sign(l0 - (lat0 + lat1) / 2) : 0;
+		const sz: number = d0 === d1 ? Math.sign(d0) : 0;
+		const outward: Vec3 = [frame.right[0] * sx + frame.forward[0] * sz, 0, frame.right[2] * sx + frame.forward[2] * sz];
+		set.polygon(part, [at(l0, d0, y0), at(l1, d1, y0), at(l1, d1, y1), at(l0, d0, y1)], fullUvs(ctx.library, tile), outward);
+	}
+	if (bottom) set.polygon(part, [at(lat0, -depth, y0), at(lat1, -depth, y0), at(lat1, depth, y0), at(lat0, depth, y0)], fullUvs(ctx.library, tile), DOWN);
+}
+
+/** A T-shaped support: one column under the centreline carrying a beam that reaches under both edges of the deck. */
+function emitCantilever(set: PartSet, ctx: GenerationContext, frame: CurveFrame, groundY: number, thickness: number, unit: number, tile: string, left: number, right: number): void {
+	const top: number = frame.position[1] - thickness;
+	const beam: number = Math.min(1.4 * unit, Math.max(0.7 * unit, (top - groundY) * 0.18));
+	const reach: number = 0.42;
+	emitBox(set, ctx, frame, left * reach, right * reach, 0.5 * unit, top - beam, top, tile, true);
+	emitBox(set, ctx, frame, -0.6 * unit, 0.6 * unit, 0.45 * unit, groundY, top - beam, tile, false);
 }
 
 function emitPier(set: PartSet, ctx: GenerationContext, frame: CurveFrame, lateral: number, groundY: number, thickness: number, unit: number, tile: string): void {
 	const top: number = frame.position[1] - thickness;
 	if (top - groundY < 0.5 * unit) return;
-	const part: MeshPart = set.part('Bridge pier', ROAD_ATLAS);
-	const w: number = 0.6 * unit;
-	const d: number = 0.5 * unit;
-	const centre: Vec3 = offsetPoint(frame, lateral, 0);
-	const corner = (a: number, b: number, y: number): Vec3 => [
-		centre[0] + frame.right[0] * w * a + frame.forward[0] * d * b,
-		y,
-		centre[2] + frame.right[2] * w * a + frame.forward[2] * d * b,
-	];
-	const around: Array<[number, number]> = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
-	for (let i: number = 0; i < 4; i++) {
-		const [a0, b0]: [number, number] = around[i];
-		const [a1, b1]: [number, number] = around[(i + 1) % 4];
-		const mid: Vec3 = [centre[0] + frame.right[0] * w * (a0 + a1) * 0.5 + frame.forward[0] * d * (b0 + b1) * 0.5 - centre[0], 0, centre[2] + frame.right[2] * w * (a0 + a1) * 0.5 + frame.forward[2] * d * (b0 + b1) * 0.5 - centre[2]];
-		set.polygon(part, [corner(a0, b0, groundY), corner(a1, b1, groundY), corner(a1, b1, top), corner(a0, b0, top)], fullUvs(ctx.library, tile), mid);
-	}
+	emitBox(set, ctx, frame, lateral - 0.6 * unit, lateral + 0.6 * unit, 0.5 * unit, groundY, top, tile, false);
 }
 
 const LAMP_HEIGHT: number = 0.19;

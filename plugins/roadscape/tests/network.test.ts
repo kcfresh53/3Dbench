@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { RoadNetwork, RoadSegment } from '../src/core/model';
-import { buildIndex, classifyNode, segmentCurve } from '../src/core/network';
+import { addNode, addSegment, buildIndex, classifyNode, createNetwork, renameNodes, segmentCurve } from '../src/core/network';
 import { applyDraft, autoIntersect, counterIds, insertPoint, joinNetworks, removePoint, snapPoint } from '../src/core/network_edit';
 import type { DraftAnchor } from '../src/core/network_edit';
 import { RoadCurve } from '../src/core/curve';
@@ -76,4 +76,16 @@ test('closed loops, removing and joining points', () => {
 	const other: RoadNetwork = network('street', [['x', [100, 0, 0]], ['y', [100, 0, 40]]], [['x', 'y']]);
 	assert.equal(joinNetworks(loop.network, other, counterIds('~j')).length, 1);
 	assert.equal(loop.network.segments.size, 4);
+});
+
+test('renaming nodes keeps the direction of a one-way road', () => {
+	const n: RoadNetwork = createNetwork();
+	addNode(n, 'a', [0, 0, 0]);
+	addNode(n, 'b', [10, 0, 0]);
+	const s = addSegment(n, 'a', 'b');
+	s.flow = 'forward';
+	const renamed = renameNodes(n, new Map([['a', 'z']]));
+	const seg = [...renamed.segments.values()][0];
+	assert.equal(seg.a, 'b');
+	assert.equal(seg.flow, 'reverse', 'traffic still runs from the renamed node to b');
 });

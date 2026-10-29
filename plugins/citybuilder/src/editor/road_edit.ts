@@ -14,6 +14,11 @@ import { DEFAULT_ROAD_PAINT, paintRoadType } from '../core/roads/road_paint';
 import type { RegionTest, RoadChange, RoadPaintOptions } from '../core/roads/road_paint';
 import { DEFAULT_ROUNDABOUT, makeRoundabout } from '../core/roads/roundabout';
 import type { RoundaboutOptions } from '../core/roads/roundabout';
+import { DEFAULT_RAMP, makeRamp } from '../core/roads/ramp';
+import type { RampOptions } from '../core/roads/ramp';
+import type { RampModel } from './tools/models';
+import { segmentCurve } from '../../../roadscape/src/core/network';
+import type { RoadCurve } from '../../../roadscape/src/core/curve';
 import type { Vec3 } from '../core/types';
 import type { CityStore } from './store';
 import { selectedSegments } from '../../../roadscape/src/editor/network_mesh';
@@ -28,6 +33,20 @@ export interface RoadPoint {
 	y: number;
 	z: number;
 	degree: number;
+}
+
+/** A spot on a road segment, found from a ground position. */
+export interface RoadSpot {
+	mesh: Mesh;
+	segment: string;
+	/** Distance from the segment's first node, in the mesh's own length units. */
+	along: number;
+	/** Which side of the segment (drawn from first node to second) the ground position lies on. */
+	side: 'left' | 'right';
+	/** The spot on the road in city metres. */
+	x: number;
+	z: number;
+	distance: number;
 }
 
 export interface ProfileChoice {
@@ -107,6 +126,86 @@ export class RoadEditor {
 			}
 		}
 		return best;
+	}
+
+	/** The road segment nearest a ground position within `reach` metres, with the side the position lies on. */
+	nearestSpot(state: CityState, x: number, z: number, reach: number): RoadSpot | null {
+		let best: RoadSpot | null = null;
+		for (const mesh of this.meshes()) {
+			const network: RoadNetwork = readNetwork(mesh, documentOf(mesh));
+			const index = buildIndex(network);
+			const frame: MeshFrame = frameOf(mesh, state.settings.unitsPerMeter);
+			for (const segment of network.segments.values()) {
+				const curve: RoadCurve = segmentCurve(network, index, segment);
+				const distanceAt = (along: number): number => {
+					const p: Vec3 = frame.toCity(curve.frameAt(along).position);
+					return Math.hypot(p[0] - x, p[2] - z);
+				};
+				const samples: number = 32;
+				let at: number = 0;
+				let d: number = Infinity;
+				for (let i: number = 0; i <= samples; i++) {
+					const a: number = (curve.length * i) / samples;
+					const di: number = distanceAt(a);
+					if (di < d) {
+						d = di;
+						at = a;
+					}
+				}
+				let step: number = curve.length / samples;
+				for (let i: number = 0; i < 10; i++) {
+					for (const candidate of [at - step, at + step]) {
+						const a: number = Math.max(0, Math.min(curve.length, candidate));
+						const di: number = distanceAt(a);
+						if (di < d) {
+							d = di;
+							at = a;
+						}
+					}
+					step /= 2;
+				}
+				if (d > reach || (best && d >= best.distance)) continue;
+				const at3 = curve.frameAt(at);
+				const origin: Vec3 = frame.toCity(at3.position);
+				const right: Vec3 = frame.toCity([at3.position[0] + at3.right[0], at3.position[1] + at3.right[1], at3.position[2] + at3.right[2]]);
+				const side: number = (x - origin[0]) * (right[0] - origin[0]) + (z - origin[2]) * (right[2] - origin[2]);
+				best = { mesh, segment: segment.key, along: at, side: side >= 0 ? 'right' : 'left', x: origin[0], z: origin[2], distance: d };
+			}
+		}
+		return best;
+	}
+
+	/** Adds a highway ramp at a spot on a road. One undo step. */
+	ramp(state: CityState, spot: RoadSpot, model: RampModel): void {
+		const mesh: Mesh = spot.mesh;
+		const frame: MeshFrame = frameOf(mesh, state.settings.unitsPerMeter);
+		const network: RoadNetwork = readNetwork(mesh, documentOf(mesh));
+		// The side is seen by a driver, so when the ramp serves traffic running against the road's order it swaps.
+		const side: RampOptions['side'] = model.travel === 'forward' ? spot.side : spot.side === 'right' ? 'left' : 'right';
+		const options: RampOptions = {
+			...DEFAULT_RAMP,
+			side,
+			kind: model.kind,
+			travel: model.travel,
+			length: model.length / frame.metresPerUnit,
+			turn: (model.turn * Math.PI) / 180,
+			rise: model.rise / frame.metresPerUnit,
+			profile: model.profile || 'ramp',
+		};
+		this.store.history.begin();
+		Undo.initEdit({ elements: [mesh], selection: true } as never);
+		try {
+			makeRamp(network, spot.segment, spot.along, options, counterIds('~rp'));
+			const written = writeNetwork(mesh, network);
+			writeStoredDocument(mesh, written.doc);
+			this.store.history.commit('Add ramp', { elements: [mesh], outliner: false, selection: true });
+			Canvas.updateView({ elements: [mesh], element_aspects: { geometry: true, faces: true }, selection: true } as never);
+			this.store.edited(0);
+		} catch (error) {
+			this.store.history.discard();
+			Undo.cancelEdit(true);
+			throw error;
+		}
 	}
 
 	/** Road types the user can paint: the built-in library plus anything made in this project. */

@@ -1,4 +1,5 @@
 import type { CityState } from '../../core/city/state';
+import { redraw } from '../display/gl';
 import type { Vec2 } from '../../core/types';
 import type { CityDisplay } from '../display/city_display';
 import { CanvasInput } from '../picker';
@@ -79,7 +80,7 @@ export class RoundaboutTool implements PointerHandler {
 			}
 			this.display.cursor.path(state.terrain, ring, true, VALID);
 		}
-		Canvas.updateAll();
+		redraw();
 	}
 
 	hover(hit: CityHit | null): void {

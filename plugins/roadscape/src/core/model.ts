@@ -32,6 +32,10 @@ export type Placement = 'start' | 'center' | 'end';
 
 export type MarkingStyle = 'none' | 'solid' | 'dashed' | 'double';
 export type Structure = 'auto' | 'ground' | 'bridge' | 'tunnel' | 'air';
+/** How a bridge or viaduct is held up: square piers, a T-shaped cantilever, or a pair of piers per support. */
+export type SupportStyle = 'pier' | 'cantilever' | 'twin';
+/** Direction of travel on a one-way segment, relative to the order of its end nodes (a to b). */
+export type Flow = 'forward' | 'reverse';
 export type Weather = 'spring' | 'wet' | 'snow';
 export type EndCap = 'flat' | 'round';
 export type CrosswalkStyle = 'none' | 'zebra';
@@ -66,6 +70,8 @@ export interface Carriageway {
 	crosswalks: CrosswalkStyle;
 	/** Place a concrete barrier along a narrow median. */
 	medianBarrier: boolean;
+	/** All lanes travel the same way. Only recorded for engines; the segment's `flow` says which way. */
+	oneWay?: boolean;
 }
 
 /** A paved or planted band beside the carriageway. Consumes lateral space. */
@@ -119,6 +125,8 @@ export interface RoadProfile {
 	right: SideElement[];
 	/** Structure used when a segment leaves its own structure on `auto`. */
 	structure: Structure;
+	/** Supports used where this road is a bridge. Defaults to piers. */
+	support?: SupportStyle;
 	builtin: boolean;
 }
 
@@ -138,6 +146,8 @@ export interface SegmentData {
 	/** Explicit tangent handles relative to the end nodes, in model units. Null derives them. */
 	handleA: Vec3 | null;
 	handleB: Vec3 | null;
+	/** Travel direction for one-way roads; both ways when left out. */
+	flow?: Flow;
 }
 
 export interface JunctionSettings {

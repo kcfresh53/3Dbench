@@ -2,7 +2,15 @@
 export type Vec2 = [number, number];
 export type Vec3 = [number, number, number];
 
-export type { MeshPart, PartFace, PropFace, PropMesh } from '../../../roadscape/src/core/types';
+import type { PartFace as RoadPartFace, PropFace as RoadPropFace } from '../../../roadscape/src/core/types';
+
+export interface PartFace extends RoadPartFace {
+	/** Optional explicit corner normals; preserve curved surfaces across UV seams. */
+	normals?: Vec3[];
+}
+export interface PropFace extends RoadPropFace { normals?: Vec3[]; }
+export interface PropMesh { positions: Vec3[]; faces: PropFace[]; }
+export interface MeshPart { name: string; atlas: string; positions: Vec3[]; faces: PartFace[]; }
 
 /** Inclusive rectangle of grid indices (vertices or cells, depending on the grid). */
 export interface GridRect {

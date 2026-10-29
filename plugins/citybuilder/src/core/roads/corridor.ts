@@ -28,8 +28,13 @@ export interface RoadCorridor {
 	/** Half the carriageway (lanes plus median), metres. */
 	carriageHalf: number;
 	lanes: number;
+	/** Width of one lane, metres. */
+	laneWidth: number;
+	/** All lanes travel the same way: from the first point to the last. */
+	oneWay: boolean;
 	structure: RoadStructure;
 	length: number;
+	/** Nodes at the first and last point. On a one-way road these follow the direction of travel. */
 	startNode: string;
 	endNode: string;
 }
@@ -113,6 +118,8 @@ export function roadSetFromNetwork(network: RoadNetwork, options: CorridorOption
 		const reach: number = Math.max(leftExtent, rightExtent);
 		extentByNode.set(segment.a, Math.max(extentByNode.get(segment.a) ?? 0, reach));
 		extentByNode.set(segment.b, Math.max(extentByNode.get(segment.b) ?? 0, reach));
+		const reversed: boolean = !!profile.carriageway.oneWay && segment.flow === 'reverse';
+		if (reversed) samples.reverse();
 		corridors.push({
 			id: segment.key,
 			profile: profile.id,
@@ -121,10 +128,12 @@ export function roadSetFromNetwork(network: RoadNetwork, options: CorridorOption
 			rightExtent,
 			carriageHalf: resolved.half * scale,
 			lanes: profile.carriageway.lanes,
+			laneWidth: profile.carriageway.laneWidth,
+			oneWay: !!profile.carriageway.oneWay,
 			structure: structureOf(segment, profile, samples, network, options.terrainHeight, options.groundTolerance, options),
 			length,
-			startNode: segment.a,
-			endNode: segment.b,
+			startNode: reversed ? segment.b : segment.a,
+			endNode: reversed ? segment.a : segment.b,
 		});
 	}
 	const junctions: RoadJunction[] = [];

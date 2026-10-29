@@ -35,10 +35,12 @@ export class PrefabLibrary {
 			return hit;
 		}
 		const family: Prefab[] = this.byArchetype.get(spec.archetype) ?? [];
-		if (this.byKey.size >= this.budget && family.length > 0) {
-			let best: Prefab = family[0];
+		const smaller = family.filter(p => p.model.width <= spec.nx * spec.bay + 1e-6 && p.model.depth <= spec.nz * spec.bay + 1e-6);
+		const fitting = smaller.length ? smaller : family;
+		if (this.byKey.size >= this.budget && fitting.length > 0) {
+			let best: Prefab = fitting[0];
 			let bestScore: number = Infinity;
-			for (const p of family) {
+			for (const p of fitting) {
 				const s: BuildingSpec = p.model.spec;
 				const score: number = Math.abs(s.nx - spec.nx) * 4 + Math.abs(s.nz - spec.nz) * 4 + Math.abs(s.floors - spec.floors) * 2 + (s.palette === spec.palette ? 0 : 3) + (s.shape === spec.shape ? 0 : 3);
 				if (score < bestScore) {

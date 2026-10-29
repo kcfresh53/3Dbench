@@ -8,7 +8,7 @@ await build({
 	outfile: 'plugins/citybuilder.js',
 	legalComments: 'none',
 	// Node's own modules are provided by the Electron app at run time.
-	external: ['node:fs', 'node:path'],
+	external: ['node:fs', 'node:path', 'node:zlib'],
 
 	banner: {js: '// City Builder for 3D Bench. Landscape, zoning, growing buildings and game-ready export.\n// Reuses Roadscape (GPL-3.0-or-later) and Procedural Trees. Load via File > Plugins > Load Plugin from File.\n'},
 });

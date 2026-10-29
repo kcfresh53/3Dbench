@@ -22,7 +22,7 @@ test('a game package never contains water, only the water level', () => {
 
 test('export settings leave out buildings, trees and terrain', () => {
 	const { state, roads } = zoned();
-	state.settings.export = { terrain: false, buildings: false, trees: false };
+	state.settings.export = { terrain: false, buildings: false, trees: false, roads: false };
 	const pkg = buildGamePackage(composeCity(state, roads), state);
 	assert.equal(pkg.manifest.buildings.length, 0);
 	assert.equal(pkg.manifest.prefabs.length, 0);
@@ -145,4 +145,36 @@ test('growing an island adds ground around the map and leaves everything built u
 	assert.deepEqual(state.terrain.heights, oldHeights);
 	assert.deepEqual(state.districts.grid.data, oldDistricts);
 	assert.equal(state.settings.cols, 65);
+});
+
+import { WaterView } from '../src/editor/display/water_view';
+import * as THREE_NS from 'three';
+
+test('the water clock runs when the city sits inside the project model and redraws the viewports', () => {
+	const g = globalThis as unknown as Record<string, unknown>;
+	(g as { THREE: unknown }).THREE = THREE_NS;
+	const scene = new THREE_NS.Object3D();
+	const model = new THREE_NS.Object3D();
+	scene.add(model);
+	let renders = 0;
+	let callback: ((t: number) => void) | null = null;
+	const saved = { raf: g.requestAnimationFrame, caf: g.cancelAnimationFrame, project: g.Project, preview: g.Preview, doc: g.document };
+	g.requestAnimationFrame = (cb: (t: number) => void): number => { callback = cb; return 1; };
+	g.cancelAnimationFrame = (): void => {};
+	g.Project = { model_3d: model };
+	g.document = { hidden: false };
+	g.Preview = { all: [{ canvas: { isConnected: true, offsetParent: {} }, render: (): void => { renders++; } }] };
+	const state = CityState.create({ seed: 5, cols: 65, rows: 65, cellSize: 8 });
+	generateTerrain(state.terrain, { preset: 'coast', seed: 5 });
+	const plan = composeCity(state, { corridors: [], junctions: [] });
+	const water = new WaterView();
+	model.add(water.root);
+	water.rebuild({ state, plan });
+	assert.ok(callback, 'the animation loop started');
+	(callback as unknown as (time: number) => void)(1000);
+	assert.ok(renders > 0, 'the viewport was redrawn');
+	const uniforms = (water as unknown as { uniforms: { uTime: { value: number } } }).uniforms;
+	assert.equal(uniforms.uTime.value, 1);
+	water.dispose();
+	g.requestAnimationFrame = saved.raf; g.cancelAnimationFrame = saved.caf; g.Project = saved.project; g.Preview = saved.preview; g.document = saved.doc;
 });

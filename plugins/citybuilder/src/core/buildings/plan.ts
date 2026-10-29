@@ -55,13 +55,16 @@ export function isBuilt(district: DistrictType, lotId: string, ctx: PlanContext)
 export function planBuilding(district: DistrictType, lotId: string, lotWidth: number, lotDepth: number, ctx: PlanContext): Plan | null {
 	const rng: Rng = new Rng((hashString(`plan:${lotId}`) ^ Math.imul(ctx.seed, 40503)) >>> 0);
 	const growth: number = clamp(0.1 + 0.45 * ctx.value + 0.45 * ctx.development + (rng.next() - 0.5) * 0.3, 0, 1);
-	const target: number = Math.round(lerp(district.floors[0], district.floors[1], Math.pow(growth, 1.25)));
+	const skyline = district.key === 'office' || district.key === 'com_high';
+	// Independent lot variation breaks up a wall of equally tall towers; value still controls the envelope.
+	const heightMix = skyline ? Math.pow(growth, 1.25) * rng.range(0.38, 1) : Math.pow(growth, 1.25);
+	const target: number = Math.round(lerp(district.floors[0], district.floors[1], heightMix));
 	const a: Archetype | null = chooseArchetype(district, target, rng);
 	if (a === null) return null;
 
 	const nxMax: number = Math.floor((lotWidth - 2 * a.sideSetback) / a.bay);
 	const nzMax: number = Math.floor((lotDepth - a.frontSetback - a.backSetback) / a.bay);
-	if (nxMax < 2 || nzMax < 2) return null;
+	if (nxMax < 2 || nzMax < 2 || (a.id === 'wind_turbine' && (nxMax < 5 || nzMax < 5))) return null;
 	const size = (range: [number, number], max: number): number => {
 		const lo: number = Math.min(range[0], max);
 		const hi: number = Math.min(range[1], max);

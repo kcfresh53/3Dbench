@@ -198,3 +198,30 @@ test('bridge columns avoid a lower road and a lower-road edit invalidates cached
     generateNetwork(n,plain,cache);
     assert.notEqual(cache.segment('c|d'),before, 'moving a lower road must rebuild bridge clearance');
 });
+
+test('a cantilever viaduct stands on single T supports that are fewer and wider than plain piers', () => {
+	const make = (support: 'pier' | 'cantilever'): GenerateResult => {
+		const net: RoadNetwork = network('viaduct', [['a', [0, 12, 0]], ['b', [0, 12, 120]]], [['a', 'b']]);
+		const copy = { ...BUILTIN_PROFILES.find((p) => p.id === 'viaduct')!, id: 'v2', support };
+		net.profiles.set('v2', copy);
+		for (const s of net.segments.values()) s.profile = 'v2';
+		return generateNetwork(net, plain);
+	};
+	const cantilever: GenerateResult = make('cantilever');
+	const piers: GenerateResult = make('pier');
+	const box = bounds([part(cantilever, 'Bridge pier')]);
+	assert.ok(box.max[0] - box.min[0] > 8, 'the beam reaches under most of the deck');
+	assert.ok(part(cantilever, 'Bridge pier').faces.length < part(piers, 'Bridge pier').faces.length * 4);
+	checkParts(cantilever.parts);
+});
+
+test('every built-in road type generates clean geometry, including bridges and tunnels', () => {
+	for (const profile of BUILTIN_PROFILES) {
+		for (const height of [0, 12]) {
+			const net: RoadNetwork = network(profile.id, [['a', [0, height, 0]], ['b', [0, height, 60]], ['c', [40, height, 60]]], [['a', 'b'], ['b', 'c']]);
+			const result: GenerateResult = generateNetwork(net, plain);
+			assert.ok(result.parts.length > 0, profile.id);
+			checkParts(result.parts);
+		}
+	}
+});

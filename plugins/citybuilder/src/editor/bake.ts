@@ -1,17 +1,31 @@
 import { treeAssets, treeKey } from './tree_assets';
-import { bakedMesh } from '../core/buildings/mesh';
+import { modularMesh } from '../core/buildings/mesh';
 import type { Prefab } from '../core/buildings/prefabs';
 import type { PlacedBuilding } from '../core/city/compose';
 import { packBuildingPages } from '../core/gameready/atlas';
 import type { BuildingInput, PackedBuilding } from '../core/gameready/atlas';
 import { terrainBakePieces } from '../core/terrain/bake';
 import type { MeshPart, PartFace, Vec3 } from '../core/types';
-import { abortCreate, addMesh, beginCreate, finishCreate, newGroup, newTexture } from './mesh_builder';
+import { abortCreate, addMesh, beginCreate, finishCreate, newGroup, newMaterialGroup, newTexture } from './mesh_builder';
 import type { Created } from './mesh_builder';
+import { Raster } from '../core/raster';
 import { rasterToDataUrl } from './files';
 import type { CityStore } from './store';
 
 const CHUNK_METRES: number = 128;
+
+/** One channel of a packed page as its own greyscale image: Blockbench keeps every PBR channel in a texture of its own. */
+function greyscale(source: Raster, channel: 0 | 1 | 2): Raster {
+	const out: Raster = new Raster(source.width, source.height);
+	for (let i: number = 0; i < source.data.length; i += 4) {
+		const v: number = source.data[i + channel];
+		out.data[i] = v;
+		out.data[i + 1] = v;
+		out.data[i + 2] = v;
+		out.data[i + 3] = 255;
+	}
+	return out;
+}
 
 export interface BakeResult {
 	meshes: number;
@@ -30,7 +44,7 @@ function transformInto(target: Accumulator, part: MeshPart, b: PlacedBuilding, s
 	const sin: number = Math.sin(b.yaw);
 	for (const p of part.positions) {
 		// Rotation about +Y (Three.js convention), then translate.
-		target.positions.push([(p[0] * cos + p[2] * sin + b.x) * scale, (p[1] + b.y) * scale, (-p[0] * sin + p[2] * cos + b.z) * scale]);
+		target.positions.push([(p[0] * (b.scale?.[0] ?? 1) * cos + p[2] * (b.scale?.[2] ?? 1) * sin + b.x) * scale, (p[1] + b.y) * scale, (-p[0] * (b.scale?.[0] ?? 1) * sin + p[2] * (b.scale?.[2] ?? 1) * cos + b.z) * scale]);
 	}
 	for (const f of part.faces) target.faces.push({ indices: f.indices.map((i: number): number => base + i), uvs: f.uvs });
 }
@@ -75,10 +89,16 @@ export async function bakeCity(store: CityStore): Promise<BakeResult> {
 		const prefabs: Prefab[] = plan.prefabs.all();
 		if (plan.buildings.length > 0) {
 			const g = state.settings.gameReady;
-			const inputs: BuildingInput[] = prefabs.map((p: Prefab, i: number): BuildingInput => ({ name: `b${i}`, runs: p.model.facades, lods: [bakedMesh(p.model, 0)] }));
+			const inputs: BuildingInput[] = prefabs.map((p: Prefab, i: number): BuildingInput => ({ name: `b${i}`, runs: [], lods: [modularMesh(p.model, 0)] }));
 			const pages = packBuildingPages(inputs, g.atlasSize, g.gutter, g.texelsPerMeter,g.preserveTextureDetail);
 			for (const [page,atlas] of pages.entries()) {
-			const atlasTexture = newTexture(`city_buildings_${page}.png`, rasterToDataUrl(atlas.raster), atlas.size, created);
+			// The same maps the viewport shows: albedo, normal, and roughness, metalness and occlusion from the packed page.
+			const material = newMaterialGroup(`city_buildings_${page}`, created);
+			const atlasTexture = newTexture(`city_buildings_${page}.png`, rasterToDataUrl(atlas.raster), atlas.size, created, 'color', material);
+			newTexture(`city_buildings_${page}_normal.png`, rasterToDataUrl(atlas.normal), atlas.size, created, 'normal', material);
+			newTexture(`city_buildings_${page}_roughness.png`, rasterToDataUrl(greyscale(atlas.orm, 1)), atlas.size, created, 'roughness', material);
+			newTexture(`city_buildings_${page}_metalness.png`, rasterToDataUrl(greyscale(atlas.orm, 2)), atlas.size, created, 'metalness', material);
+			newTexture(`city_buildings_${page}_ao.png`, rasterToDataUrl(greyscale(atlas.orm, 0)), atlas.size, created, 'ao', material);
 			const buildingGroup = newGroup('Buildings', root, created);
 			const index: Map<string, PackedBuilding> = new Map<string, PackedBuilding>(prefabs.map((p: Prefab, i: number): [string, PackedBuilding] => [p.key, atlas.buildings.find(b=>b.name===`b${i}`)!]));
 			const chunks: Map<string, Accumulator> = new Map<string, Accumulator>();

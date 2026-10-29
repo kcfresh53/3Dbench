@@ -2,7 +2,7 @@ import type { PlacedTree } from '../../core/nature/scatter';
 import { geometryForParts } from '../../../../roadscape/src/editor/live_render';
 import { treeAssets, treeKey, clearTreeAssets } from '../tree_assets';
 import type { CityTreeAsset } from '../tree_assets';
-import { disposeTree } from './gl';
+import { disposeTree, redraw, refreshShadows } from './gl';
 import type { View, ViewContext } from './view';
 
 /**
@@ -56,7 +56,8 @@ export class TreeView implements View {
 				if (revision !== this.revision) return;
 				disposeTree(this.root);
 				this.build(ctx.plan.trees, assets);
-				Canvas.updateAll();
+				refreshShadows();
+				redraw();
 			})
 			.catch((error: unknown): void => {
 				this.signature = '';
@@ -96,6 +97,7 @@ export class TreeView implements View {
 					dummy.updateMatrix();
 					mesh.setMatrixAt(i, dummy.matrix);
 				});
+				mesh.castShadow = true;
 				mesh.instanceMatrix.needsUpdate = true;
 				mesh.frustumCulled = !whole;
 				this.root.add(mesh);
@@ -106,7 +108,7 @@ export class TreeView implements View {
 	private textureFor(key: string, asset: CityTreeAsset): THREE.Texture {
 		let texture: THREE.Texture | undefined = this.textures.get(key);
 		if (!texture) {
-			texture = new THREE.TextureLoader().load(asset.dataUrl, (): void => Canvas.updateAll());
+			texture = new THREE.TextureLoader().load(asset.dataUrl, (): void => redraw());
 			texture.flipY = false;
 			texture.magFilter = THREE.LinearFilter;
 			texture.minFilter = THREE.LinearMipmapLinearFilter;

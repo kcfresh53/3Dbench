@@ -1,7 +1,7 @@
 import { fbm, lerp, ridged, saturate, smoothstep } from '../math';
 import { Heightfield } from './heightfield';
 
-export type TerrainPreset = 'flat' | 'rolling' | 'valley' | 'coast' | 'island' | 'mountains' | 'terraces';
+export type TerrainPreset = 'flat' | 'rolling' | 'valley' | 'coast' | 'island' | 'mountains' | 'terraces' | 'river_city';
 
 export interface GenerateOptions {
 	preset: TerrainPreset;
@@ -18,6 +18,7 @@ export const DEFAULT_GENERATE: GenerateOptions = { preset: 'rolling', seed: 3, a
 
 export const TERRAIN_PRESETS: Array<{ id: TerrainPreset; label: string }> = [
 	{ id: 'flat', label: 'Flat plain' },
+	{ id: 'river_city', label: 'River skyline basin' },
 	{ id: 'rolling', label: 'Rolling hills' },
 	{ id: 'valley', label: 'River valley' },
 	{ id: 'coast', label: 'Coastline' },
@@ -40,6 +41,16 @@ export function generateTerrain(hf: Heightfield, partial: Partial<GenerateOption
 			const base: number = fbm(x / o.scale, z / o.scale, o.seed, 5);
 			let h: number = o.baseHeight;
 			switch (o.preset) {
+				case 'river_city': {
+					// A broad buildable foreground, a river behind downtown, then a rocky ridge.
+					const cityX = x / Math.min(halfW, 768), cityZ = z / Math.min(halfD, 768);
+					const channel = -0.48 + Math.sin(cityX * 2.8 + o.seed * 0.15) * 0.045;
+					const river = 1 - smoothstep(0.045, 0.12, Math.abs(cityZ - channel));
+					const ridge = smoothstep(-0.56, -0.9, cityZ);
+					h = o.baseHeight + 3 + (base - 0.5) * 2 - river * 14
+						+ ridge * (38 + 35 * fbm(x / 210, z / 170, o.seed + 71, 4));
+					break;
+				}
 				case 'flat':
 					h += base * 0.6;
 					break;

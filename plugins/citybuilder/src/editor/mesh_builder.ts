@@ -35,15 +35,16 @@ export interface Created {
 	groups: Group[];
 	meshes: Mesh[];
 	textures: Texture[];
+	textureGroups: TextureGroup[];
 }
 
 export function beginCreate(): Created {
-	Undo.initEdit({ outliner: true, groups: [], elements: [], textures: [], selection: true } as never);
-	return { groups: [], meshes: [], textures: [] };
+	Undo.initEdit({ outliner: true, groups: [], elements: [], textures: [], texture_groups: [], selection: true } as never);
+	return { groups: [], meshes: [], textures: [], textureGroups: [] };
 }
 
 export function finishCreate(label: string, created: Created): void {
-	Undo.finishEdit(label, { outliner: true, groups: created.groups, elements: created.meshes, textures: created.textures, selection: true } as never);
+	Undo.finishEdit(label, { outliner: true, groups: created.groups, elements: created.meshes, textures: created.textures, texture_groups: created.textureGroups, selection: true } as never);
 	Canvas.updateAll();
 }
 
@@ -59,6 +60,7 @@ export function abortCreate(created: Created): void {
 		aspects.groups = aspects.groups.filter((g: Group): boolean => Group.all.includes(g));
 	}
 	Undo.cancelEdit(true);
+	for (const g of created.textureGroups) g.remove();
 }
 
 export function newGroup(name: string, parent: Group | 'root', created: Created): Group {
@@ -67,8 +69,18 @@ export function newGroup(name: string, parent: Group | 'root', created: Created)
 	return group;
 }
 
-export function newTexture(name: string, dataUrl: string, size: number, created: Created): Texture {
-	const texture: Texture = new Texture({ sampling: 'smooth', name, uv_width: size, uv_height: size } as never).fromDataURL(dataUrl).add(false) as Texture;
+export function newTexture(name: string, dataUrl: string, size: number, created: Created, channel: string = 'color', group: TextureGroup | null = null): Texture {
+	const texture: Texture = new Texture({ sampling: 'smooth', name, uv_width: size, uv_height: size, pbr_channel: channel } as never).fromDataURL(dataUrl).add(false) as Texture;
+	if (group) texture.group = group.uuid;
 	created.textures.push(texture);
 	return texture;
+}
+
+/** A PBR material group: every texture added to it with its channel is shown together in material view. */
+export function newMaterialGroup(name: string, created: Created): TextureGroup {
+	const group: TextureGroup = new TextureGroup({ is_material: true } as never);
+	group.name = name;
+	group.add();
+	created.textureGroups.push(group);
+	return group;
 }

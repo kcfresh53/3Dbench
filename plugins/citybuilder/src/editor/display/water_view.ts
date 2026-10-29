@@ -152,17 +152,22 @@ export class WaterView implements View {
 		if (now - this.lastFrame < 1000 / ANIMATION_FPS || document.hidden || !this.isShown()) return;
 		this.lastFrame = now;
 		if (this.uniforms) this.uniforms.uTime.value = now / 1000;
-		Canvas.updateAll();
+		// Only redraw the viewports that are on screen; a full Canvas.updateAll would rebuild every element.
+		for (const preview of Preview.all) if (preview.canvas?.isConnected && preview.canvas.offsetParent !== null) preview.render();
 	}
 
 	/** True while the city is attached to the open project. */
 	private isShown(): boolean {
-		let node: THREE.Object3D = this.root;
-		while (node.parent) {
+		// Shown when every ancestor up to the project's model is visible. The model itself sits inside the scene,
+		// so the walk must stop there rather than at the top of the scene.
+		const model: THREE.Object3D | undefined = typeof Project === 'undefined' ? undefined : (Project?.model_3d as THREE.Object3D | undefined);
+		let node: THREE.Object3D | null = this.root;
+		while (node) {
 			if (!node.visible) return false;
+			if (model && node === model) return true;
 			node = node.parent;
 		}
-		return node.visible && (typeof Project === 'undefined' || node === (Project?.model_3d as THREE.Object3D | undefined));
+		return !model;
 	}
 
 	dispose(): void {

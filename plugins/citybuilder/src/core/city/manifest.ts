@@ -2,12 +2,18 @@ import { collisionBoxes } from '../buildings/mesh';
 import type { CollisionBox } from '../buildings/mesh';
 import type { Prefab } from '../buildings/prefabs';
 import { round } from '../math';
+import { exportRoads } from '../roads/export';
+import type { ManifestJunction, ManifestRoad } from '../roads/export';
 import type { CityPlan, PlacedBuilding } from './compose';
 import type { CitySettings } from './settings';
 
 export interface ManifestPrefab {
 	id: string;
 	atlas?: string;
+	/** Occlusion / roughness / metallic page that belongs to `atlas` (PBR export only). */
+	atlasOrm?: string;
+	/** Tangent-space normal page that belongs to `atlas` (PBR export only). */
+	atlasNormal?: string;
 	archetype: string;
 	floors: number;
 	/** Mesh node names per level of detail, finest first. */
@@ -23,9 +29,12 @@ export interface CityManifest {
 	terrain: { cols: number; rows: number; cellSize: number; origin: [number, number]; heightmap: string; albedo: string; chunks: string[]; chunkAlbedos?: string[] };
 	waterLevel: number;
 	prefabs: ManifestPrefab[];
-	buildings: Array<{ prefab: string; position: number[]; yaw: number; district: number; lot: string }>;
+	buildings: Array<{ prefab: string; position: number[]; yaw: number; scale?: number[]; district: number; lot: string }>;
 	trees: Array<{ preset: string; position: number[]; yaw: number; scale: number; variant: number; representation: 'model' | 'cross'; asset?: string }>;
 	treeAssets?: Record<string, {mesh: string; texture: string; triangles: number}>;
+	/** Road centrelines with lane counts, one-way flags and structures. Meshes for roads come from Roadscape's own bake. */
+	roads?: ManifestRoad[];
+	junctions?: ManifestJunction[];
 	stats: CityPlan['stats'];
 }
 
@@ -44,6 +53,7 @@ export function buildManifest(plan: CityPlan, settings: CitySettings, meshNames:
 		collision: settings.gameReady.collision === 'boxes' ? collisionBoxes(p.model).map((b: CollisionBox) => ({ center: b.center.map(r3), size: b.size.map(r3) })) : [],
 	}));
 	const hf = plan.terrain.heights;
+	const network = include.roads ? exportRoads(plan.roads) : null;
 	return {
 		format: 'citybuilder',
 		version: 1,
@@ -52,13 +62,14 @@ export function buildManifest(plan: CityPlan, settings: CitySettings, meshNames:
 		terrain: { cols: hf.cols, rows: hf.rows, cellSize: hf.cellSize, origin: [hf.originX, hf.originZ], ...files },
 		waterLevel: settings.waterLevel,
 		prefabs,
-		buildings: (include.buildings ? plan.buildings : []).map((b: PlacedBuilding) => ({ prefab: b.prefab, position: [r3(b.x), r3(b.y), r3(b.z)], yaw: r3(b.yaw), district: b.districtId, lot: b.lotId })),
+		buildings: (include.buildings ? plan.buildings : []).map((b: PlacedBuilding) => ({ prefab: b.prefab, position: [r3(b.x), r3(b.y), r3(b.z)], yaw: r3(b.yaw), scale: (b.scale ?? [1, 1, 1]).map(r3), district: b.districtId, lot: b.lotId })),
 		trees: (include.trees ? plan.trees : []).map((t) => ({ preset: t.preset, position: [r3(t.x), r3(t.y), r3(t.z)], yaw: r3(t.yaw), scale: r3(t.scale), variant: t.variant, representation: t.representation })),
+		...(network ? { roads: network.roads, junctions: network.junctions } : {}),
 		stats: plan.stats,
 	};
 }
 
-/** 16-bit little-endian heightmap with a small header, convenient for Godot's `Image.create_from_data` or any engine. */
+/** 16-bit little-endian heightmap with a small header, easy to read in any engine. */
 export function heightmapBytes(plan: CityPlan): Uint8Array {
 	const hf = plan.terrain.heights;
 	let min: number = Infinity;

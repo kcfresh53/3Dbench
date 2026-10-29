@@ -44,4 +44,17 @@ export class Raster {
 			}
 		}
 	}
+
+	/** Copies a block of another raster one-to-one, clipped to this raster. */
+	paste(source: Raster, dx: number, dy: number): void {
+		for (let j: number = 0; j < source.height; j++) {
+			const y: number = dy + j;
+			if (y < 0 || y >= this.height) continue;
+			const x0: number = Math.max(0, dx);
+			const x1: number = Math.min(this.width, dx + source.width);
+			if (x1 <= x0) continue;
+			const from: number = (j * source.width + (x0 - dx)) * 4;
+			this.data.set(source.data.subarray(from, from + (x1 - x0) * 4), (y * this.width + x0) * 4);
+		}
+	}
 }

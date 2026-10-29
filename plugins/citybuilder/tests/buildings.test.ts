@@ -2,25 +2,16 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ARCHETYPES } from '../src/core/buildings/archetypes';
 import { buildModel } from '../src/core/buildings/massing';
-import { bakedMesh, meshTriangles, modularMesh, silhouetteMesh } from '../src/core/buildings/mesh';
-import type { BuildingSpec } from '../src/core/buildings/types';
+import { bakedMesh, meshTriangles, modularMesh, parseFacadeMaterial, silhouetteMesh } from '../src/core/buildings/mesh';
+import { specFor } from './helpers';
 import { planBuilding } from '../src/core/buildings/plan';
 import { DISTRICT_TYPES } from '../src/core/district/library';
-
-function specFor(archetype: string, floors: number): BuildingSpec {
-	const a = ARCHETYPES.find((x) => x.id === archetype);
-	assert.ok(a);
-	return {
-		archetype, style: a.style, shape: 'rect', roof: a.roofs[0][0], nx: 4, nz: 4, bay: a.bay, floors, floorHeight: a.floorHeight, groundHeight: a.groundHeight,
-		palette: 0, seed: 0, shopfront: a.shopfront, awning: false, balconies: false, parapet: a.parapet, props: [], pitch: a.pitch[1] > 0 ? 28 : 0,
-	};
-}
 
 test('every archetype builds a closed, upward-roofed model at several heights', () => {
 	for (const a of ARCHETYPES) {
 		for (const floors of [a.floors[0], a.floors[1]]) {
 			const model = buildModel(specFor(a.id, floors));
-			assert.ok(model.facades.length >= 4, `${a.id}: walls`);
+			assert.ok(a.id === 'wind_turbine' ? model.pieces.length > 20 : model.facades.length >= 4, `${a.id}: walls`);
 			assert.ok(model.volumes.length >= 1);
 			const mesh = modularMesh(model, 0);
 			assert.ok(meshTriangles(mesh) > 8, `${a.id}: triangles`);
@@ -33,7 +24,7 @@ test('wall quads face outward', () => {
 	const mesh = bakedMesh(model, 0);
 	for (const face of mesh.faces) {
 		if (!face.material.startsWith('facade:')) continue;
-		const run = model.facades.find((r) => `facade:${r.id}` === face.material);
+		const run = model.facades.find((r) => r.id === parseFacadeMaterial(face.material).run);
 		assert.ok(run);
 		const [a, b, c] = face.indices.map((i: number) => mesh.positions[i]);
 		const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
@@ -45,11 +36,12 @@ test('wall quads face outward', () => {
 
 test('baked meshes are far lighter than modular ones, silhouettes lighter still', () => {
 	const model = buildModel(specFor('office_mid', 12));
-	const modular: number = meshTriangles(modularMesh(model, 0));
-	const baked: number = meshTriangles(bakedMesh(model, 0));
+	const detail = model.pieces.filter(p=>p.maxLod>=0).reduce((n,p)=>n+p.corners.length-2,0);
+	const modular: number = meshTriangles(modularMesh(model, 0)) - detail;
+	const baked: number = meshTriangles(bakedMesh(model, 0)) - detail;
 	const box: number = meshTriangles(silhouetteMesh(model));
 	assert.ok(baked < modular / 3, `baked ${baked} vs modular ${modular}`);
-	assert.ok(box < baked);
+	assert.ok(box < meshTriangles(bakedMesh(model,0)));
 });
 
 test('planner respects lot size and is stable per lot', () => {

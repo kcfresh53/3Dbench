@@ -187,16 +187,16 @@ export const ARCHETYPES: Archetype[] = [
 		label: 'Office block',
 		style: 'curtain',
 		shapes: [['rect', 3], ['L', 1], ['podium', 1]],
-		roofs: [['flat', 1]],
+		roofs: [['flat', 3], ['shed', 1]],
 		bay: 3.6,
 		floorHeight: 3.6,
 		groundHeight: 5,
-		floors: [5, 16],
-		baysX: [5, 8],
-		baysZ: [5, 8],
-		frontSetback: 3,
-		sideSetback: 1.5,
-		backSetback: 3,
+		floors: [5, 20],
+		baysX: [5, 9],
+		baysZ: [5, 9],
+		frontSetback: 1,
+		sideSetback: 0.4,
+		backSetback: 1,
 		parapet: true,
 		props: [['hvac', 0.9], ['vent', 0.4]],
 		pitch: [0, 0],
@@ -206,20 +206,20 @@ export const ARCHETYPES: Archetype[] = [
 		id: 'office_tower',
 		label: 'Office tower',
 		style: 'curtain',
-		shapes: [['podium', 3], ['stepped', 2], ['rect', 1]],
-		roofs: [['flat', 1]],
+		shapes: [['podium', 3], ['stepped', 3], ['rect', 2]],
+		roofs: [['flat', 3], ['hip', 1], ['shed', 2]],
 		bay: 3.8,
 		floorHeight: 3.7,
 		groundHeight: 6,
-		floors: [14, 42],
-		baysX: [5, 8],
-		baysZ: [5, 8],
-		frontSetback: 4,
-		sideSetback: 2,
-		backSetback: 4,
+		floors: [16, 60],
+		baysX: [6, 10],
+		baysZ: [6, 10],
+		frontSetback: 1.5,
+		sideSetback: 0.5,
+		backSetback: 1.5,
 		parapet: true,
-		props: [['hvac', 0.8], ['spire', 0.45], ['antenna', 0.5]],
-		pitch: [0, 0],
+		props: [['hvac', 0.8], ['spire', 0.35], ['antenna', 0.4]],
+		pitch: [12, 30],
 	},
 	{
 		...HOUSE,
@@ -282,6 +282,24 @@ export const ARCHETYPES: Archetype[] = [
 		pitch: [20, 28],
 	},
 ];
+
+// Separate families preserve each silhouette when the prefab budget is reached.
+const tower = ARCHETYPES.find(a => a.id === 'office_tower') as Archetype;
+for (const [id, label, shape] of [
+	['office_round', 'Elliptical glass tower', 'rounded'],
+	['office_chamfer', 'Chamfered glass tower', 'chamfered'],
+	['office_taper', 'Tapered landmark', 'tapered'],
+	['office_sail', 'Swept sail landmark', 'sail'],
+] as Array<[string, string, ShapeKind]>) {
+	ARCHETYPES.push({ ...tower, id, label, shapes: [[shape, 1]], roofs: shape === 'rounded' ? [['flat', 3], ['shed', 1]] : [['flat', 1]], floors: [16, 64], props: [], pitch: [0, 0], ...(shape === 'sail' ? { floors: [38, 72] as [number, number], baysX: [10, 14] as [number, number], baysZ: [4, 6] as [number, number] } : {}) });
+}
+
+ARCHETYPES.push({ ...tower, id: 'wind_turbine', label: 'Wind turbine', style: 'industrial',
+	shapes: [['rect', 1]], roofs: [['flat', 1]], bay: 12, floors: [1, 1], baysX: [5, 5], baysZ: [5, 5],
+	frontSetback: 4, sideSetback: 4, backSetback: 4, shopfront: false, props: [], pitch: [0, 0] });
+
+ARCHETYPES.push({ ...HOUSE, id: 'modern_villa', label: 'Modern flat-roof villa',
+	shapes: [['rect', 3], ['L', 2]], roofs: [['flat', 1]], parapet: true, props: [['vent', .3]], pitch: [0, 0] });
 
 const BY_ID: Map<string, Archetype> = new Map(ARCHETYPES.map((a: Archetype): [string, Archetype] => [a.id, a]));
 

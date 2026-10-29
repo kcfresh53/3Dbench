@@ -1,4 +1,5 @@
 import type { CityState } from '../../core/city/state';
+import { redraw } from '../display/gl';
 import type { RoadChange } from '../../core/roads/road_paint';
 import { polygonRegion, rectRegion, strokeBounds, strokeRegion } from '../../core/roads/region';
 import type { Vec2 } from '../../core/types';
@@ -64,7 +65,7 @@ export class RoadTypeTool implements PointerHandler {
 			else if (e.key === 'Escape') {
 				this.reset();
 				this.display.cursor.hide();
-				Canvas.updateAll();
+				redraw();
 			} else if (e.key === '[' || e.key === ']') {
 				this.model.radius = Math.max(2, Math.min(200, Math.round(this.model.radius * (e.key === '[' ? 0.85 : 1 / 0.85))));
 				this.changed();
@@ -130,7 +131,7 @@ export class RoadTypeTool implements PointerHandler {
 		} else {
 			this.display.cursor.hide();
 		}
-		Canvas.updateAll();
+		redraw();
 	}
 
 	down(hit: CityHit, event: PointerEvent): void {
@@ -156,7 +157,7 @@ export class RoadTypeTool implements PointerHandler {
 			this.display.cursor.rect(state.terrain, this.start.x, this.start.z, hit.x, hit.z, PAINT);
 			this.stroke = [[this.start.x, this.start.z], [hit.x, hit.z]];
 		}
-		Canvas.updateAll();
+		redraw();
 	}
 
 	up(): void {
@@ -170,13 +171,13 @@ export class RoadTypeTool implements PointerHandler {
 			this.apply('Road type', rectRegion(stroke[0][0], stroke[0][1], stroke[1][0], stroke[1][1]), strokeBounds(stroke, 0));
 		}
 		this.reset();
-		Canvas.updateAll();
+		redraw();
 	}
 
 	cancel(): void {
 		this.reset();
 		this.display.cursor.hide();
-		Canvas.updateAll();
+		redraw();
 	}
 
 	private finishPolygon(): void {
@@ -185,7 +186,7 @@ export class RoadTypeTool implements PointerHandler {
 		this.polygon = [];
 		this.display.cursor.hide();
 		this.apply('Road type', polygonRegion(polygon), strokeBounds(polygon, 0));
-		Canvas.updateAll();
+		redraw();
 	}
 
 	dispose(): void {

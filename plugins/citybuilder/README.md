@@ -18,12 +18,10 @@ Everything is undoable with Ctrl+Z, and the city is stored inside the project fi
 ## Game ready
 
 * **Export game package…** writes a folder:
-  * `buildings/building_N[_lodK].obj` and `buildings/atlas.png`: every distinct building once, in three levels of detail, on packed texture atlas pages. Walls are baked into one quad each; **Preserve facade detail** adds pages to maintain the selected pixel density. Disable it for a compact atlas that reduces resolution to fit. Prefab atlas paths are recorded in the manifest.
-  * `terrain/chunk_*.obj`, padded per-chunk albedos (or one shared `terrain/albedo.png`), `terrain/heightmap.bin` (16-bit, header: cols, rows, min, max).
+  * `buildings/building_N[_lodK].glb` and `buildings/atlas.png`: every distinct building once, in three levels of detail, on packed texture atlas pages. Walls are baked into one quad each; **Preserve facade detail** adds pages to maintain the selected pixel density. Disable it for a compact atlas that reduces resolution to fit. Prefab atlas paths are recorded in the manifest.
+  * `terrain/chunk_*.glb`, padded per-chunk albedos (or one shared `terrain/albedo.png`), `terrain/heightmap.bin` (16-bit, header: cols, rows, min, max).
   * `city.json`: prefabs (with collision boxes), building placements, tree placements, stats.
-  * `city_loader.gd`: a statically typed Godot 4 script that builds the city from `city.json`.
 * **Bake city to meshes** turns the live city into ordinary Blockbench meshes (terrain patches, buildings and trees merged per 128 m block).
-* **Make selection game ready** (also in the mesh context menu) works on any mesh or group: removes faces no viewpoint can see, simplifies it while keeping the silhouette, and writes LOD0/1/2 beside the original.
 
 ## Layout
 
@@ -46,7 +44,7 @@ Road shoulders blend over at least two terrain cells, with adjustable blend dist
 
 The collapsible toolbar at the bottom of the active viewport provides brush selection, biome/district painting, radius and strength. The sidebar retains the full settings. Generated layouts are additive editable Roadscape control meshes; their optional zoning and mesh creation undo together. Existing roads and painted districts are retained.
 
-Core suites and an isolated Electron scene test cover layout undo/redo, district growth, baking, texture filtering persistence and plugin cleanup. The generated Godot loader has not been executed in Godot. Bridges, tunnels and open spans are excluded from ground-road lot frontage.
+Core suites and an isolated Electron scene test cover layout undo/redo, district growth, baking, texture filtering persistence and plugin cleanup. Bridges, tunnels and open spans are excluded from ground-road lot frontage.
 
 ## Painted districts and biomes
 
@@ -56,7 +54,7 @@ Paint ground also paints the biome: beach sand grows palms, loamy soil/mud grows
 
 Trees within 24 metres of a ground road edge use shared realistic Procedural Trees meshes (up to 1,800 triangles); trees outside that band use four-triangle Roadscape cutouts. Trunks stay at least 2 metres outside roads and out of building footprints. Distant palms use cutouts rendered from the generator. Terrain uses bundled ambientCG color maps, with no runtime download. See ASSETS.md for sources and licensing.
 
-Bake includes trees in spatial chunks. Game export includes tree meshes, transparent atlases and manifest references; the Godot loader applies two-sided alpha cutout materials automatically. Custom tree scenes remain an optional override. The near-road model/cross selection is based on road distance, not camera distance.
+Bake includes trees in spatial chunks. Game export includes tree meshes, transparent atlases and manifest references; tree materials should be alpha-cutout and two-sided in your engine. The near-road model/cross selection is based on road distance, not camera distance.
 
 ## Projects beyond cities: tracks and landscapes
 
@@ -94,3 +92,17 @@ To author a ramp or viaduct, select road edges (or their control points) forming
 Bridge columns use existing procedural geometry and terrain heights. A spatial road index keeps columns out of lower roads in the same network; each station tries a bounded set of nearby locations before omitting a blocked column. Support spacing is measured in network metres and affects the whole network. Join road meshes into one network when supports need to avoid their crossings. Other scene objects are not considered by this clearance check. Inspect long unsupported spans before export. Roadscape's existing triangle budget and geometry cache still apply; no new model assets are required.
 
 Road painting does not sculpt the natural heightfield. Unpainted pieces retain their original automatic structure classification when a paint stroke splits a road, preventing a shortened bridge approach from being reclassified as a terrain-filling ground road. Choosing Ground explicitly still permits terrain fitting when Terrain follows roads is enabled. Drape changes road control heights; avoid draping authored ramps.
+
+## River skyline starter and architectural towers
+
+In a new City Builder project, load Roadscape and choose **Create river skyline starter**. Seed 8 is the visual regression scene. This creates a 3072 m landscape around a roughly 1536 m city: a river, a wooded ridge with a wind farm, mixed districts, editable streets and an elevated orbital highway. It places the camera above the city. The layout and zoning support undo/redo together; terrain remains available after undoing the layout. The starter uses up to 30,000 instanced trees. All generated content stays editable through the existing terrain, road and zoning tools.
+
+Office districts now choose elliptical, chamfered, tapered and swept sail towers as well as rectangular, stepped and podium forms. Towers have continuous lofted walls, physical slab edges and corner seams; elliptical towers can have sloping crowns and rooftop helipads. Their silhouettes survive all three export LODs. Rounded glass uses analytic corner normals, preserved through atlas packing and glTF export. Low-density residential includes modern flat-roof villas. **Wind farm** and **Broadleaf woodland** are also available as painted districts; turbines are static procedural meshes and use the ordinary building export pipeline.
+
+The curtain-wall spandrel mask leaves the main window reflective and limits the opaque panel to the floor slab. Building materials use albedo, tangent-space normal and packed ORM maps (R: ambient occlusion, G: roughness, B: metallic). Keep albedo in sRGB and normal/ORM textures as linear data in your engine. Assign them in your engine's material; give the scene its own sky or reflection probes. Atlas pages retain their PBR maps when facade detail preservation splits the export across multiple pages. Reused building prefabs are fitted horizontally to their lots, and the manifest records the same instance scale used by the preview and mesh bake.
+
+**Project → Daylight and shadows** controls the live preview's sky, sunlight and shadow receivers. Renderer shadow preferences are restored when the city is removed, the project changes, or the plugin unloads. Preview lighting is not baked into the building albedo or exported as engine lights. Terrain retains its existing baked surface shading. Trees and buildings cast preview shadows; terrain display textures now use anisotropic mipmapped filtering. Building collision remains conservative boxes. Export roads using Roadscape and place engine water using the manifest's water level.
+
+The river skyline is a reproducible starting composition inspired by the visual reference, not an exact reconstruction of that image. Its procedural building assets, street network, foliage, terrain and engine lighting still differ from the reference.
+
+Validation: `npm run test:citybuilder`, `npm run test:citybuilder-scene`, and `npm run test:citybuilder-skyline`. The skyline integration test checks the real editor, PBR materials, architectural families, wind farm and native undo/redo, and writes review images under `.local-assets/citybuilder/`.

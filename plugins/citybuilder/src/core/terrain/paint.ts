@@ -29,7 +29,7 @@ export interface PaintInput {
 	seed: number;
 }
 
-const ROAD_BED: Rgb = [92, 90, 86];
+const ROAD_BED: Rgb = [66, 68, 72];
 
 /** Resolution of the cached grain pattern and the world distance between its lattice points, metres. */
 const GRAIN_SIZE: number = 256;
@@ -199,7 +199,7 @@ export function createTerrainPainter(input: PaintInput): TerrainPainter {
 			let padAmount: number = 0;
 			if (lotW && pad) {
 				const w: number = (lotW[a] + (lotW[b] - lotW[a]) * tu) * (1 - tv) + (lotW[d] + (lotW[e] - lotW[d]) * tu) * tv;
-				padAmount = saturate((w - 0.5) * 3) * 0.8;
+				padAmount = saturate((w - 0.5) * 3) * 0.5;
 			}
 			const shade: number = ((light[a] + (light[b] - light[a]) * tu) * (1 - tv) + (light[d] + (light[e] - light[d]) * tu) * tv);
 			const height: number = (heights[a] + (heights[b] - heights[a]) * tu) * (1 - tv) + (heights[d] + (heights[e] - heights[d]) * tu) * tv;

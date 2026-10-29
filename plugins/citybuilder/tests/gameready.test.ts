@@ -7,7 +7,7 @@ import { packBuildings } from '../src/core/gameready/atlas';
 import type { BuildingInput } from '../src/core/gameready/atlas';
 import { composeCity } from '../src/core/city/compose';
 import { districtByKey } from '../src/core/district/library';
-import { crossroadNetwork, flatCity, roadsOf } from './helpers';
+import { crossroadNetwork, flatCity, roadsOf, specFor } from './helpers';
 
 function inputsFromCity(): BuildingInput[] {
 	const state = flatCity(5);
@@ -54,20 +54,21 @@ test('the game package lists every file the manifest and loader refer to', async
 	const plan = composeCity(state, roads);
 	const pkg = buildGamePackage(plan, state);
 	const paths: Set<string> = new Set(pkg.files.map((f) => f.path));
-	assert.ok(paths.has('city.json') && paths.has('buildings/atlas.png') && paths.has(pkg.manifest.terrain.albedo) && paths.has('city_loader.gd'));
+	assert.ok(paths.has('city.json') && paths.has('buildings/atlas.png') && paths.has(pkg.manifest.terrain.albedo));
 	for (const prefab of pkg.manifest.prefabs) {
 		assert.equal(prefab.meshes.length, 3);
 		assert.ok(paths.has(prefab.atlas!));
-		for (const name of prefab.meshes) assert.ok(paths.has(`buildings/${name}.obj`), `${name} exported`);
+		assert.ok(paths.has(prefab.atlasOrm!) && paths.has(prefab.atlasNormal!), 'PBR pages exported with the albedo page');
+		for (const name of prefab.meshes) assert.ok(paths.has(`buildings/${name}.glb`), `${name} exported`);
 		assert.ok(prefab.collision.length > 0);
 	}
 	for(const albedo of pkg.manifest.terrain.chunkAlbedos ?? [])assert.ok(paths.has(albedo));
 	for (const chunk of pkg.manifest.terrain.chunks) assert.ok(paths.has(chunk));
 	assert.equal(pkg.manifest.buildings.length, plan.buildings.length);
 	assert.ok(pkg.report.prefabTriangles[0] > pkg.report.prefabTriangles[2], 'LOD2 is lighter than LOD0');
-	const obj = pkg.files.find((f) => f.path.startsWith('buildings/building_0'))?.text ?? '';
-	assert.match(obj, /^v /m);
-	assert.match(obj, /^f \d+\/\d+/m);
+	assert.ok(!pkg.files.some((f) => f.path.endsWith('.obj')), 'no OBJ files are exported');
+	const glb = pkg.files.find((f) => f.path.startsWith('buildings/building_0'))?.bytes;
+	assert.ok(glb && new DataView(glb.buffer, glb.byteOffset).getUint32(0, true) === 0x46546c67, 'buildings are binary glTF');
 });
 
 import {packBuildingPages} from '../src/core/gameready/atlas';
@@ -77,4 +78,25 @@ test('detail-preserving atlas pages retain requested texel density',()=>{
  assert.ok(pages.length>1);
  assert.ok(pages.every(p=>p.texelsPerMeter===14));
  assert.deepEqual(pages.flatMap(p=>p.buildings.map(b=>b.name)),inputs.map(b=>b.name));
+});
+
+test('PBR pages can be switched off and then only the albedo page is written', async () => {
+	const { buildGamePackage } = await import('../src/core/gameready/package');
+	const state = flatCity(6);
+	state.settings.gameReady.pbr = false;
+	const roads = roadsOf(crossroadNetwork(), state);
+	state.districts.paintAlongRoads(roads.corridors, districtByKey('mixed')?.id ?? 12, 40);
+	const pkg = buildGamePackage(composeCity(state, roads), state);
+	assert.ok(!pkg.files.some((f) => /_orm\.png|_n\.png/.test(f.path)));
+	for (const prefab of pkg.manifest.prefabs) assert.equal(prefab.atlasOrm, undefined);
+});
+
+test('repeated storeys share one baked strip, so tall buildings stay small in the atlas', async () => {
+	const { buildModel } = await import('../src/core/buildings/massing');
+	const model = buildModel(specFor('office_mid', 20));
+	const atlas = packBuildings([{ name: 'tower', runs: model.facades, lods: [bakedMesh(model, 0)] }], 2048, 2, 32);
+	const storeys = model.facades.reduce((n, r) => n + r.rows.length, 0);
+	assert.ok(atlas.facadeCount < storeys / 2, `${atlas.facadeCount} strips for ${storeys} storeys`);
+	assert.equal(atlas.orm.width, atlas.size);
+	assert.equal(atlas.normal.width, atlas.size);
 });

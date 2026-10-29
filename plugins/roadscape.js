@@ -339,7 +339,7 @@
   }
 
   // plugins/roadscape/src/core/profile_library.ts
-  function build(id, name, carriageway, side, structure = "auto") {
+  function build(id, name, carriageway, side, structure = "auto", support) {
     const stamp = (elements, suffix) => elements.map((e, i) => ({ ...e, id: `${id}.${suffix}${i}` }));
     return {
       id,
@@ -348,6 +348,7 @@
       left: stamp(side("l"), "l"),
       right: stamp(side("r"), "r"),
       structure,
+      ...support ? { support } : {},
       builtin: true
     };
   }
@@ -376,6 +377,57 @@
       "Highway",
       { lanes: 4, laneWidth: 3.6, medianWidth: 1.2, medianBarrier: true, centerMarking: "solid", crosswalks: "none", lineColor: "white" },
       () => [strip("shoulder", { width: 2.5 }), lining("guardrail", { placement: "end", offset: 0.2 }), strip("verge", { width: 3, top: -0.05 })]
+    ),
+    build("one_way", "One-way street", { lanes: 2, centerMarking: "none", laneMarking: "dashed", crosswalks: "zebra", oneWay: true }, () => [strip("gutter"), strip("curb"), strip("sidewalk", { width: 2.2 }), lining("lamp")]),
+    build(
+      "boulevard",
+      "Boulevard",
+      { lanes: 6, laneWidth: 3.3, medianWidth: 5, centerMarking: "none", laneMarking: "dashed" },
+      () => [strip("gutter"), strip("curb"), strip("verge", { width: 2.4 }), lining("tree", { spacing: 10 }), strip("sidewalk", { width: 3 }), lining("lamp", { spacing: 28 })]
+    ),
+    build(
+      "highway_small",
+      "Highway, two lanes",
+      { lanes: 2, laneWidth: 3.6, centerMarking: "double", crosswalks: "none", lineColor: "white" },
+      () => [strip("shoulder", { width: 2.2 }), lining("guardrail", { placement: "end", offset: 0.2 }), strip("verge", { width: 3, top: -0.05 })]
+    ),
+    build(
+      "highway_one_way",
+      "Highway, one direction",
+      { lanes: 3, laneWidth: 3.6, centerMarking: "none", laneMarking: "dashed", crosswalks: "none", oneWay: true },
+      () => [strip("shoulder", { width: 2.4 }), lining("guardrail", { placement: "end", offset: 0.2 }), strip("verge", { width: 3, top: -0.05 })]
+    ),
+    build(
+      "viaduct",
+      "Elevated highway (cantilever)",
+      { lanes: 4, laneWidth: 3.6, medianWidth: 1.2, medianBarrier: true, centerMarking: "solid", crosswalks: "none" },
+      () => [strip("shoulder", { width: 1.8 }), lining("barrier", { placement: "end", offset: 0 })],
+      "bridge",
+      "cantilever"
+    ),
+    build(
+      "ramp",
+      "Highway ramp",
+      { lanes: 1, laneWidth: 4.2, centerMarking: "none", laneMarking: "none", crosswalks: "none", oneWay: true },
+      () => [strip("shoulder", { width: 1.6 }), lining("guardrail", { placement: "end", offset: 0.2 }), strip("verge", { width: 2.5, top: -0.05 })]
+    ),
+    build(
+      "service",
+      "Service road",
+      { lanes: 2, laneWidth: 2.7, centerMarking: "none", laneMarking: "none", edgeLines: false, crosswalks: "none" },
+      () => [strip("curb"), strip("verge", { width: 1.2 })]
+    ),
+    build(
+      "pedestrian",
+      "Pedestrian way",
+      { lanes: 1, laneWidth: 4.5, surface: "sidewalk", centerMarking: "none", laneMarking: "none", edgeLines: false, crosswalks: "none", crown: 0 },
+      () => [strip("curb", { top: 0.05 }), lining("lamp", { spacing: 24 }), strip("verge", { width: 1.2 }), lining("tree", { spacing: 12 })]
+    ),
+    build(
+      "bike_path",
+      "Bike path",
+      { lanes: 2, laneWidth: 1.4, surface: "asphalt", centerMarking: "dashed", laneMarking: "none", edgeLines: false, crosswalks: "none", crown: 0.02 },
+      () => [strip("verge", { width: 1 })]
     ),
     build("bridge_road", "Bridge road", {}, () => [strip("curb"), strip("sidewalk", { width: 1.2 }), lining("guardrail", { placement: "end", offset: 0.1 })], "bridge"),
     build("tunnel_road", "Tunnel road", { centerMarking: "solid", crosswalks: "none" }, () => [strip("curb"), strip("sidewalk", { width: 0.8 })], "tunnel"),
@@ -745,7 +797,8 @@
     const name = (id) => map.get(id) ?? id;
     for (const node of network.nodes.values()) addNode(result, name(node.id), node.position, node.options);
     for (const s of network.segments.values()) {
-      addSegment(result, name(s.a), name(s.b), { profile: s.profile, structure: s.structure, smooth: s.smooth, handleA: s.handleA, handleB: s.handleB });
+      const created = addSegment(result, name(s.a), name(s.b), { profile: s.profile, structure: s.structure, smooth: s.smooth, handleA: s.handleA, handleB: s.handleB });
+      if (s.flow) created.flow = created.a === name(s.a) === (s.flow === "forward") ? "forward" : "reverse";
     }
     return result;
   }
@@ -1493,9 +1546,10 @@
     emitBand(set, ctx.library, ribbon, { part: "Bridge deck", tile, lat0: left, y0: -thickness, lat1: right, y1: -thickness }, DOWN);
     emitRiser(set, ctx.library, ribbon, "Bridge deck", tile, left, -thickness, 0, -1);
     emitRiser(set, ctx.library, ribbon, "Bridge deck", tile, right, -thickness, 0, 1);
-    const spacing = Math.max(2, settings.structures.pierSpacing || 14) * unit;
+    const support = profile.profile.support ?? "pier";
+    const spacing = Math.max(2, settings.structures.pierSpacing || 14) * unit * (support === "cantilever" ? 1.5 : 1);
     const count = Math.max(1, Math.ceil((job.to - job.from) / spacing));
-    const lanes = right - left > 12 * unit ? [left * 0.5, right * 0.5] : [(left + right) / 2];
+    const lanes = support === "cantilever" ? [0] : support === "twin" || right - left > 12 * unit ? [left * 0.5, right * 0.5] : [(left + right) / 2];
     for (let i = 0; i < count; i++) {
       const station = job.from + (i + 0.5) * (job.to - job.from) / count;
       for (const lateral of lanes) {
@@ -1506,31 +1560,41 @@
           const ground = ctx.terrain?.groundAt(centre[0], centre[2]) ?? settings.groundY;
           if (!Number.isFinite(ground) || frame.position[1] - thickness - ground < 0.5 * unit) continue;
           if (ctx.supports && !ctx.supports.allows(job.segmentKey ?? "", centre, ground, frame.position[1] - thickness, 0.6 * unit)) continue;
-          emitPier(set, ctx, frame, lateral, ground, thickness, unit, column);
+          if (support === "cantilever") emitCantilever(set, ctx, frame, ground, thickness, unit, column, left, right);
+          else emitPier(set, ctx, frame, lateral, ground, thickness, unit, column);
           break;
         }
       }
     }
   }
+  function emitBox(set, ctx, frame, lat0, lat1, depth, y0, y1, tile, bottom) {
+    const part = set.part("Bridge pier", ROAD_ATLAS);
+    const at = (lateral, along, y) => {
+      const c = offsetPoint(frame, lateral, 0);
+      return [c[0] + frame.forward[0] * along, y, c[2] + frame.forward[2] * along];
+    };
+    const ring = [[lat0, -depth], [lat1, -depth], [lat1, depth], [lat0, depth]];
+    for (let i = 0; i < 4; i++) {
+      const [l0, d0] = ring[i];
+      const [l1, d1] = ring[(i + 1) % 4];
+      const sx = l0 === l1 ? Math.sign(l0 - (lat0 + lat1) / 2) : 0;
+      const sz = d0 === d1 ? Math.sign(d0) : 0;
+      const outward = [frame.right[0] * sx + frame.forward[0] * sz, 0, frame.right[2] * sx + frame.forward[2] * sz];
+      set.polygon(part, [at(l0, d0, y0), at(l1, d1, y0), at(l1, d1, y1), at(l0, d0, y1)], fullUvs(ctx.library, tile), outward);
+    }
+    if (bottom) set.polygon(part, [at(lat0, -depth, y0), at(lat1, -depth, y0), at(lat1, depth, y0), at(lat0, depth, y0)], fullUvs(ctx.library, tile), DOWN);
+  }
+  function emitCantilever(set, ctx, frame, groundY, thickness, unit, tile, left, right) {
+    const top = frame.position[1] - thickness;
+    const beam = Math.min(1.4 * unit, Math.max(0.7 * unit, (top - groundY) * 0.18));
+    const reach = 0.42;
+    emitBox(set, ctx, frame, left * reach, right * reach, 0.5 * unit, top - beam, top, tile, true);
+    emitBox(set, ctx, frame, -0.6 * unit, 0.6 * unit, 0.45 * unit, groundY, top - beam, tile, false);
+  }
   function emitPier(set, ctx, frame, lateral, groundY, thickness, unit, tile) {
     const top = frame.position[1] - thickness;
     if (top - groundY < 0.5 * unit) return;
-    const part = set.part("Bridge pier", ROAD_ATLAS);
-    const w = 0.6 * unit;
-    const d = 0.5 * unit;
-    const centre = offsetPoint(frame, lateral, 0);
-    const corner = (a, b, y) => [
-      centre[0] + frame.right[0] * w * a + frame.forward[0] * d * b,
-      y,
-      centre[2] + frame.right[2] * w * a + frame.forward[2] * d * b
-    ];
-    const around = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
-    for (let i = 0; i < 4; i++) {
-      const [a0, b0] = around[i];
-      const [a1, b1] = around[(i + 1) % 4];
-      const mid = [centre[0] + frame.right[0] * w * (a0 + a1) * 0.5 + frame.forward[0] * d * (b0 + b1) * 0.5 - centre[0], 0, centre[2] + frame.right[2] * w * (a0 + a1) * 0.5 + frame.forward[2] * d * (b0 + b1) * 0.5 - centre[2]];
-      set.polygon(part, [corner(a0, b0, groundY), corner(a1, b1, groundY), corner(a1, b1, top), corner(a0, b0, top)], fullUvs(ctx.library, tile), mid);
-    }
+    emitBox(set, ctx, frame, lateral - 0.6 * unit, lateral + 0.6 * unit, 0.5 * unit, groundY, top, tile, false);
   }
   var LAMP_HEIGHT = 0.19;
   function emitTunnel(job) {
@@ -2211,6 +2275,11 @@
     network.segments.delete(key);
     const first = addSegment(network, a.id, node.id, { ...data, handleA: sub(low.c0, low.p0), handleB: sub(low.c1, low.p1) });
     const second = addSegment(network, node.id, b.id, { ...data, handleA: sub(high.c0, high.p0), handleB: sub(high.c1, high.p1) });
+    if (segment.flow) {
+      const travelsFrom = (half, start) => half.a === start ? "forward" : "reverse";
+      first.flow = travelsFrom(first, segment.flow === "forward" ? a.id : node.id);
+      second.flow = travelsFrom(second, segment.flow === "forward" ? node.id : b.id);
+    }
     return { node, first, second };
   }
   function mergeNodes(network, keep, remove) {
@@ -2434,7 +2503,7 @@
   function documentFromNetwork(network) {
     const segments = {};
     for (const s of network.segments.values()) {
-      segments[s.key] = { profile: s.profile, structure: s.structure, smooth: s.smooth, handleA: s.handleA, handleB: s.handleB };
+      segments[s.key] = { profile: s.profile, structure: s.structure, smooth: s.smooth, handleA: s.handleA, handleB: s.handleB, ...s.flow ? { flow: s.flow } : {} };
     }
     const nodes = {};
     for (const n of network.nodes.values()) {
@@ -5391,6 +5460,11 @@
   // plugins/roadscape/src/editor/panel/carriageway.ts
   var MARKINGS = ["none", "solid", "dashed", "double"].map((m) => ({ value: m, label: m[0].toUpperCase() + m.slice(1) }));
   var STRUCTURES = ["auto", "ground", "bridge", "tunnel", "air"].map((m) => ({ value: m, label: m[0].toUpperCase() + m.slice(1) }));
+  var SUPPORTS = [
+    { value: "pier", label: "Piers" },
+    { value: "cantilever", label: "Cantilever (T support)" },
+    { value: "twin", label: "Twin piers" }
+  ];
   var LINE_COLORS = [
     { value: "white", label: "White" },
     { value: "yellow", label: "Yellow" }
@@ -5402,8 +5476,8 @@
   var CarriagewayEditor = {
     name: "rs-carriageway",
     components: { "rs-number": NumberField, "rs-select": SelectField, "rs-toggle": ToggleField },
-    props: ["value", "structure"],
-    data: () => ({ markings: MARKINGS, structures: STRUCTURES, colors: LINE_COLORS, crosswalks: CROSSWALKS, surfaces: SURFACE_OPTIONS }),
+    props: ["value", "structure", "support"],
+    data: () => ({ markings: MARKINGS, structures: STRUCTURES, supports: SUPPORTS, colors: LINE_COLORS, crosswalks: CROSSWALKS, surfaces: SURFACE_OPTIONS }),
     template: `<div class="rs_body">
 		<rs-number label="Lanes" :value="value.lanes" :min="1" :max="12" :step="1" @input="v => $emit('patch', {lanes: Math.round(v)})"></rs-number>
 		<rs-number label="Lane width" suffix="m" :value="value.laneWidth" :min="2" :max="6" :step="0.05" @input="v => $emit('patch', {laneWidth: v})" @preview="v => $emit('preview', {laneWidth: v})"></rs-number>
@@ -5417,6 +5491,7 @@
 		<rs-select label="Line colour" :value="value.lineColor" :options="colors" @input="v => $emit('patch', {lineColor: v})"></rs-select>
 		<rs-select label="Crossings" :value="value.crosswalks" :options="crosswalks" @input="v => $emit('patch', {crosswalks: v})"></rs-select>
 		<rs-select label="Built as" :value="structure" :options="structures" @input="v => $emit('structure', v)"></rs-select>
+		<rs-select v-if="structure === 'bridge' || structure === 'auto'" label="Bridge supports" :value="support || 'pier'" :options="supports" @input="v => $emit('support', v)"></rs-select>
 	</div>`
   };
 
@@ -5493,6 +5568,9 @@
       },
       previewCarriageway(patch) {
         guard(this, () => this.session.previewProfile((p) => ({ ...p, carriageway: { ...p.carriageway, ...patch } })));
+      },
+      editProfileSupport(support) {
+        guard(this, () => this.session.editProfile((p) => ({ ...p, support })));
       },
       editProfileStructure(structure) {
         guard(this, () => this.session.editProfile((p) => ({ ...p, structure })));
@@ -5628,7 +5706,7 @@
 	</rs-section>
 
 	<rs-section title="Road surface and lanes" :open="false">
-		<rs-carriageway :value="snap.profile.carriageway" :structure="snap.profile.structure" @patch="editCarriageway" @preview="previewCarriageway" @structure="editProfileStructure"></rs-carriageway>
+		<rs-carriageway :value="snap.profile.carriageway" :structure="snap.profile.structure" :support="snap.profile.support" @patch="editCarriageway" @preview="previewCarriageway" @structure="editProfileStructure" @support="editProfileSupport"></rs-carriageway>
 	</rs-section>
 
 	<rs-section title="Roadside">

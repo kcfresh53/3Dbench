@@ -24,6 +24,8 @@ export interface ExportSettings {
 	terrain: boolean;
 	buildings: boolean;
 	trees: boolean;
+	/** Road graph for traffic, splines and navigation. */
+	roads: boolean;
 }
 
 /** A roundabout made with the Roundabout tool: lots stay off the island and the ground under it is levelled. */
@@ -73,7 +75,7 @@ export interface CitySettings {
 export const DEFAULT_CITY_SETTINGS: CitySettings = {
 	kind: 'city',
 	features: { buildings: true, trees: true },
-	export: { terrain: true, buildings: true, trees: true },
+	export: { terrain: true, buildings: true, trees: true, roads: true },
 	water: { ...DEFAULT_WATER },
 	roundabouts: [],
 	seed: 1,
@@ -122,7 +124,7 @@ export function settingsForKind(settings: CitySettings, kind: ProjectKind): City
 	const next: CitySettings = mergeSettings(JSON.parse(JSON.stringify(settings)) as Partial<CitySettings>);
 	next.kind = kind;
 	next.features = { buildings: kind === 'city', trees: kind !== 'landscape' };
-	next.export = { terrain: true, buildings: kind === 'city', trees: kind !== 'landscape' };
+	next.export = { terrain: true, buildings: kind === 'city', trees: kind !== 'landscape', roads: true };
 	if (kind === 'track') {
 		next.development = 0;
 		next.treeScale = Math.min(next.treeScale, 0.6);

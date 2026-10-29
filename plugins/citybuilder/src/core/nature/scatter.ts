@@ -85,7 +85,7 @@ export function scatterTrees(input: ScatterInput): PlacedTree[] {
 					y,
 					z,
 					yaw: rng.next() * Math.PI * 2,
-					scale: clamp(0.8 + rng.next() * 0.5, 0.6, 1.4),
+					scale: district?.zone === 'forest' ? 1.25 + rng.next() * 0.75 : clamp(0.8 + rng.next() * 0.5, 0.6, 1.4),
 					preset: (species[rng.weighted(weights)]?.preset ?? 'oak_realistic').replace('_stylized', '_realistic'),
 					representation: clearance <= 24 ? 'model' : 'cross',
 					variant: rng.int(0, Math.max(1, input.variants) - 1),

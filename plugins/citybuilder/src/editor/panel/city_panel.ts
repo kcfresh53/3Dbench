@@ -97,6 +97,8 @@ const TEMPLATE: string = `<div class="rs_panel">
 		<rs-number label="Seed" :value="create.seed" :min="0" :max="99999" :step="1" @input="create.seed = $event"></rs-number>
 		<p class="rs_hint">{{create.size * create.cellSize}} m wide. Roads are read from Roadscape networks in this project.</p>
 		<div class="rs_row"><button class="rs_primary" :disabled="!!snap.busy" @click="ctl.create(create)">Create city</button></div>
+		<div class="rs_row"><button :disabled="!!snap.busy || !snap.hasRoadscape" @click="ctl.createSkyline(create.seed)">Create river skyline starter</button></div>
+		<p class="rs_hint">3072 m river landscape with a 1536 m city, hills, wind farm and editable streets. Requires Roadscape.</p>
 	</rs-section>
 
 	<template v-if="snap.hasCity">
@@ -116,10 +118,12 @@ const TEMPLATE: string = `<div class="rs_panel">
 			<p class="rs_hint">{{kindHint(snap.settings.kind)}} The type only picks defaults; every option below stays editable.</p>
 			<rs-toggle label="Generate buildings" :value="snap.settings.features.buildings" @input="ctl.setSetting('features.buildings', $event)"></rs-toggle>
 			<rs-toggle label="Generate trees" :value="snap.settings.features.trees" @input="ctl.setSetting('features.trees', $event)"></rs-toggle>
+			<rs-toggle label="Daylight and shadows" :value="snap.display.daylight" @input="ctl.setDisplay('daylight', $event)"></rs-toggle>
 			<p class="rs_hint">Export includes</p>
 			<rs-toggle label="Terrain" :value="snap.settings.export.terrain" @input="ctl.setSetting('export.terrain', $event)"></rs-toggle>
 			<rs-toggle label="Buildings" :value="snap.settings.export.buildings" @input="ctl.setSetting('export.buildings', $event)"></rs-toggle>
 			<rs-toggle label="Trees" :value="snap.settings.export.trees" @input="ctl.setSetting('export.trees', $event)"></rs-toggle>
+			<rs-toggle label="Road network" title="Road centrelines with lane counts, one-way flags and structures, for traffic, splines and navigation in your engine." :value="snap.settings.export.roads" @input="ctl.setSetting('export.roads', $event)"></rs-toggle>
 			<p class="rs_hint">Water is never exported. The manifest records the water level so your engine can place its own.</p>
 		</rs-section>
 
@@ -231,8 +235,7 @@ const TEMPLATE: string = `<div class="rs_panel">
 		</rs-section>
 
 		<rs-section v-if="snap.settings.features.buildings || snap.settings.features.trees" v-show="tab === 'districts'" title="Growth">
-			<rs-number label="Development" :value="snap.settings.development" :min="0" :max="1" :step="0.05" @input="ctl.setSetting('development', $event)"></rs-number>
-			<p class="rs_hint">Raise it to watch zoned lots fill up and grow taller. Buildings never move; they only appear and rise.</p>
+			<rs-number title="Raise it to watch zoned lots fill up and grow taller. Buildings never move; they only appear and rise." label="Development" :value="snap.settings.development" :min="0" :max="1" :step="0.05" @input="ctl.setSetting('development', $event)"></rs-number>
 			<rs-number label="Look variants" :value="snap.settings.variants" :min="1" :max="8" :step="1" @input="ctl.setSetting('variants', $event)"></rs-number>
 			<rs-number label="Tree density" :value="snap.settings.treeScale" :min="0" :max="3" :step="0.1" @input="ctl.setSetting('treeScale', $event)"></rs-number>
 			<rs-number label="Max slope for lots" :value="snap.settings.lot.maxSlope" :min="0.05" :max="0.8" :step="0.01" @input="ctl.setSetting('lot.maxSlope', $event)"></rs-number>
@@ -243,28 +246,25 @@ const TEMPLATE: string = `<div class="rs_panel">
 		</rs-section>
 
 		<rs-section v-show="tab === 'export'" title="Game ready">
-			<rs-toggle label="Bake facades" :value="snap.settings.gameReady.bakeFacades" @input="ctl.setSetting('gameReady.bakeFacades', $event)"></rs-toggle>
-			<p class="rs_hint">Baked walls become one quad each on a shared atlas. Off keeps one quad per window bay.</p>
+			<rs-toggle title="Baked walls become one quad each on a shared atlas. Off keeps one quad per window bay." label="Bake facades" :value="snap.settings.gameReady.bakeFacades" @input="ctl.setSetting('gameReady.bakeFacades', $event)"></rs-toggle>
 			<rs-toggle label="Levels of detail" :value="snap.settings.gameReady.lods" @input="ctl.setSetting('gameReady.lods', $event)"></rs-toggle>
-			<rs-toggle label="Preserve facade detail" :value="snap.settings.gameReady.preserveTextureDetail" @input="ctl.setSetting('gameReady.preserveTextureDetail', $event)"></rs-toggle>
-			<p class="rs_hint">Preserve detail adds atlas pages rather than lowering resolution. Disable for one compact atlas. No mesh simplification is applied by this option.</p>
+			<rs-toggle title="Preserve detail adds atlas pages rather than lowering resolution. Disable for one compact atlas. No mesh simplification is applied by this option." label="Preserve facade detail" :value="snap.settings.gameReady.preserveTextureDetail" @input="ctl.setSetting('gameReady.preserveTextureDetail', $event)"></rs-toggle>
+			<rs-toggle label="PBR facade maps" title="Also writes roughness/metal/AO (ORM) and normal maps next to the albedo atlas, so glass and plaster react to light in your engine." :value="snap.settings.gameReady.pbr" @input="ctl.setSetting('gameReady.pbr', $event)"></rs-toggle>
 			<rs-select label="Building atlas" :value="String(snap.settings.gameReady.atlasSize)" :options="atlas" @input="ctl.setSetting('gameReady.atlasSize', Number($event))"></rs-select>
 			<rs-number label="Facade detail" suffix="px/m" :value="snap.settings.gameReady.texelsPerMeter" :min="2" :max="48" :step="1" @input="ctl.setSetting('gameReady.texelsPerMeter', $event)"></rs-number>
 			<rs-number label="Building meshes" suffix="max" :value="snap.settings.gameReady.prefabBudget" :min="4" :max="200" :step="1" @input="ctl.setSetting('gameReady.prefabBudget', $event)"></rs-number>
-			<rs-toggle label="Chunked terrain textures" :value="snap.settings.terrainTextureMode === 'chunks'" @input="ctl.setSetting('terrainTextureMode', $event ? 'chunks' : 'single')"></rs-toggle>
-			<p class="rs_hint">Chunked textures retain local detail. Resolution is per 32-cell chunk; single-map mode uses less memory. Baked textures use smooth filtering, editable in Texture Properties.</p>
+			<rs-toggle title="Chunked textures retain local detail. Resolution is per 32-cell chunk; single-map mode uses less memory. Baked textures use smooth filtering, editable in Texture Properties." label="Chunked terrain textures" :value="snap.settings.terrainTextureMode === 'chunks'" @input="ctl.setSetting('terrainTextureMode', $event ? 'chunks' : 'single')"></rs-toggle>
 			<rs-select label="Terrain texture" :value="String(snap.settings.terrainTexture)" :options="atlas" @input="ctl.setSetting('terrainTexture', Number($event))"></rs-select>
 			<rs-select label="Collision" :value="snap.settings.gameReady.collision" :options="collision" @input="ctl.setSetting('gameReady.collision', $event)"></rs-select>
 			<div class="rs_row">
-				<button class="rs_primary" :disabled="!!snap.busy" @click="ctl.exportPackage()" title="Writes meshes, textures, a manifest and a Godot loader to a folder">Export game package…</button>
+				<button class="rs_primary" :disabled="!!snap.busy" @click="ctl.exportPackage()" title="Writes meshes, textures and a manifest (city.json) to a folder">Export game package…</button>
 				<button :disabled="!!snap.busy" @click="ctl.analyse()">Analyse</button>
 			</div>
 			<div class="rs_row">
 				<button :disabled="!!snap.busy" @click="ctl.bake()" title="Creates ordinary meshes in this project">Bake city to meshes</button>
-				<button :disabled="!!snap.busy" @click="ctl.gameReadySelection()" title="Removes hidden faces, simplifies and adds LODs for the selected meshes">Make selection game ready</button>
 			</div>
 			<div v-if="snap.report" class="rs_stats">
-				<div>{{snap.report.prefabs}} building meshes · {{snap.report.buildings}} buildings · {{snap.report.trees}} trees</div>
+				<div>{{snap.report.prefabs}} building meshes · {{snap.report.buildings}} buildings · {{snap.report.trees}} trees · {{snap.report.roads}} road segments</div>
 				<div>{{snap.report.atlasPages}} atlas page(s) · {{snap.report.atlasSize}} px at {{snap.report.texelsPerMeter}} px/m</div>
 				<div>Per mesh set: {{snap.report.prefabTriangles.join(' / ')}} triangles (LOD 0 / 1 / 2)</div>
 				<div>City at full detail: {{snap.report.cityTriangles.toLocaleString()}} triangles ({{snap.report.terrainTriangles.toLocaleString()}} terrain)</div>
