@@ -614,7 +614,6 @@ ModelProject.prototype.menu = new Menu([
 	'save_project_as',
 	'save_project_incremental',
 	'export_over',
-	'share_model',
 	new MenuSeparator('overview'),
 	'tab_overview',
 ])

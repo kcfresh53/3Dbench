@@ -237,25 +237,8 @@ onVueSetup(async function() {
 			thumbnails: {},
 			getIconNode: Blockbench.getIconNode,
 
-			slideshow: [
-				{
-					source: "./assets/splash_art/1.webp",
-					description: "Splash Art 1st Place by [Wanwin](https://contests.blockbench.net/artists/402502582360080384) & [Flok](https://contests.blockbench.net/artists/445419542664183808)",
-				},
-				{
-					source: "./assets/splash_art/2.webp",
-					description: "Splash Art 2nd Place by [AnzSama](https://contests.blockbench.net/artists/726636243785613372) & [m0NESY](https://contests.blockbench.net/artists/768854550744137800)",
-				},
-				{
-					source: "./assets/splash_art/3.webp",
-					description: "Splash Art 3rd Place by [Coco](https://contests.blockbench.net/artists/1008248909631598662) & [土豆废弃物](https://contests.blockbench.net/artists/1502148250281578516)",
-				},
-				{
-					source: "./assets/splash_art/4.webp",
-					description: "Splash Art 4th Place by [Conczin](https://contests.blockbench.net/artists/200587604582727682)",
-				}
-			],
-			show_splash_screen: (Blockbench.hasFlag('after_update') || settings.always_show_splash_art.value),
+			slideshow: [],
+			show_splash_screen: false,
 			slideshow_selected: 0,
 			slideshow_last: null,
 			slideshow_autoplay: true
@@ -519,11 +502,7 @@ onVueSetup(async function() {
 											<span class="icon_wrapper f_left"><i class="material-icons">help</i></span>
 											<label>${tl('menu.help.quickstart')}</label>
 										</li>
-										<li class="format_entry start_screen_link" @click="openLink('https://blockbench.net/wiki')">
-											<span class="icon_wrapper f_left"><i class="material-icons">menu_book</i></span>
-											<label>Upstream documentation</label>
-										</li>
-									</ul>
+											</ul>
 								</li>
 							</ul>
 						</div>
@@ -631,18 +610,13 @@ onVueSetup(async function() {
 });
 
 
-if (isApp && location.href.endsWith('/blockbench/index.html')) {
+if (isApp && location.href.endsWith('/3Dbench/index.html')) {
 	ExperimentalSettings.add(
 		'always_show_update_screen',
 		{type: 'checkbox', label: 'Always Show Update Screen', value: false}
 	);
 	if (ExperimentalSettings.get('always_show_update_screen')) {
 		$.getJSON('./content/news.json').then(data => {
-			for (let feature of data.new_version.features) {
-				if (feature.image) {
-					feature.image = feature.image.replace('https://web.blockbench.net', '.');
-				}
-			}
 			addStartScreenSection('new_version', data.new_version)
 		})
 	}

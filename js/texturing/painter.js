@@ -754,7 +754,7 @@ export const Painter = {
 			// passes (each doing its own getImageData/putImageData), and the
 			// flood fill pushed duplicate, unvisited-checked neighbor coordinates
 			// as new arrays. On large textures (e.g. 1200x1200+) that caused
-			// multi-second freezes (see JannisX11/blockbench#3487). This does the
+			// multi-second freezes (upstream issue #3487). This does the
 			// same work with a single getImageData/putImageData round trip and
 			// flat typed arrays instead of per-pixel objects/array allocations.
 			let selection = texture.selection;

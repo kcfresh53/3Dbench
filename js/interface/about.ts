@@ -54,9 +54,9 @@ BARS.defineActions(() => {
 							<p>Version <span>{{ version_label }}</span></p>
 
 							<div class="socials">
-								<a class="open-in-browser" href="https://github.com/JannisX11/blockbench">
+								<a class="open-in-browser" href="https://github.com/kcfresh53/3Dbench">
 									<i class="icon fab fa-github"></i>
-									<label>Blockbench (upstream)</label>
+									<label>3D Bench</label>
 								</a>
 							</div>
 
@@ -67,15 +67,12 @@ BARS.defineActions(() => {
 							<ul class="multi_column_list special_thanks_mentions">
 								<li>The Blockbench project and its contributors</li>
 								<li>All contributors</li>
-								<li>The community moderators</li>
-								<li>All donators</li>
-								<li>All translators</li>
+																								<li>All translators</li>
 								<li>Wacky</li>
 								<li>Ewan Howell and Lukas</li>
 								<li>SirBenet</li>
 								<li>Sultan Taha and Kanno</li>
-								<li>The Blockbench Community</li>
-							</ul>
+															</ul>
 
 							<h4>FRAMEWORKS, LIBRARIES, AND ICONS</h4>
 

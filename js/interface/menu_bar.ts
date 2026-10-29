@@ -235,7 +235,6 @@ export const MenuBar = {
 				'export_collada',
 				'export_legacy_project',
 				'upload_sketchfab',
-				'share_model',
 			]},
 			'export_over',
 			'export_asset_archive',
@@ -589,12 +588,6 @@ export const MenuBar = {
 			{name: 'menu.help.quickstart', id: 'quickstart', icon: 'fas.fa-directions', click: () => {
 				Blockbench.openLink('https://github.com/kcfresh53/3Dbench#getting-started');
 			}},
-			{name: 'menu.help.discord', id: 'discord', icon: 'fab.fa-discord', condition: () => (!settings.classroom_mode.value), click: () => {
-				Blockbench.openLink('http://discord.blockbench.net');
-			}},
-			{name: 'menu.help.wiki', id: 'wiki', icon: 'menu_book', click: () => {
-				Blockbench.openLink('https://blockbench.net/wiki/');
-			}},
 			{name: 'menu.help.report_issue', id: 'report_issue', icon: 'bug_report', click: () => {
 				Blockbench.openLink('https://github.com/kcfresh53/3Dbench/issues');
 			}},
@@ -604,7 +597,7 @@ export const MenuBar = {
 			{name: 'menu.help.developer', id: 'developer', icon: 'fas.fa-wrench', children: [
 				'reload_plugins',
 				{name: 'menu.help.plugin_documentation', id: 'plugin_documentation', icon: 'fa-book', click: () => {
-					Blockbench.openLink('https://www.blockbench.net/wiki/docs/plugin');
+					Blockbench.openLink('https://github.com/kcfresh53/3Dbench/tree/main/docs');
 				}},
 				'experimental_settings',
 				'open_dev_tools',

@@ -9,6 +9,24 @@ import PathModule from 'path'
 let file_count = 0;
 let file_delete_count = 0;
 
+/**
+ * tsc emits relative to the project root (the bundled plugin sources live outside ./js),
+ * so move ./js/* up to the generated root and drop declarations of the plugin sources.
+ */
+function hoistGeneratedLayout(root) {
+	const js_dir = PathModule.join(root, 'js');
+	if (!fs.existsSync(js_dir)) return;
+	for (const name of fs.readdirSync(js_dir)) {
+		const target = PathModule.join(root, name);
+		fs.rmSync(target, {recursive: true, force: true});
+		fs.renameSync(PathModule.join(js_dir, name), target);
+	}
+	fs.rmSync(js_dir, {recursive: true, force: true});
+	fs.rmSync(PathModule.join(root, 'plugins'), {recursive: true, force: true});
+	fs.rmSync(PathModule.join(root, 'types'), {recursive: true, force: true});
+}
+hoistGeneratedLayout('./types/generated');
+
 const config = JSON.parse(fs.readFileSync('./types/type_config.json', 'utf-8'));
 
 function isComment(line) {

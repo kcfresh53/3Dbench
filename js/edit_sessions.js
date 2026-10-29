@@ -23,6 +23,10 @@ export class EditSession {
 	start(username) {
 		if (this.active) return;
 
+		if (!EditSession.defaults.ip) {
+			Blockbench.showMessageBox({title: 'Edit Sessions', message: 'No Edit Session server is configured. Set one under Experimental Settings to use this feature.', icon: 'error'});
+			return;
+		}
 		let peer = this.peer = new Peer({
 			key: 'edit_session',
 			host: EditSession.defaults.ip,
@@ -83,6 +87,10 @@ export class EditSession {
 		if (this.active) return;
 
 		this.hosting = false;
+		if (!EditSession.defaults.ip) {
+			Blockbench.showMessageBox({title: 'Edit Sessions', message: 'No Edit Session server is configured. Set one under Experimental Settings to use this feature.', icon: 'error'});
+			return;
+		}
 		this.peer = new Peer({
 			key: 'edit_session',
 			host: EditSession.defaults.ip,
@@ -359,11 +367,11 @@ ExperimentalSettings.add(
 );
 ExperimentalSettings.add(
 	'session_server',
-	{type: 'string', label: 'Edit Session server', value: 'blckbn.ch'}
+	{type: 'string', label: 'Edit Session server (PeerJS host, none by default)', value: ''}
 );
 EditSession.defaults = {
 	max_chat_length: ExperimentalSettings.get('max_chat_message_length'),
-	ip: ExperimentalSettings.get('session_server') ?? 'blckbn.ch',
+	ip: ExperimentalSettings.get('session_server') ?? '',
 	placeholder_names: ['R2D2', 'Tin Man', 'C3PO', 'WALL-E', 'EVE', 'BB-8', 'B1 Battle Droid', 'ASIMO', 'Atlas'],
 }
 

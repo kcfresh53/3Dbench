@@ -66,7 +66,7 @@ export function initializeDesktopApp() {
 		}
 	}
 	if (Blockbench.platform == 'linux') {
-		// Clear GPU cache: https://github.com/JannisX11/blockbench/issues/1964
+		// Clear GPU cache (works around stale GPU shader cache crashes)
 		let gpu_cache_path = PathModule.join(app.getPath('userData'), 'GPUCache');
 		try {
 			let cache_files = fs.readdirSync(gpu_cache_path);

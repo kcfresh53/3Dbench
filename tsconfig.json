@@ -21,7 +21,7 @@
     "allowJs": true,
     "allowUmdGlobalAccess": true,
     "allowImportingTsExtensions": true,
-    "rootDir": "js",
+    "rootDir": ".",
 
     "declaration": true,
     "emitDeclarationOnly": true,

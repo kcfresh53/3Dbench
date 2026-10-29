@@ -513,7 +513,7 @@ export class FormElement extends EventSystem {
 
 			} else if (is_url) {
 				Blockbench.showMessageBox({
-					title: 'dialog.share_model.title',
+					title: 'generic.share',
 					message: `[${text}](${text})`,
 				})
 			}

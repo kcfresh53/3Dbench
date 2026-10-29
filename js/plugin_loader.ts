@@ -38,7 +38,10 @@ export const Plugins = {
 	/**
 	 * The currently used path to the plugin API
 	 */
-	api_path: settings.cdn_mirror.value ? 'https://blckbn.ch/cdn/plugins' : 'https://cdn.jsdelivr.net/gh/JannisX11/blockbench-plugins/plugins',
+	/**
+	 * Base URL of a remote plugin catalog. Empty by default: 3D Bench ships without a hosted plugin store, plugins are installed from file or URL.
+	 */
+	api_path: '',
 	path: '',
 	/**
 	 * Plugin files saved on install, so the web app has its own copy the way the desktop app keeps one on disk
@@ -485,18 +488,7 @@ export class Plugin {
 		this.update_available = false;
 
 		var scope = this;
-		function register() {
-			if (!Plugins.json[scope.id]) return;
-			jQuery.ajax({
-				url: 'https://blckbn.ch/api/event/install_plugin',
-				type: 'POST',
-				data: {
-					plugin: scope.id
-				}
-			})
-		}
 		if (!isApp) {
-			if (first) register();
 			await Plugins.source_cache.remove(this.id);
 			return await scope.load(first)
 		}
@@ -522,7 +514,6 @@ export class Plugin {
 			// New system
 			if (this.new_repository_format) {
 				copyFileToDrive(`${this.id}/${this.id}.js`, `${this.id}.js`, () => {
-					if (first) register();
 					setTimeout(async function() {
 						await scope.load(first);
 						resolve()
@@ -539,7 +530,6 @@ export class Plugin {
 			} else {
 				// Legacy system
 				copyFileToDrive(`${this.id}.js`, `${this.id}.js`, () => {
-					if (first) register();
 					setTimeout(async function() {
 						await scope.load(first);
 						resolve()
@@ -975,30 +965,6 @@ export class Plugin {
 			this.details[key] = date.short;
 			this.details[key + '_full'] = date.full;
 		}
-		if (this.source == 'store') {
-			if (!this.details.bug_tracker) {
-				this.details.bug_tracker = `https://github.com/JannisX11/blockbench-plugins/issues/new?title=[${this.title.replace(/[+&]/g, 'and')}]`;
-			}
-			if (!this.details.repository) {
-				this.details.repository = `https://github.com/JannisX11/blockbench-plugins/tree/master/plugins/${this.id + (this.new_repository_format ? '' : '.js')}`;
-			}
-
-			let github_path = (this.new_repository_format ? (this.id+'/'+this.id) : this.id) + '.js';
-			let commit_url = `https://api.github.com/repos/JannisX11/blockbench-plugins/commits?path=plugins/${github_path}`;
-			fetch(commit_url).catch((err) => {
-				console.error('Cannot access commit info for ' + this.id, err);
-			}).then(async response => {
-				if (!response) return;
-				let commits = await response.json().catch(err => console.error(err));
-				if (!commits || !commits.length) return;
-				trackDate(Date.parse(commits[0].commit.committer.date), 'last_modified', true);
-
-				if (!this.creation_date) {
-					trackDate(Date.parse(commits.last().commit.committer.date), 'creation_date', false);
-				}
-			});
-
-		}
 		if (this.creation_date) {
 			trackDate(this.creation_date, 'creation_date', false);
 		}
@@ -1008,22 +974,6 @@ export class Plugin {
 	static selected: Plugin|null = null
 
 	static menu = new Menu([
-		new MenuSeparator('general'),
-		{
-			name: 'generic.share',
-			icon: 'share',
-			condition: plugin => Plugins.json[plugin.id],
-			click(plugin) {
-				let url = `https://www.blockbench.net/plugins/${plugin.id}`;
-				new Dialog('share_plugin', {
-					title: tl('generic.share') + ': ' + plugin.title,
-					icon: 'extension',
-					form: {
-						link: {type: 'text', value: url, readonly: true, share_text: true}
-					}
-				}).show();
-			}
-		},
 		new MenuSeparator('installation'),
 		{
 			name: 'dialog.plugins.install',
@@ -1142,60 +1092,9 @@ ExperimentalSettings.add(
 	'plugin_await_loading_timeout',
 	{type: 'number', label: 'Max plugin await-loading', description: 'Maximum time to wait for plugins to load before opening a project', min: 0.4, value: 2, step: 0.1}
 )
-Plugins.loading_promise = new Promise((resolve, reject) => {
-	const timeout_seconds = ExperimentalSettings.get('plugin_load_timeout') as number ?? 10;
-	$.ajax({
-		cache: false,
-		url: Plugins.api_path+'.json',
-		timeout: 1_000 * timeout_seconds,
-		dataType: 'json',
-		success(data) {
-			Plugins.json = data;
-
-			resolve();
-			Plugins.loading_promise = null;
-			
-			$.ajax({
-				cache: false,
-				url: 'https://cdn.jsdelivr.net/gh/JannisX11/blockbench-plugins/updates.json',
-				timeout: 1_000 * timeout_seconds,
-				dataType: 'json',
-				success(data) {
-					Plugins.update_info = data;
-					resolve();
-				},
-				error(response, type) {
-					console.error('Failed to load plugin updates data', type, response)
-				}
-			});
-		},
-		error(response, type) {
-			console.error('Could not connect to plugin server:', type, response)
-			resolve();
-			Plugins.loading_promise = null;
-
-			if (settings.cdn_mirror.value == false && navigator.onLine) {
-				settings.cdn_mirror.set(true);
-				console.log('Switching to plugin CDN mirror. Restart to apply.');
-			}
-			if (Plugins.dialog) {
-				if (Plugins.dialog.content_vue) Plugins.dialog.content_vue._data.network_error = response.status;
-				Plugins.dialog.component.data.network_error = response.status;
-			}
-		}
-	});
-	setTimeout(() => {
-		if (!Plugins.loading_promise) return;
-		console.warn(`Connecting to plugin API is taking longer than expected. Plugins will not load until a connection is made or the request times out after ${timeout_seconds} seconds.`)
-	}, 3000);
-})
-
-$.getJSON('https://blckbn.ch/api/stats/plugins?weeks=2', data => {
-	Plugins.download_stats = data;
-	if (Plugins.json) {
-		Plugins.sort();
-	}
-})
+// No hosted catalog: nothing to load, Plugins.json stays empty
+Plugins.json = {};
+Plugins.loading_promise = null;
 
 export async function loadInstalledPlugins() {
 	if (Plugins.loading_promise) {
@@ -2082,10 +1981,10 @@ BARS.defineActions(function() {
 					</div>
 
 					<div id="plugin_browser_start_page" v-if="!selected_plugin && !isMobile">
-						<h1>Blockbench Plugins</h1>
+						<h1>3D Bench Plugins</h1>
 						<img src="./assets/plugins.png" />
-						<p>Plugins allow you to configure 3D Bench beyond the default capabilities. Select from a catalog of community created plugins.</p>
-						<p>Want to write your own plugin? Check out the <a href="https://www.blockbench.net/wiki/docs/plugin" target="_blank">Plugin Documentation</a>.</p>
+						<p>Plugins allow you to configure 3D Bench beyond the default capabilities. Install plugins from a file or URL.</p>
+						<p>Want to write your own plugin? Check out the <a href="https://github.com/kcfresh53/3Dbench/tree/main/docs" target="_blank">Plugin Documentation</a>.</p>
 
 						<div v-for="row in suggested_rows" class="plugins_suggested_row">
 							<h3>{{row.title}}</h3>

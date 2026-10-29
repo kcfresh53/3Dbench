@@ -9,7 +9,6 @@ export interface PreviewSceneOptions {
 	name?: string
 	description?: string
 	category?: string
-	web_config?: string
 	light_color?: {r: number, g: number, b: number}
 	light_side?: number
 	condition?: ConditionResolvable
@@ -35,7 +34,6 @@ export class PreviewScene {
 	light_side: number = 0;
 	condition: ConditionResolvable;
 	fov: number = null;
-	web_config_path?: string
 	fog?: THREE.Fog | THREE.FogExp2
 	cubemap?: THREE.CubeTexture
 	preview_models: PreviewModel[] = [];
@@ -60,8 +58,7 @@ export class PreviewScene {
 		PreviewScene.menu_categories[this.category][id] = this.name;
 	}
 	extend(data: PreviewSceneOptions) {
-		this.loaded = data.web_config ? false : true;
-		this.web_config_path = data.web_config;
+		this.loaded = true;
 
 		this.name = tl(data.name || `preview_scene.${this.id}`);
 		if (data.description) {
@@ -110,40 +107,10 @@ export class PreviewScene {
 			}).filter(m => m instanceof PreviewModel);
 		}
 	}
-	async lazyLoadFromWeb() {
-		let repo = PreviewScene.source_repository;
-		// repo = './../blockbench-scenes'
-		this.loaded = true;
-		let response = await fetch(`${repo}/${this.web_config_path}`);
-		if (!response.ok) {
-			console.error(response);
-			Blockbench.showQuickMessage('message.preview_scene_load_failed', 2000);
-		}
-		let json = await response.json() as PreviewSceneOptions;
-		function convertURL(url: string) {
-			return `${repo}/${url}`;
-		}
-		if (json.preview_models) {
-			json.preview_models.forEach(model => {
-				if (typeof model == 'object' && model.texture) {
-					model.texture = convertURL(model.texture);
-				}
-			})
-		}
-		if (json.cubemap instanceof Array) {
-			json.cubemap.forEach((url, i) => {
-				json.cubemap[i] = convertURL(url);
-			})
-		}
-		this.extend(json);
-	}
 	/**
 	 * Selects this preview scene
 	 */
 	async select() {
-		if (!this.loaded) {
-			await this.lazyLoadFromWeb()
-		}
 		if (PreviewScene.active) PreviewScene.active.unselect();
 
 		if (this.fov) {
@@ -202,10 +169,6 @@ export class PreviewScene {
 	 */
 	static active: PreviewScene | null = null;
 	static select_options = {};
-	/**
-	 * The URL to the source repository that scenes are pulled from
-	 */
-	static source_repository = 'https://cdn.jsdelivr.net/gh/JannisX11/blockbench-scenes';
 	static menu_categories: {
 		[category_id: string]: {
 			[id: string]: string
@@ -216,9 +179,6 @@ export class PreviewScene {
 		},
 		generic: {
 			_label: 'Generic'
-		},
-		realistic: {
-			_label: 'Realistic'
 		},
 	};
 
@@ -595,15 +555,6 @@ new PreviewScene('studio', {
 	light_side: 1,
 	preview_models: ['studio']
 });
-new PreviewScene('sky', {
-	category: 'realistic',
-	web_config: 'realistic/sky/sky.json',
-});
-new PreviewScene('space', {
-	category: 'realistic',
-	web_config: 'realistic/space/space.json',
-});
-
 BARS.defineActions(function() {
 	new Action('preview_scene', {
 		category: 'view',
