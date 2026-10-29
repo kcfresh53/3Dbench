@@ -83,3 +83,14 @@ The water sheet is a preview only and is never exported or baked. The manifest r
 *Island edges* (Landscape section; also a toggle when creating or regenerating terrain) bends the border of the map down below the water line with a ragged coastline. Edge width, sea floor depth, roughness and shape are adjustable. It only ever lowers land and is one undo step.
 
 With **Add ground first** on (the default), island edges do not lower the existing map: new ground is added around all four sides and sloped into the sea, so roads, lots, zoning and sculpting stay exactly where they are. World coordinates of the old map do not change, and the whole step is one undo (it restores the previous map size). The map is capped at 513 vertices per side, so a large map may only grow a little. Turn it off to bend the existing edges instead.
+
+
+### Road elevation and compact workspace
+
+The City Builder panel has Roads, Terrain, Districts, Export and Project tabs. Roundabout and terrain-fitting settings fold away inside Roads. Buttons wrap and centre their labels in narrow panels.
+
+To author a ramp or viaduct, select road edges (or their control points) forming one open chain on a Roadscape mesh, then choose **Roads → Ramp / elevation**. Set absolute endpoint heights in city metres. The dialog orders endpoints by vertex ID; exchange the two heights to reverse the slope. Straight slope makes a launch approach; Smooth entry and exit eases the vertical curve across the chain while retaining the horizontal road shape. Choose a supported deck, an unsupported jump approach, or a ground embankment. To make a jump, leave a gap between separate launch and landing roads. Tilted meshes must have their tilt applied first.
+
+Bridge columns use existing procedural geometry and terrain heights. A spatial road index keeps columns out of lower roads in the same network; each station tries a bounded set of nearby locations before omitting a blocked column. Support spacing is measured in network metres and affects the whole network. Join road meshes into one network when supports need to avoid their crossings. Other scene objects are not considered by this clearance check. Inspect long unsupported spans before export. Roadscape's existing triangle budget and geometry cache still apply; no new model assets are required.
+
+Road painting does not sculpt the natural heightfield. Unpainted pieces retain their original automatic structure classification when a paint stroke splits a road, preventing a shortened bridge approach from being reclassified as a terrain-filling ground road. Choosing Ground explicitly still permits terrain fitting when Terrain follows roads is enabled. Drape changes road control heights; avoid draping authored ramps.

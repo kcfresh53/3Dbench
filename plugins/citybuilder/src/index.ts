@@ -81,7 +81,7 @@ export default function initializeCityBuilder(api: typeof BBPlugin): void {
 				ctl.changed.on(update);
 				update();
 			});
-			style = Blockbench.addCSS(parts.css + BRUSH_DOCK_CSS) as Handle;
+			style = Blockbench.addCSS(parts.css + BRUSH_DOCK_CSS, 'theme-override') as Handle;
 			panel = new Panel('citybuilder_panel', {
 				name: 'City Builder',
 				icon: 'location_city',

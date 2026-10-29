@@ -1,4 +1,5 @@
 
+import { createPreviewSkybox, PreviewSkybox } from "./preview_skyboxes";
 import { CustomMenuItem } from "../interface/menu";
 import { TransformerModule } from "../modeling/transform/transform_modules";
 import { adjustFromAndToForInflateAndStretch } from "../outliner/types/cube";
@@ -13,6 +14,7 @@ export interface PreviewSceneOptions {
 	light_side?: number
 	condition?: ConditionResolvable
 	cubemap?: string[]
+	skybox?: PreviewSkybox
 	fog?: {
 		type: 'linear' | 'exponential'
 		color
@@ -36,6 +38,7 @@ export class PreviewScene {
 	fov: number = null;
 	fog?: THREE.Fog | THREE.FogExp2
 	cubemap?: THREE.CubeTexture
+	skybox?: PreviewSkybox
 	preview_models: PreviewModel[] = [];
 
 	constructor(id: string, data: PreviewSceneOptions = {}) {
@@ -70,7 +73,9 @@ export class PreviewScene {
 		if (data.light_side) this.light_side = data.light_side;
 		this.condition = data.condition;
 
+		this.cubemap?.dispose();
 		this.cubemap = null;
+		this.skybox = data.skybox;
 		if (data.cubemap) {
 			let urls = data.cubemap;
 			let texture_cube = new THREE.CubeTextureLoader().load(urls, () => {
@@ -111,6 +116,9 @@ export class PreviewScene {
 	 * Selects this preview scene
 	 */
 	async select() {
+		if (this.skybox && !this.cubemap) {
+			this.cubemap = createPreviewSkybox(this.skybox);
+		}
 		if (PreviewScene.active) PreviewScene.active.unselect();
 
 		if (this.fov) {
@@ -156,6 +164,8 @@ export class PreviewScene {
 		Canvas.updateShading();
 	}
 	delete() {
+		if (PreviewScene.active == this) this.unselect();
+		this.cubemap?.dispose();
 		delete PreviewScene.scenes[this.id];
 		delete PreviewScene.menu_categories[this.category][this.id];
 	}
@@ -179,6 +189,9 @@ export class PreviewScene {
 		},
 		generic: {
 			_label: 'Generic'
+		},
+		skybox: {
+			_label: tl('preview_scene.skyboxes', [], 'Skyboxes')
 		},
 	};
 
@@ -494,67 +507,21 @@ export class PreviewModel implements Deletable {
 	static transform_model: PreviewModel | null = null;
 }
 
-new PreviewModel('studio', {
-	name: 'preview_scene.studio',
-	texture: './assets/preview_scenes/studio.png',
-	texture_size: [64, 64],
-	shading: false,
-	render_side: THREE.BackSide,
-	cubes: [
-		{position: [-240, 0, -240], size: [480, 128, 480], faces: {
-			up: {uv: [0, 16.04, 15.96, 31.96]},
-			down: {uv: [0, 0, 16, 16]},
-		}},
-		{position: [48, 0, -240], size: [96, 128, 480], faces: {
-			south: {uv: [16.1, 0, 63.9, 64]},
-			north: {uv: [16.1, 0, 63.9, 64]}
-		}},
-		{position: [-48, 0, -240], size: [96, 128, 480], faces: {
-			south: {uv: [16.1, 0, 63.9, 64]},
-			north: {uv: [16.1, 0, 63.9, 64]}
-		}},
-		{position: [-144, 0, -240], size: [96, 128, 480], faces: {
-			south: {uv: [16.1, 0, 63.9, 64]},
-			north: {uv: [16.1, 0, 63.9, 64]}
-		}},
-		{position: [144, 0, -240], size: [96, 128, 480], faces: {
-			south: {uv: [16.1, 0, 63.9, 64]},
-			north: {uv: [16.1, 0, 63.9, 64]}
-		}},
-		{position: [-240, 0, -240], size: [96, 128, 480], faces: {
-			south: {uv: [16.1, 0, 63.9, 64]},
-			north: {uv: [16.1, 0, 63.9, 64]}
-		}},
-
-		{position: [-240, 0, 48], size: [480, 128, 96], faces: {
-			east: {uv: [16.1, 0, 63.9, 64]},
-			west: {uv: [16.1, 0, 63.9, 64]}
-		}},
-		{position: [-240, 0, -48], size: [480, 128, 96], faces: {
-			east: {uv: [16.1, 0, 63.9, 64]},
-			west: {uv: [16.1, 0, 63.9, 64]}
-		}},
-		{position: [-240, 0, -144], size: [480, 128, 96], faces: {
-			east: {uv: [16.1, 0, 63.9, 64]},
-			west: {uv: [16.1, 0, 63.9, 64]}
-		}},
-		{position: [-240, 0, 144], size: [480, 128, 96], faces: {
-			east: {uv: [16.1, 0, 63.9, 64]},
-			west: {uv: [16.1, 0, 63.9, 64]}
-		}},
-		{position: [-240, 0, -240], size: [480, 128, 96], faces: {
-			east: {uv: [16.1, 0, 63.9, 64]},
-			west: {uv: [16.1, 0, 63.9, 64]}
-		}},
-	]
-})
-// Scenes
-new PreviewScene('studio', {
-	category: 'generic',
-	light_color: {r: 1.04, g: 1.03, b: 1.1},
-	light_side: 1,
-	preview_models: ['studio']
-});
+// Built-in skyboxes are generated on demand and available without network access.
+for (const preset of [
+	{id: 'neutral', name: 'Neutral Gray', light_color: {r: 1, g: 1, b: 1}},
+	{id: 'clear_sky', name: 'Clear Sky', light_color: {r: 1, g: 1.02, b: 1.08}},
+	{id: 'overcast', name: 'Overcast', light_color: {r: 0.96, g: 0.99, b: 1.04}},
+	{id: 'sunset', name: 'Sunset', light_color: {r: 1.12, g: 0.94, b: 0.82}},
+	{id: 'night', name: 'Night', light_color: {r: 0.72, g: 0.8, b: 1}},
+]) {
+	new PreviewScene(preset.id, {
+		name: tl(`preview_scene.${preset.id}`, [], preset.name),
+		category: 'skybox',
+		skybox: preset.id as PreviewSkybox,
+		light_color: preset.light_color,
+	});
+}
 BARS.defineActions(function() {
 	new Action('preview_scene', {
 		category: 'view',
@@ -566,6 +533,7 @@ BARS.defineActions(function() {
 			let list = [];
 			for (let category in PreviewScene.menu_categories) {
 				let options = PreviewScene.menu_categories[category];
+				if (!Object.keys(options).some(key => !key.startsWith('_'))) continue;
 				if (options._label) {
 					list.push(new MenuSeparator('options_'+toSnakeCase(options._label), options._label));
 				}

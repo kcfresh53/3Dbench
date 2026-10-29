@@ -85,7 +85,7 @@ const PAINT_MODES: Array<{ id: string; label: string }> = [
 ];
 
 const TEMPLATE: string = `<div class="rs_panel">
-	<p class="rs_status" role="status">{{status}}</p>
+	<p class="rs_status" role="status" :title="status">{{status}}</p>
 	<p v-if="snap.busy" class="cb_busy">{{snap.busy}}…</p>
 
 	<rs-section v-if="!snap.hasCity" title="New city">
@@ -100,6 +100,9 @@ const TEMPLATE: string = `<div class="rs_panel">
 	</rs-section>
 
 	<template v-if="snap.hasCity">
+        <nav class="cb_tabs" aria-label="City workspace">
+            <button v-for="t in tabs" :key="t.id" :class="{cb_on: tab === t.id}" :aria-pressed="tab === t.id" @click="tab = t.id">{{t.label}}</button>
+        </nav>
 		<div class="cb_stats" v-if="snap.stats">
 			<div v-if="snap.settings.features.buildings"><b>{{snap.stats.buildings}}</b><small>buildings</small></div>
 			<div v-if="snap.settings.features.buildings"><b>{{snap.stats.lots}}</b><small>lots</small></div>
@@ -108,7 +111,7 @@ const TEMPLATE: string = `<div class="rs_panel">
 			<div><b>{{snap.composeMs}} ms</b><small>build time</small></div>
 		</div>
 
-		<rs-section title="Project">
+		<rs-section v-show="tab === 'project'" title="Project">
 			<rs-select label="Project type" :value="snap.settings.kind" :options="kinds" @input="ctl.setKind($event)"></rs-select>
 			<p class="rs_hint">{{kindHint(snap.settings.kind)}} The type only picks defaults; every option below stays editable.</p>
 			<rs-toggle label="Generate buildings" :value="snap.settings.features.buildings" @input="ctl.setSetting('features.buildings', $event)"></rs-toggle>
@@ -120,7 +123,7 @@ const TEMPLATE: string = `<div class="rs_panel">
 			<p class="rs_hint">Water is never exported. The manifest records the water level so your engine can place its own.</p>
 		</rs-section>
 
-		<rs-section title="Roads & layout">
+		<rs-section v-show="tab === 'roads'" title="Roads & layout">
 			<div class="rs_row"><button class="rs_primary" :disabled="!!snap.busy || !snap.hasRoadscape" @click="ctl.generateLayout()">Generate editable layout…</button></div>
 			<div class="rs_row">
 				<button class="rs_primary" :disabled="!snap.hasRoadscape" @click="ctl.drawRoads()" title="Opens the Roadscape Draw Road tool">Draw roads</button>
@@ -128,19 +131,23 @@ const TEMPLATE: string = `<div class="rs_panel">
 			</div>
 			<p class="rs_hint" v-if="!snap.hasRoadscape">Load the Roadscape plugin to draw roads.</p>
 			<p class="rs_hint">{{snap.roadCount}} road segment{{snap.roadCount === 1 ? '' : 's'}} found.</p>
-			<p class="rs_hint"><b>Roundabout</b>: click a junction in the viewport.</p>
+			<div class="rs_row"><button @click="ctl.roadElevation()" title="Select a connected road chain, then set endpoint heights and vertical easing">Ramp / elevation…</button></div>
+            <details class="rs_section"><summary>Roundabouts</summary><div class="rs_body">
+            <p class="rs_hint"><b>Roundabout</b>: click a junction in the viewport.</p>
 			<rs-number label="Radius" suffix="m" :value="snap.roundabout.radius" :min="8" :max="120" :step="1" @input="ctl.setRoundabout('radius', $event)"></rs-number>
 			<rs-select label="Traffic drives on" :value="snap.roundabout.hand" :options="hands" @input="ctl.setRoundabout('hand', $event)"></rs-select>
 			<rs-select label="Ring profile" :value="snap.roundabout.profile" :options="profileOptions(snap.profiles, 'Automatic')" @input="ctl.setRoundabout('profile', $event)"></rs-select>
 			<div class="rs_row"><button :class="{cb_on: snap.activeTool === 'roundabout'}" @click="ctl.pickRoundabout()">Roundabout tool</button></div>
-			<p class="rs_hint"><b>Road type</b>: paint where a road becomes a bridge, tunnel, open span or another profile. Roads are cut at the edges of the painted area.</p>
+			</div></details>
+            <p class="rs_hint"><b>Road type</b>: paint where a road becomes a bridge, tunnel, open span or another profile. Roads are cut at the edges of the painted area.</p>
 			<rs-select label="Structure" :value="snap.roadType.structure" :options="structureOptions(snap.structures)" @input="ctl.setRoadType('structure', $event)"></rs-select>
 			<rs-select label="Road profile" :value="snap.roadType.profile" :options="profileOptions(snap.profiles, 'Keep each road’s own')" @input="ctl.setRoadType('profile', $event)"></rs-select>
 			<div class="cb_modes">
 				<button v-for="m in paintModes" :key="m.id" :class="{cb_on: snap.activeTool === 'roadtype' && snap.roadType.mode === m.id}" @click="ctl.pickRoadType(m.id)">{{m.label}}</button>
 			</div>
 			<rs-number v-if="snap.roadType.mode === 'brush'" label="Brush size" suffix="m" :value="snap.roadType.radius" :min="2" :max="200" :step="1" @input="ctl.setRoadType('radius', $event)"></rs-number>
-			<rs-toggle label="Terrain follows roads" :value="snap.settings.conform.roads" @input="ctl.setSetting('conform.roads', $event)"></rs-toggle>
+			<details class="rs_section"><summary>Terrain fitting & automatic bridges</summary><div class="rs_body">
+            <rs-toggle label="Terrain follows roads" :value="snap.settings.conform.roads" @input="ctl.setSetting('conform.roads', $event)"></rs-toggle>
 			<rs-number label="Ground tolerance" suffix="m" :value="snap.settings.conform.groundTolerance" :min="0" :max="60" :step="1" @input="ctl.setSetting('conform.groundTolerance', $event)"></rs-number>
 			<p class="rs_hint">Gap height threshold for automatic bridges. Water crossings are detected separately. Explicit Ground, Bridge, Tunnel and Open span segments keep their chosen behavior.</p>
 			<rs-toggle label="Automatic bridges over water / gaps" :value="snap.settings.conform.autoBridges" @input="ctl.setSetting('conform.autoBridges', $event)"></rs-toggle>
@@ -148,9 +155,10 @@ const TEMPLATE: string = `<div class="rs_panel">
 			<rs-number label="Road shoulder blend" suffix="m" :value="snap.settings.conform.roadBlend" :min="0" :max="80" :step="1" @input="ctl.setSetting('conform.roadBlend', $event)"></rs-number>
 			<p class="rs_hint">Roadscape segment settings override automation. Use Open span / jump for unsupported sections. Drape is optional and changes control-point heights; avoid it on authored ramps.</p>
 			<rs-number label="Embankment" suffix="m per m" :value="snap.settings.conform.embankment" :min="0.5" :max="8" :step="0.1" @input="ctl.setSetting('conform.embankment', $event)"></rs-number>
+            </div></details>
 		</rs-section>
 
-		<rs-section title="Landscape">
+		<rs-section v-show="tab === 'terrain'" title="Landscape">
 			<div class="cb_modes">
 				<button v-for="m in landscapeModes" :key="m.id" :title="m.hint" :class="{cb_on: snap.activeTool === 'landscape' && snap.landscape.mode === m.id}" @click="ctl.pickLandscape(m.id)">{{m.label}}</button>
 			</div>
@@ -186,7 +194,7 @@ const TEMPLATE: string = `<div class="rs_panel">
 			<rs-number label="Water level" suffix="m" :value="snap.settings.waterLevel" :min="-50" :max="200" :step="0.5" @input="ctl.setSetting('waterLevel', $event)"></rs-number>
 		</rs-section>
 
-		<rs-section title="Water preview" :open="false">
+		<rs-section v-show="tab === 'terrain'" title="Water preview" :open="false">
 			<p class="rs_hint">Only for looking at the scene. Water is not exported; your engine renders its own with the same parameters.</p>
 			<rs-toggle label="Show water" :value="snap.settings.water.show" @input="ctl.setSetting('water.show', $event)"></rs-toggle>
 			<rs-toggle label="Animate" :value="snap.settings.water.animate" @input="ctl.setSetting('water.animate', $event)"></rs-toggle>
@@ -203,7 +211,7 @@ const TEMPLATE: string = `<div class="rs_panel">
 			<rs-number label="Shore fade" suffix="m" :value="snap.settings.water.shoreFadeDistance" :min="0" :max="10" :step="0.1" @input="ctl.setSetting('water.shoreFadeDistance', $event)"></rs-number>
 		</rs-section>
 
-		<rs-section title="Districts">
+		<rs-section v-show="tab === 'districts'" title="Districts">
 			<div class="cb_zones">
 				<button v-for="d in districts" :key="d.id" class="cb_zone" :class="{cb_on: snap.district.id === d.id && snap.district.mode !== 'erase'}" :title="d.label" @click="ctl.pickDistrictType(d.id)"><i :style="{background: d.color}"></i><span>{{d.label}}</span></button>
 			</div>
@@ -222,7 +230,7 @@ const TEMPLATE: string = `<div class="rs_panel">
 			<rs-toggle label="Show lots" :value="snap.display.lots" @input="ctl.setDisplay('lots', $event)"></rs-toggle>
 		</rs-section>
 
-		<rs-section v-if="snap.settings.features.buildings || snap.settings.features.trees" title="Growth">
+		<rs-section v-if="snap.settings.features.buildings || snap.settings.features.trees" v-show="tab === 'districts'" title="Growth">
 			<rs-number label="Development" :value="snap.settings.development" :min="0" :max="1" :step="0.05" @input="ctl.setSetting('development', $event)"></rs-number>
 			<p class="rs_hint">Raise it to watch zoned lots fill up and grow taller. Buildings never move; they only appear and rise.</p>
 			<rs-number label="Look variants" :value="snap.settings.variants" :min="1" :max="8" :step="1" @input="ctl.setSetting('variants', $event)"></rs-number>
@@ -234,7 +242,7 @@ const TEMPLATE: string = `<div class="rs_panel">
 			<rs-toggle label="Show trees" :value="snap.display.trees" @input="ctl.setDisplay('trees', $event)"></rs-toggle>
 		</rs-section>
 
-		<rs-section title="Game ready">
+		<rs-section v-show="tab === 'export'" title="Game ready">
 			<rs-toggle label="Bake facades" :value="snap.settings.gameReady.bakeFacades" @input="ctl.setSetting('gameReady.bakeFacades', $event)"></rs-toggle>
 			<p class="rs_hint">Baked walls become one quad each on a shared atlas. Off keeps one quad per window bay.</p>
 			<rs-toggle label="Levels of detail" :value="snap.settings.gameReady.lods" @input="ctl.setSetting('gameReady.lods', $event)"></rs-toggle>
@@ -264,7 +272,7 @@ const TEMPLATE: string = `<div class="rs_panel">
 			</div>
 		</rs-section>
 
-		<rs-section title="City" :open="false">
+		<rs-section v-show="tab === 'project'" title="City" :open="false">
 			<rs-number label="Units per metre" :value="snap.settings.unitsPerMeter" :min="0.0625" :max="64" :step="0.0625" @input="ctl.setSetting('unitsPerMeter', $event)"></rs-number>
 			<p class="rs_hint">Map is {{snap.extent}} m across. Raise units per metre if your roads were drawn in Blockbench pixels (16 per block).</p>
 			<div class="rs_row"><button @click="ctl.remove()">Remove city from project</button></div>
@@ -280,6 +288,8 @@ export function buildCityPanel(ctl: CityController, onMounted: (instance: PanelI
 			snap: ctl.snapshot(),
 			status: ctl.status,
 			ctl,
+            tab: 'roads',
+            tabs: [{id:'roads',label:'Roads'},{id:'terrain',label:'Terrain'},{id:'districts',label:'Districts'},{id:'export',label:'Export'},{id:'project',label:'Project'}],
 			create: { size: 129, cellSize: 6, preset: 'rolling', seed: 1, kind: 'city', island: false },
 			regen: { preset: 'rolling', island: false },
 			landscapeModes: LANDSCAPE_MODES,

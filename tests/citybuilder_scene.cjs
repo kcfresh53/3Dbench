@@ -51,7 +51,7 @@ app.on('browser-window-created',(_,win)=>{
     // ---- generated networks are editable and undo/redo includes their zoning ----
     await until(()=>Panels.roadscape_panel.vue.session.manager.library,'road library');
     const beforeLayouts=Mesh.all.length;
-    await ctl.generateLayout({kind:'organic',seed:27,blocks:3,coverage:.5,rotation:15,profile:'street',elevation:.2,zone:true,district:2,zoneDepth:30});
+    await ctl.generateLayout({kind:'organic',seed:27,blockSize:70,centers:3,hierarchy:true,terrainFollow:.6,wiggle:.35,maxSlope:.4,mainProfile:'avenue',coverage:.5,rotation:15,profile:'street',elevation:.2,zone:true,district:2,zoneDepth:30});
     await until(()=>Mesh.all.length===beforeLayouts+1&&ctl.store.plan.buildings.length>0,'generated editable layout');
     const layoutMesh=Mesh.all.find(m=>m.name.startsWith('organic layout'));
     check(layoutMesh&&Object.values(layoutMesh.faces).every(f=>f.vertices.length===2),'Layout is not a control graph');
@@ -75,11 +75,43 @@ app.on('browser-window-created',(_,win)=>{
     await until(()=>ctl.store.roads.corridors.length>0,'city read the road');
     check(ctl.snapshot().roadCount>0,'Panel does not count the road');
 
+    // ---- compact panel, road painting isolation, elevation, and native undo ----
+    ui.tab='roads'; await Vue.nextTick();
+    check(document.querySelectorAll('#panel_citybuilder_panel .cb_tabs button').length===5,'Workspace tabs missing');
+    const landscapeSection=[...document.querySelectorAll('#panel_citybuilder_panel details')].find(d=>d.querySelector('summary')?.textContent==='Landscape');
+    check(landscapeSection&&getComputedStyle(landscapeSection).display==='none','Terrain controls clutter Roads tab');
+    const tabButtons=[...document.querySelectorAll('#panel_citybuilder_panel .cb_tabs button')];
+    check(getComputedStyle(tabButtons[0]).backgroundColor!==getComputedStyle(tabButtons[1]).backgroundColor,'Theme hides selected tab');
+    const panel=document.getElementById('panel_citybuilder_panel');
+    const priorWidth=panel.style.width;panel.style.width='240px';await Vue.nextTick();
+    for(const b of tabButtons) {
+     check(b.scrollWidth<=b.clientWidth+1,'Button label overflows narrow panel');
+     check(getComputedStyle(b).alignItems==='center','Button text is not vertically centred');
+    }
+    panel.style.width=priorWidth;
+    const terrainBeforePaint=ctl.store.state.terrain.heights.slice();
+    ctl.pickRoadType('brush'); ctl.setRoadType('structure','air'); ctl.setRoadType('radius',35);
+    fire('pointerdown',[0,2,0]);fire('pointermove',[20,2,0]);fire('pointerup',[20,2,0]);
+    check(ctl.store.state.terrain.heights.every((h,i)=>h===terrainBeforePaint[i]),'Road painting sculpted natural terrain');
+    check(Undo.history[Undo.history.length-1]?.action==='Paint road structure','Road stroke did not record a road edit');
+    Undo.undo();
+    const roadMesh=Mesh.all.find(m=>m.roadscape_net); roadMesh.select();
+    roadMesh.getSelectedVertices(true).splice(0,Infinity,...Object.keys(roadMesh.vertices));
+    const roadBeforeRamp=JSON.stringify(roadMesh.vertices);
+    ctl.roadElevation();
+    const ramp=Dialog.open;check(ramp&&ramp.id==='citybuilder_elevation','Elevation dialog missing');
+    ramp.setFormValues({start:2,end:18,easing:'smooth',structure:'bridge',spacing:18});ramp.confirm();
+    await until(()=>Math.max(...Object.values(roadMesh.vertices).map(v=>v[1]))>17,'elevated control points');
+    check(ctl.store.state.terrain.heights.every((h,i)=>h===terrainBeforePaint[i]),'Elevation sculpted natural terrain');
+    Undo.undo();check(JSON.stringify(roadMesh.vertices)===roadBeforeRamp,'Elevation undo failed');
+    Undo.redo();check(Math.max(...Object.values(roadMesh.vertices).map(v=>v[1]))>17,'Elevation redo failed');
+    Undo.undo();ctl.store.recomposeNow();
+
     // ---- zone along the road: lots, buildings, trees, instanced display ----
     ctl.pickDistrictType(2);ctl.zoneAllRoads();
     await until(()=>ctl.store.plan&&ctl.store.plan.buildings.length>3,'buildings appeared');
     const plan=ctl.store.plan;
-    check(plan.lots.length>=plan.buildings.length&&plan.stats.population>0,'Implausible plan');
+    check(plan.lots.length>=plan.buildings.length&&plan.stats.buildings>0,'Implausible plan');
     let instanced=0;ctl.display.root.traverse(o=>{if(o.isInstancedMesh)instanced++;});
     check(instanced>0,'No instanced buildings in the display');
     const buildings=plan.buildings.length;

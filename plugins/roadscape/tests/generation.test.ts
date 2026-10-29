@@ -182,3 +182,19 @@ test('terrain provider updates bridge foundations through the cache and open spa
  assert.ok(!jump.parts.some(p=>p.name==='Bridge pier'||p.name==='Bridge deck'));
  assert.ok(jump.parts.some(p=>p.name==='Road surface'));
 });
+
+
+test('bridge columns avoid a lower road and a lower-road edit invalidates cached bridge supports', () => {
+    const n = network('street', [['a',[-60,0,0]],['b',[60,0,0]],['c',[0,14,-60]],['d',[0,14,60]]], [['a','b'],['c','d']]);
+    n.segments.get('c|d')!.structure = 'bridge';
+    const cache = new GenerationCache();
+    const result = generateNetwork(n,plain,cache);
+    const piers = part(result,'Bridge pier');
+    assert.ok(piers.positions.length>0);
+    // Every pier has a margin beyond the lower road envelope, including a half-metre pier radius.
+    assert.ok(piers.positions.every(p=>Math.abs(p[2])>7), 'a column blocks the road under the bridge');
+    const before = cache.segment('c|d');
+    n.nodes.get('a')!.position[2]=30; n.nodes.get('b')!.position[2]=30;
+    generateNetwork(n,plain,cache);
+    assert.notEqual(cache.segment('c|d'),before, 'moving a lower road must rebuild bridge clearance');
+});

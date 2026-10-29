@@ -2143,6 +2143,7 @@ export const ViewOptionsDialog = new ConfigDialog('preview_view_options', {
 				let result = {};
 				for (let category in PreviewScene.menu_categories) {
 					let options = PreviewScene.menu_categories[category];
+					if (!Object.keys(options).some(key => !key.startsWith('_'))) continue;
 					if (options._label) {
 						let group_id = 'options_'+toSnakeCase(options._label);
 						result[group_id] = new MenuSeparator(group_id, options._label);

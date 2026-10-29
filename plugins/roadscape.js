@@ -24,13 +24,6 @@
     return globalThis[TERRAIN_PROVIDER]?.(mesh);
   }
 
-  // plugins/roadscape/src/core/types.ts
-  function triangleCount(faces) {
-    let total = 0;
-    for (const face of faces) total += face.indices.length - 2;
-    return total;
-  }
-
   // plugins/roadscape/src/core/model.ts
   function edgeKey(a, b) {
     return a < b ? `${a}|${b}` : `${b}|${a}`;
@@ -757,6 +750,100 @@
     return result;
   }
 
+  // plugins/roadscape/src/core/profile_resolve.ts
+  function resolveSide(elements, sign, half, unit, weather) {
+    const strips = [];
+    const linings = [];
+    const edges = [half];
+    const tops = [0];
+    let cursor = half;
+    let prevTop = 0;
+    for (const element of elements) {
+      if (element.kind === "strip") {
+        const width = Math.max(0, element.width) * unit;
+        const top = element.top * unit;
+        strips.push({ element, tile: surfaceTile(element.surface, weather), inner: cursor, outer: cursor + width, top, prevTop, layer: strips.length });
+        cursor += width;
+        prevTop = top;
+        edges.push(cursor);
+        tops.push(top);
+      } else if (element.enabled) {
+        const last = strips[strips.length - 1];
+        let base = cursor;
+        if (last) base = element.placement === "start" ? last.inner : element.placement === "center" ? (last.inner + last.outer) / 2 : last.outer;
+        linings.push({ element, lateral: base + element.offset * unit, baseY: last ? last.top : 0, layer: last ? last.layer : -1, cursor });
+      }
+    }
+    return { sign, strips, linings, edges, tops, outer: cursor };
+  }
+  function carriagewayHalf(carriageway, unit) {
+    return (carriageway.lanes * carriageway.laneWidth + carriageway.medianWidth) * unit / 2;
+  }
+  function resolveProfile(profile, unit, weather) {
+    const half = carriagewayHalf(profile.carriageway, unit);
+    const left = resolveSide(profile.left, -1, half, unit, weather);
+    const right = resolveSide(profile.right, 1, half, unit, weather);
+    return { profile, carriageway: profile.carriageway, unit, half, left, right, extent: { left: left.outer, right: right.outer } };
+  }
+
+  // plugins/roadscape/src/core/support_clearance.ts
+  var SupportClearance = class _SupportClearance {
+    constructor(network, revision = _SupportClearance.key(network)) {
+      __publicField(this, "revision");
+      __publicField(this, "cells", /* @__PURE__ */ new Map());
+      __publicField(this, "cell");
+      const unit = network.settings.unitsPerMeter;
+      this.cell = 24 * unit;
+      this.revision = revision;
+      const index = buildIndex(network);
+      for (const s of network.segments.values()) {
+        const p = resolveProfile(resolveProfileData(network, s.profile), unit, network.settings.weather);
+        const radius = Math.max(p.extent.left, p.extent.right) + 1.5 * unit;
+        const points = segmentCurve(network, index, s).polyline(4 * unit);
+        for (let i = 1; i < points.length; i++) {
+          const a = points[i - 1], b = points[i];
+          const obstacle = { key: s.key, a, b, radius };
+          for (let x = Math.floor((Math.min(a[0], b[0]) - radius) / this.cell); x <= Math.floor((Math.max(a[0], b[0]) + radius) / this.cell); x++) {
+            for (let z = Math.floor((Math.min(a[2], b[2]) - radius) / this.cell); z <= Math.floor((Math.max(a[2], b[2]) + radius) / this.cell); z++) {
+              const key = x + ":" + z;
+              const bucket = this.cells.get(key);
+              if (bucket) bucket.push(obstacle);
+              else this.cells.set(key, [obstacle]);
+            }
+          }
+        }
+      }
+    }
+    static key(network) {
+      const data = JSON.stringify([[...network.nodes.values()].map((n) => [n.id, n.position]), [...network.segments.values()], [...network.profiles], network.settings.weather, network.settings.unitsPerMeter]);
+      let a = 2166136261, b = 5381;
+      for (let i = 0; i < data.length; i++) {
+        a = Math.imul(a ^ data.charCodeAt(i), 16777619);
+        b = Math.imul(b, 33) ^ data.charCodeAt(i);
+      }
+      return (a >>> 0).toString(36) + ":" + (b >>> 0).toString(36);
+    }
+    allows(owner, centre, bottom, top, clearance) {
+      const bucket = this.cells.get(Math.floor(centre[0] / this.cell) + ":" + Math.floor(centre[2] / this.cell)) ?? [];
+      for (const o of bucket) {
+        if (o.key === owner) continue;
+        const dx = o.b[0] - o.a[0], dz = o.b[2] - o.a[2];
+        const t = Math.max(0, Math.min(1, ((centre[0] - o.a[0]) * dx + (centre[2] - o.a[2]) * dz) / (dx * dx + dz * dz || 1)));
+        const y = o.a[1] + t * (o.b[1] - o.a[1]);
+        if (y < bottom - clearance || y > top + clearance) continue;
+        if (Math.hypot(centre[0] - o.a[0] - t * dx, centre[2] - o.a[2] - t * dz) <= o.radius) return false;
+      }
+      return true;
+    }
+  };
+
+  // plugins/roadscape/src/core/types.ts
+  function triangleCount(faces) {
+    let total = 0;
+    for (const face of faces) total += face.indices.length - 2;
+    return total;
+  }
+
   // plugins/roadscape/src/core/part_set.ts
   var PartSet = class {
     constructor() {
@@ -861,42 +948,6 @@
       faces.push({ indices, uvs });
     }
     return { name: part.name, atlas: part.atlas, positions, faces };
-  }
-
-  // plugins/roadscape/src/core/profile_resolve.ts
-  function resolveSide(elements, sign, half, unit, weather) {
-    const strips = [];
-    const linings = [];
-    const edges = [half];
-    const tops = [0];
-    let cursor = half;
-    let prevTop = 0;
-    for (const element of elements) {
-      if (element.kind === "strip") {
-        const width = Math.max(0, element.width) * unit;
-        const top = element.top * unit;
-        strips.push({ element, tile: surfaceTile(element.surface, weather), inner: cursor, outer: cursor + width, top, prevTop, layer: strips.length });
-        cursor += width;
-        prevTop = top;
-        edges.push(cursor);
-        tops.push(top);
-      } else if (element.enabled) {
-        const last = strips[strips.length - 1];
-        let base = cursor;
-        if (last) base = element.placement === "start" ? last.inner : element.placement === "center" ? (last.inner + last.outer) / 2 : last.outer;
-        linings.push({ element, lateral: base + element.offset * unit, baseY: last ? last.top : 0, layer: last ? last.layer : -1, cursor });
-      }
-    }
-    return { sign, strips, linings, edges, tops, outer: cursor };
-  }
-  function carriagewayHalf(carriageway, unit) {
-    return (carriageway.lanes * carriageway.laneWidth + carriageway.medianWidth) * unit / 2;
-  }
-  function resolveProfile(profile, unit, weather) {
-    const half = carriagewayHalf(profile.carriageway, unit);
-    const left = resolveSide(profile.left, -1, half, unit, weather);
-    const right = resolveSide(profile.right, 1, half, unit, weather);
-    return { profile, carriageway: profile.carriageway, unit, half, left, right, extent: { left: left.outer, right: right.outer } };
   }
 
   // plugins/roadscape/src/core/procedural_props.ts
@@ -1442,15 +1493,22 @@
     emitBand(set, ctx.library, ribbon, { part: "Bridge deck", tile, lat0: left, y0: -thickness, lat1: right, y1: -thickness }, DOWN);
     emitRiser(set, ctx.library, ribbon, "Bridge deck", tile, left, -thickness, 0, -1);
     emitRiser(set, ctx.library, ribbon, "Bridge deck", tile, right, -thickness, 0, 1);
-    const spacing = settings.structures.pierSpacing * unit;
-    const count = Math.max(1, Math.round((job.to - job.from) / spacing));
+    const spacing = Math.max(2, settings.structures.pierSpacing || 14) * unit;
+    const count = Math.max(1, Math.ceil((job.to - job.from) / spacing));
     const lanes = right - left > 12 * unit ? [left * 0.5, right * 0.5] : [(left + right) / 2];
     for (let i = 0; i < count; i++) {
-      const frame = job.curve.frameAt(job.from + (i + 0.5) * (job.to - job.from) / count);
+      const station = job.from + (i + 0.5) * (job.to - job.from) / count;
       for (const lateral of lanes) {
-        const centre = offsetPoint(frame, lateral, 0);
-        const ground = ctx.terrain?.groundAt(centre[0], centre[2]) ?? settings.groundY;
-        if (Number.isFinite(ground)) emitPier(set, ctx, frame, lateral, ground, thickness, unit, column);
+        for (const shift of [0, -0.2, 0.2, -0.4, 0.4]) {
+          const along = station + shift * (job.to - job.from) / count;
+          const frame = job.curve.frameAt(along);
+          const centre = offsetPoint(frame, lateral, 0);
+          const ground = ctx.terrain?.groundAt(centre[0], centre[2]) ?? settings.groundY;
+          if (!Number.isFinite(ground) || frame.position[1] - thickness - ground < 0.5 * unit) continue;
+          if (ctx.supports && !ctx.supports.allows(job.segmentKey ?? "", centre, ground, frame.position[1] - thickness, 0.6 * unit)) continue;
+          emitPier(set, ctx, frame, lateral, ground, thickness, unit, column);
+          break;
+        }
       }
     }
   }
@@ -1923,10 +1981,17 @@
   // plugins/roadscape/src/core/generate.ts
   var GenerationCache = class {
     constructor() {
+      __publicField(this, "supports", null);
       __publicField(this, "segments", /* @__PURE__ */ new Map());
       __publicField(this, "junctions", /* @__PURE__ */ new Map());
     }
+    supportIndex(network) {
+      const revision = SupportClearance.key(network);
+      if (this.supports?.revision !== revision) this.supports = new SupportClearance(network, revision);
+      return this.supports;
+    }
     clear() {
+      this.supports = null;
       this.segments.clear();
       this.junctions.clear();
     }
@@ -1977,7 +2042,7 @@
     if (to - from < 0.2 * unit) return null;
     const profileData = resolveProfileData(network, segment.profile);
     const structure = resolveStructure(segment, profileData, curve, settings, ctx.terrain);
-    const signature = JSON.stringify([curveKey(curve), round(from), round(to), profileData, structure, settingsKey(settings), densityKey(profileData, density), ctx.trees.revision, ctx.terrain?.revision, segment.key]);
+    const signature = JSON.stringify([curveKey(curve), round(from), round(to), profileData, structure, settingsKey(settings), densityKey(profileData, density), ctx.trees.revision, ctx.terrain?.revision, structure === "bridge" ? ctx.supports?.revision : "", segment.key]);
     const cached = cache2?.segment(segment.key);
     if (cached && cached.signature === signature) return { chunk: cached };
     const profile = resolveProfile(profileData, unit, settings.weather);
@@ -1988,7 +2053,7 @@
     emitSide(set, ctx.library, ribbon, profile.left);
     emitSide(set, ctx.library, ribbon, profile.right);
     emitMarkings(set, ctx.library, curve, from, to, profile, settings);
-    emitStructure({ set, ctx, settings, profile, curve, ribbon, from, to, structure });
+    emitStructure({ set, ctx, settings, profile, curve, ribbon, from, to, structure, segmentKey: segment.key });
     emitMedianBarrier({ set, ctx, profile, curve, from, to });
     emitLinings({ set, ctx, report: report2, settings, profile, curve, from, to, segmentKey: segment.key, structure, density });
     const chunk = { signature, parts: set.all(), triangles: set.triangles, liningTriangles: report2.liningTriangles, treesPending: report2.treesPending };
@@ -2071,6 +2136,7 @@
     return null;
   }
   function generateNetwork(network, ctx, cache2 = null) {
+    ctx = { ...ctx, supports: cache2 ? cache2.supportIndex(network) : new SupportClearance(network) };
     const density = /* @__PURE__ */ new Map();
     let result = build2(network, ctx, density, cache2);
     const budget = network.settings.budget;

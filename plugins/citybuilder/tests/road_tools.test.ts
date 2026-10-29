@@ -99,3 +99,68 @@ test('painting covers whole roads without cutting, drops slivers and can change 
 	assert.equal(nearEnd.split, 0, 'a stretch that starts within a few metres of the junction snaps to it');
 	assert.equal([...fresh.segments.values()].filter((s) => s.profile === 'race').length, 1);
 });
+
+import { addNode, addSegment, createNetwork } from '../../roadscape/src/core/network';
+import { elevationChain, setRoadElevation } from '../src/core/roads/elevation';
+import { SupportClearance } from '../../roadscape/src/core/support_clearance';
+
+test('eased elevation preserves horizontal curves across reversed segment keys', () => {
+    const n = createNetwork();
+    addNode(n, 'a', [0, 0, 0]); addNode(n, 'z', [50, 0, 10]); addNode(n, 'b', [100, 0, 0]);
+    addSegment(n, 'a', 'z'); addSegment(n, 'z', 'b');
+    const keys = [...n.segments.keys()];
+    const before = [...n.segments.values()].map(s => segmentCurve(n, buildIndex(n), s));
+    const path = setRoadElevation(n, keys, {start: 2, end: 22, easing:'smooth', structure:'bridge'});
+    assert.deepEqual(path, ['a','z','b']);
+    assert.equal(n.nodes.get('a')!.position[1], 2);
+    assert.equal(n.nodes.get('b')!.position[1], 22);
+    assert.ok(Math.abs(n.nodes.get('z')!.position[1]-12) < 1e-6);
+    [...n.segments.values()].forEach((s,i) => {
+        const c = segmentCurve(n, buildIndex(n), s);
+        for (const t of [0,.25,.5,.75,1]) {
+            assert.ok(Math.abs(c.pointAt(t)[0]-before[i].pointAt(t)[0]) < 1e-8);
+            assert.ok(Math.abs(c.pointAt(t)[2]-before[i].pointAt(t)[2]) < 1e-8);
+        }
+        assert.equal(s.structure,'bridge');
+    });
+    const first = segmentCurve(n,buildIndex(n),n.segments.get('a|z')!);
+    const last = segmentCurve(n,buildIndex(n),n.segments.get('b|z')!);
+    assert.ok(Math.abs(first.derivativeAt(0)[1]) < 1e-8);
+    assert.ok(Math.abs(last.derivativeAt(0)[1]) < 1e-8);
+    setRoadElevation(n, keys, {start:22,end:2,easing:'linear',structure:'air'});
+    assert.equal(n.nodes.get('a')!.position[1],22);
+    assert.equal(n.nodes.get('b')!.position[1],2);
+    assert.ok([...n.segments.values()].every(s => s.structure==='air'));
+});
+
+test('elevation rejects branched, disconnected and looped selections', () => {
+    const n = crossroadNetwork(100);
+    assert.throws(() => elevationChain(n,[...n.segments.keys()]),/branches/);
+    assert.throws(() => elevationChain(n,[]),/Select/);
+    assert.throws(() => setRoadElevation(n,[...n.segments.keys()],{start:NaN,end:0,easing:'linear',structure:'bridge'}),/finite/);
+    const loop = createNetwork();
+    for (const [id,p] of [['a',[0,0,0]],['b',[10,0,0]],['c',[10,0,10]]] as const) addNode(loop,id,[...p]);
+    addSegment(loop,'a','b'); addSegment(loop,'b','c'); addSegment(loop,'c','a');
+    assert.throws(() => elevationChain(loop,[...loop.segments.keys()]),/loops/);
+});
+
+test('painting retains automatic bridge classification outside the painted region', () => {
+    const n = createNetwork(); addNode(n,'a',[0,8,0]); addNode(n,'b',[100,8,0]);
+    addSegment(n,'a','b',{structure:'auto'});
+    const result = paintRoadType(n,(x)=>x>40&&x<60,{profile:'race'},counterIds('~paint'),{...PAINT,resolveStructure:()=> 'bridge'});
+    assert.equal(result.split,2);
+    assert.ok([...n.segments.values()].every(s => s.structure==='bridge'), 'shortened approaches must not become terrain-filling ground roads');
+    assert.equal([...n.segments.values()].filter(s=>s.profile==='race').length,1);
+});
+
+test('support clearance protects lower roads, permits clear ground, and refreshes after road edits', () => {
+    const n = createNetwork();
+    addNode(n,'a',[-50,0,0]); addNode(n,'b',[50,0,0]); addSegment(n,'a','b');
+    addNode(n,'c',[0,12,-50]); addNode(n,'d',[0,12,50]); addSegment(n,'c','d',{structure:'bridge'});
+    const index = new SupportClearance(n);
+    assert.equal(index.allows('c|d',[0,12,0],0,11.4,.6),false);
+    assert.equal(index.allows('c|d',[0,12,25],0,11.4,.6),true);
+    assert.equal(index.allows('c|d',[0,12,0],2,11.4,.6),true,'a road below the foundation does not block the column');
+    n.nodes.get('b')!.position[1] = 4;
+    assert.notEqual(new SupportClearance(n).revision,index.revision);
+});

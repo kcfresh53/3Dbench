@@ -297,6 +297,12 @@ export class CityController {
 		this.say(this.roadTypeTool.hint());
 	}
 
+    roadElevation(): void {
+        if (!this.store.state) return;
+        try { this.roadEditor.elevation(this.store.state); }
+        catch (error) { this.say((error as Error).message); }
+    }
+
 	setRoadType(path: string, value: unknown): void {
 		setPath(this.roadType as unknown as Bag, path, value);
 		this.changed.emit();

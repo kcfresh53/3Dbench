@@ -1,5 +1,7 @@
 import type { RoadDocument, RoadNetwork, RoadProfile, RoadSegment, Structure } from '../../../roadscape/src/core/model';
 import { buildIndex, resolveProfileData } from '../../../roadscape/src/core/network';
+import { resolveStructure } from '../../../roadscape/src/core/structures';
+import { roadTerrain } from '../../../roadscape/src/editor/terrain_provider';
 import { counterIds } from '../../../roadscape/src/core/network_edit';
 import { BUILTIN_PROFILES } from '../../../roadscape/src/core/profile_library';
 import { resolveProfile } from '../../../roadscape/src/core/profile_resolve';
@@ -14,6 +16,9 @@ import { DEFAULT_ROUNDABOUT, makeRoundabout } from '../core/roads/roundabout';
 import type { RoundaboutOptions } from '../core/roads/roundabout';
 import type { Vec3 } from '../core/types';
 import type { CityStore } from './store';
+import { selectedSegments } from '../../../roadscape/src/editor/network_mesh';
+import { elevationChain, setRoadElevation } from '../core/roads/elevation';
+import type { ElevationOptions } from '../core/roads/elevation';
 
 /** A road point seen from the city: where it is in city metres and how many roads meet there. */
 export interface RoadPoint {
@@ -156,13 +161,10 @@ export class RoadEditor {
 		for (const mesh of this.meshes()) {
 			const frame: MeshFrame = frameOf(mesh, state.settings.unitsPerMeter);
 			const network: RoadNetwork = readNetwork(mesh, documentOf(mesh));
-			const options: RoadPaintOptions = { toCity: frame.toCity, metresPerUnit: frame.metresPerUnit, ...DEFAULT_ROAD_PAINT };
-			const touches: boolean = [...network.nodes.values()].some((n): boolean => {
-				const p: Vec3 = frame.toCity(n.position);
-				return p[0] >= bounds.minX - 400 && p[0] <= bounds.maxX + 400 && p[2] >= bounds.minZ - 400 && p[2] <= bounds.maxZ + 400;
-			});
-			if (!touches) continue;
-			const result = paintRoadType(network, region, change, counterIds('~pt'), options);
+			const options: RoadPaintOptions = { toCity: frame.toCity, metresPerUnit: frame.metresPerUnit, ...DEFAULT_ROAD_PAINT,
+                resolveStructure: (segment, curve) => resolveStructure(segment, resolveProfileData(network, segment.profile), curve, network.settings, roadTerrain(mesh)),
+            };
+			const result = paintRoadType(network, (x, z) => x >= bounds.minX && x <= bounds.maxX && z >= bounds.minZ && z <= bounds.maxZ && region(x, z), change, counterIds('~pt'), options);
 			if (result.changed === 0) continue;
 			total.changed += result.changed;
 			total.split += result.split;
@@ -186,7 +188,50 @@ export class RoadEditor {
 		return total;
 	}
 
-	/** Structure names for the panel. */
+	/** Author an entire selected chain as one undoable ramp, viaduct, or unsupported jump approach. */
+    elevation(state: CityState): void {
+        const mesh = this.meshes().find(m => Mesh.selected.includes(m));
+        if (!mesh) throw new Error('Select a Roadscape control mesh and its road edges or points first.');
+        const source = readNetwork(mesh, documentOf(mesh));
+        const keys = selectedSegments(mesh, source).map(s => s.key);
+        const path = elevationChain(source, keys);
+        const frame = frameOf(mesh, state.settings.unitsPerMeter);
+        const start = frame.toCity(source.nodes.get(path[0])!.position)[1];
+        const end = frame.toCity(source.nodes.get(path[path.length - 1])!.position)[1];
+        // World heights cannot be authored independently of XZ on a tilted mesh.
+        const matrix = mesh.mesh.matrixWorld;
+        if (Math.abs(matrix.elements[1]) + Math.abs(matrix.elements[9]) + Math.abs(matrix.elements[4]) + Math.abs(matrix.elements[6]) > 1e-6) throw new Error('Apply the road mesh tilt before setting world heights.');
+        const yScale = matrix.elements[5] / state.settings.unitsPerMeter;
+        if (Math.abs(yScale) < 1e-9) throw new Error('Road mesh height scale must be nonzero.');
+        new Dialog('citybuilder_elevation', {
+            title: 'Ramp / road elevation',
+            form: {
+                info: { type: 'info', text: `Heights are absolute city metres. Start: ${path[0]}; end: ${path[path.length-1]}. Swap the heights to reverse the ramp. For a jump, leave a gap to the landing road.` },
+                start: { label: 'Start height (m)', type: 'number', value: start },
+                end: { label: 'End height (m)', type: 'number', value: end },
+                easing: { label: 'Vertical shape', type: 'select', options: { linear: 'Straight slope / launch ramp', smooth: 'Smooth entry and exit' }, value: 'smooth' },
+                structure: { label: 'Structure', type: 'select', options: { bridge: 'Deck + automatic supports', air: 'Unsupported / jump approach', ground: 'Ground / embankment' }, value: 'bridge' },
+                spacing: { label: 'Support spacing (m, whole network)', type: 'number', min: 2, max: 200, value: source.settings.structures.pierSpacing },
+            },
+            onConfirm: (data: ElevationOptions & { spacing: number }): void => {
+                if (!Mesh.all.includes(mesh) || this.store.state !== state) return;
+                const network = readNetwork(mesh, documentOf(mesh));
+                const offset = matrix.elements[13] / state.settings.unitsPerMeter;
+                setRoadElevation(network, keys, { ...data, start: (data.start-offset)/yScale, end: (data.end-offset)/yScale });
+                network.settings.structures.pierSpacing = Math.max(2, Math.min(200, Number(data.spacing) || 14));
+                Undo.initEdit({ elements: [mesh], selection: true } as never);
+                try {
+                    const written = writeNetwork(mesh, network);
+                    writeStoredDocument(mesh, written.doc);
+                    Undo.finishEdit('Set road elevation', { elements: [mesh], selection: true } as never);
+                    Canvas.updateView({ elements: [mesh], element_aspects: { geometry: true, faces: true }, selection: true } as never);
+                    this.store.edited(0);
+                } catch (error) { Undo.cancelEdit(true); throw error; }
+            },
+        } as never).show();
+    }
+
+    /** Structure names for the panel. */
 	static readonly STRUCTURES: Array<{ id: Structure; label: string }> = [
 		{ id: 'auto', label: 'Automatic' },
 		{ id: 'ground', label: 'Ground' },

@@ -1,3 +1,4 @@
+import { SupportClearance } from './support_clearance';
 import type { MeshPart, Vec3 } from './types';
 import { triangleCount } from './types';
 import type { RoadCurve } from './curve';
@@ -30,10 +31,19 @@ interface CachedChunk {
 
 /** Remembers generated geometry per road segment and per junction between rebuilds. */
 export class GenerationCache {
+	private supports: SupportClearance | null = null;
+
+    supportIndex(network: RoadNetwork): SupportClearance {
+        const revision = SupportClearance.key(network);
+        if (this.supports?.revision !== revision) this.supports = new SupportClearance(network, revision);
+        return this.supports;
+    }
+
 	private segments: Map<string, CachedChunk> = new Map();
 	private junctions: Map<string, CachedChunk> = new Map();
 
 	clear(): void {
+		this.supports = null;
 		this.segments.clear();
 		this.junctions.clear();
 	}
@@ -109,7 +119,7 @@ function generateSegment(network: RoadNetwork, index: NetworkIndex, ctx: Generat
 	if (to - from < 0.2 * unit) return null;
 	const profileData: RoadProfile = resolveProfileData(network, segment.profile);
 	const structure: ResolvedStructure = resolveStructure(segment, profileData, curve, settings, ctx.terrain);
-	const signature: string = JSON.stringify([curveKey(curve), round(from), round(to), profileData, structure, settingsKey(settings), densityKey(profileData, density), ctx.trees.revision, ctx.terrain?.revision, segment.key]);
+	const signature: string = JSON.stringify([curveKey(curve), round(from), round(to), profileData, structure, settingsKey(settings), densityKey(profileData, density), ctx.trees.revision, ctx.terrain?.revision, structure === 'bridge' ? ctx.supports?.revision : '', segment.key]);
 	const cached: CachedChunk | undefined = cache?.segment(segment.key);
 	if (cached && cached.signature === signature) return { chunk: cached };
 	const profile: ResolvedProfile = resolveProfile(profileData, unit, settings.weather);
@@ -120,7 +130,7 @@ function generateSegment(network: RoadNetwork, index: NetworkIndex, ctx: Generat
 	emitSide(set, ctx.library, ribbon, profile.left);
 	emitSide(set, ctx.library, ribbon, profile.right);
 	emitMarkings(set, ctx.library, curve, from, to, profile, settings);
-	emitStructure({ set, ctx, settings, profile, curve, ribbon, from, to, structure });
+	emitStructure({ set, ctx, settings, profile, curve, ribbon, from, to, structure, segmentKey: segment.key });
 	emitMedianBarrier({ set, ctx, profile, curve, from, to });
 	emitLinings({ set, ctx, report, settings, profile, curve, from, to, segmentKey: segment.key, structure, density });
 	const chunk: CachedChunk = { signature, parts: set.all(), triangles: set.triangles, liningTriangles: report.liningTriangles, treesPending: report.treesPending };
@@ -213,6 +223,7 @@ function findLining(network: RoadNetwork, id: string): LiningDefinition | null {
  * in the order set by each lining type (trees first, structural rails last) rather than swapping models.
  */
 export function generateNetwork(network: RoadNetwork, ctx: GenerationContext, cache: GenerationCache | null = null): GenerateResult {
+	ctx = { ...ctx, supports: cache ? cache.supportIndex(network) : new SupportClearance(network) };
 	const density: DensityMap = new Map();
 	let result: GenerateResult = build(network, ctx, density, cache);
 	const budget = network.settings.budget;

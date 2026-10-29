@@ -1684,6 +1684,11 @@
     return { ...defaultSegment(neighbour.profile), structure: neighbour.structure, smooth: neighbour.smooth };
   }
 
+  // plugins/roadscape/src/editor/bb_access.ts
+  function selectionMode() {
+    return BarItems.selection_mode.value;
+  }
+
   // plugins/roadscape/src/editor/network_mesh.ts
   function isEdge(face) {
     return face.vertices.length === 2;
@@ -1762,6 +1767,18 @@
     const pickedFaces = mesh.getSelectedFaces?.(true);
     if (pickedFaces) pickedFaces.splice(0, pickedFaces.length, ...pickedFaces.filter((key) => !!mesh.faces[key]));
     return { doc: documentFromNetwork(finalNetwork), network: finalNetwork, ids };
+  }
+  function selectedSegments(mesh, network, mode = typeof BarItems === "undefined" ? "vertex" : selectionMode()) {
+    const explicit = mesh.getSelectedEdges?.() ?? [];
+    if (mode === "edge" && explicit.length > 0) {
+      const keys = new Set(explicit.map(([a, b]) => edgeKey(a, b)));
+      return [...network.segments.values()].filter((s) => keys.has(s.key));
+    }
+    const picked = new Set(mesh.getSelectedVertices());
+    if (picked.size === 0) return [];
+    const both = [...network.segments.values()].filter((s) => picked.has(s.a) && picked.has(s.b));
+    if (both.length > 0) return both;
+    return [...network.segments.values()].filter((s) => picked.has(s.a) || picked.has(s.b));
   }
 
   // plugins/citybuilder/src/editor/layout_action.ts
@@ -10092,6 +10109,9 @@ void main() {
 
   // plugins/roadscape/src/editor/terrain_provider.ts
   var TERRAIN_PROVIDER = /* @__PURE__ */ Symbol.for("3dbench.roadscape.terrain");
+  function roadTerrain(mesh) {
+    return globalThis[TERRAIN_PROVIDER]?.(mesh);
+  }
 
   // plugins/roadscape/src/core/profile_edit.ts
   function cloneProfile(profile) {
@@ -10369,6 +10389,21 @@ void main() {
     }
   };
 
+  // plugins/roadscape/src/core/structures.ts
+  function resolveStructure(segment, profile, curve, settings, terrain) {
+    if (segment.structure !== "auto") return segment.structure;
+    if (profile.structure !== "auto") return profile.structure;
+    if (terrain) return terrain.autoStructure(curve.polyline(Math.max(0.5, 2 * settings.unitsPerMeter)));
+    const unit = settings.unitsPerMeter;
+    const samples = curve.polyline(Math.max(curve.length / 8, 1e-3));
+    let total = 0;
+    for (const p of samples) total += p[1];
+    const mean = samples.length > 0 ? total / samples.length - settings.groundY : 0;
+    if (mean > settings.structures.bridgeThreshold * unit) return "bridge";
+    if (mean < -settings.structures.tunnelThreshold * unit) return "tunnel";
+    return "ground";
+  }
+
   // plugins/roadscape/src/core/network_edit.ts
   function counterIds(prefix = "~n") {
     let n = 0;
@@ -10479,11 +10514,12 @@ void main() {
         }
         continue;
       }
+      if (!differs(segment, change)) continue;
+      if (segment.structure === "auto" && options.resolveStructure) segment.structure = options.resolveStructure(segment, curve);
       let head = segment;
       let headLength = curve.length;
       for (let i = spans.length - 1; i >= 0; i--) {
         const span = spans[i];
-        if (!differs(head, change)) break;
         let piece = head;
         if (span.to < headLength - 1e-6) {
           const cut = splitSegmentAt(network, head.key, span.to, ids());
@@ -10632,6 +10668,60 @@ void main() {
     return node;
   }
 
+  // plugins/citybuilder/src/core/roads/elevation.ts
+  function elevationChain(network, keys) {
+    const edges = [...new Set(keys)].map((key) => network.segments.get(key));
+    if (!edges.length || edges.some((s) => !s)) throw new Error("Select road edges or points along one connected road first.");
+    const links = /* @__PURE__ */ new Map();
+    for (const s of edges) {
+      links.set(s.a, [...links.get(s.a) ?? [], s.b]);
+      links.set(s.b, [...links.get(s.b) ?? [], s.a]);
+    }
+    const ends = [...links].filter(([, v]) => v.length === 1).map(([id]) => id).sort();
+    if (ends.length !== 2 || [...links.values()].some((v) => v.length > 2)) throw new Error("Select an open road chain without branches or loops.");
+    const path = [ends[0]];
+    while (path.length <= edges.length) {
+      const next = links.get(path[path.length - 1]).find((id) => id !== path[path.length - 2]);
+      if (!next) break;
+      path.push(next);
+    }
+    if (path.length !== edges.length + 1) throw new Error("Selected roads must form one connected chain.");
+    return path;
+  }
+  function setRoadElevation(network, keys, options) {
+    if (!Number.isFinite(options.start) || !Number.isFinite(options.end)) throw new Error("Road heights must be finite.");
+    const path = elevationChain(network, keys);
+    const index = buildIndex(network);
+    const touched = new Set(path);
+    for (const s of network.segments.values()) if (touched.has(s.a) || touched.has(s.b)) freezeHandles(network, index, s);
+    const spans = path.slice(1).map((id, i) => {
+      const s = network.segments.get([path[i], id].sort().join("|"));
+      const curve = segmentCurve(network, index, s);
+      const points = curve.polyline(Math.max(curve.length / 32, 0.01));
+      let length3 = 0;
+      for (let j = 1; j < points.length; j++) length3 += Math.hypot(points[j][0] - points[j - 1][0], points[j][2] - points[j - 1][2]);
+      return { s, length: length3, forward: s.a === path[i] };
+    });
+    const total = spans.reduce((sum, span) => sum + span.length, 0);
+    if (total < 1e-6) throw new Error("A ramp needs horizontal length.");
+    const delta = options.end - options.start;
+    const height = (t) => options.start + delta * (options.easing === "smooth" ? t * t * (3 - 2 * t) : t);
+    const slope = (t) => delta * (options.easing === "smooth" ? 6 * t * (1 - t) : 1);
+    let distance2 = 0;
+    network.nodes.get(path[0]).position[1] = options.start;
+    spans.forEach(({ s, length: length3, forward }, i) => {
+      const a = distance2 / total, b = (distance2 + length3) / total;
+      const y0 = height(a), y1 = height(b);
+      const c0 = y0 + slope(a) * (b - a) / 3, c1 = y1 - slope(b) * (b - a) / 3;
+      network.nodes.get(path[i + 1]).position[1] = y1;
+      s.handleA[1] = forward ? c0 - y0 : c1 - y1;
+      s.handleB[1] = forward ? c1 - y1 : c0 - y0;
+      s.structure = options.structure;
+      distance2 += length3;
+    });
+    return path;
+  }
+
   // plugins/citybuilder/src/editor/road_edit.ts
   function frameOf(mesh, cityUnits) {
     mesh.mesh.updateWorldMatrix(true, false);
@@ -10740,13 +10830,13 @@ void main() {
       for (const mesh of this.meshes()) {
         const frame = frameOf(mesh, state.settings.unitsPerMeter);
         const network = readNetwork(mesh, documentOf(mesh));
-        const options = { toCity: frame.toCity, metresPerUnit: frame.metresPerUnit, ...DEFAULT_ROAD_PAINT };
-        const touches = [...network.nodes.values()].some((n) => {
-          const p = frame.toCity(n.position);
-          return p[0] >= bounds.minX - 400 && p[0] <= bounds.maxX + 400 && p[2] >= bounds.minZ - 400 && p[2] <= bounds.maxZ + 400;
-        });
-        if (!touches) continue;
-        const result = paintRoadType(network, region, change, counterIds("~pt"), options);
+        const options = {
+          toCity: frame.toCity,
+          metresPerUnit: frame.metresPerUnit,
+          ...DEFAULT_ROAD_PAINT,
+          resolveStructure: (segment, curve) => resolveStructure(segment, resolveProfileData(network, segment.profile), curve, network.settings, roadTerrain(mesh))
+        };
+        const result = paintRoadType(network, (x, z) => x >= bounds.minX && x <= bounds.maxX && z >= bounds.minZ && z <= bounds.maxZ && region(x, z), change, counterIds("~pt"), options);
         if (result.changed === 0) continue;
         total.changed += result.changed;
         total.split += result.split;
@@ -10768,6 +10858,50 @@ void main() {
         throw error;
       }
       return total;
+    }
+    /** Author an entire selected chain as one undoable ramp, viaduct, or unsupported jump approach. */
+    elevation(state) {
+      const mesh = this.meshes().find((m) => Mesh.selected.includes(m));
+      if (!mesh) throw new Error("Select a Roadscape control mesh and its road edges or points first.");
+      const source = readNetwork(mesh, documentOf(mesh));
+      const keys = selectedSegments(mesh, source).map((s) => s.key);
+      const path = elevationChain(source, keys);
+      const frame = frameOf(mesh, state.settings.unitsPerMeter);
+      const start = frame.toCity(source.nodes.get(path[0]).position)[1];
+      const end = frame.toCity(source.nodes.get(path[path.length - 1]).position)[1];
+      const matrix = mesh.mesh.matrixWorld;
+      if (Math.abs(matrix.elements[1]) + Math.abs(matrix.elements[9]) + Math.abs(matrix.elements[4]) + Math.abs(matrix.elements[6]) > 1e-6) throw new Error("Apply the road mesh tilt before setting world heights.");
+      const yScale = matrix.elements[5] / state.settings.unitsPerMeter;
+      if (Math.abs(yScale) < 1e-9) throw new Error("Road mesh height scale must be nonzero.");
+      new Dialog("citybuilder_elevation", {
+        title: "Ramp / road elevation",
+        form: {
+          info: { type: "info", text: `Heights are absolute city metres. Start: ${path[0]}; end: ${path[path.length - 1]}. Swap the heights to reverse the ramp. For a jump, leave a gap to the landing road.` },
+          start: { label: "Start height (m)", type: "number", value: start },
+          end: { label: "End height (m)", type: "number", value: end },
+          easing: { label: "Vertical shape", type: "select", options: { linear: "Straight slope / launch ramp", smooth: "Smooth entry and exit" }, value: "smooth" },
+          structure: { label: "Structure", type: "select", options: { bridge: "Deck + automatic supports", air: "Unsupported / jump approach", ground: "Ground / embankment" }, value: "bridge" },
+          spacing: { label: "Support spacing (m, whole network)", type: "number", min: 2, max: 200, value: source.settings.structures.pierSpacing }
+        },
+        onConfirm: (data) => {
+          if (!Mesh.all.includes(mesh) || this.store.state !== state) return;
+          const network = readNetwork(mesh, documentOf(mesh));
+          const offset = matrix.elements[13] / state.settings.unitsPerMeter;
+          setRoadElevation(network, keys, { ...data, start: (data.start - offset) / yScale, end: (data.end - offset) / yScale });
+          network.settings.structures.pierSpacing = Math.max(2, Math.min(200, Number(data.spacing) || 14));
+          Undo.initEdit({ elements: [mesh], selection: true });
+          try {
+            const written = writeNetwork(mesh, network);
+            writeStoredDocument(mesh, written.doc);
+            Undo.finishEdit("Set road elevation", { elements: [mesh], selection: true });
+            Canvas.updateView({ elements: [mesh], element_aspects: { geometry: true, faces: true }, selection: true });
+            this.store.edited(0);
+          } catch (error) {
+            Undo.cancelEdit(true);
+            throw error;
+          }
+        }
+      }).show();
     }
     /** Segments of a mesh, for tests and diagnostics. */
     static segmentsOf(mesh) {
@@ -10866,7 +11000,7 @@ void main() {
         }
       };
       document.addEventListener("pointerdown", this.onDown, true);
-      document.addEventListener("pointermove", this.onMove);
+      document.addEventListener("pointermove", this.onMove, true);
       document.addEventListener("pointerup", this.onUp, true);
       document.addEventListener("keydown", this.onKey, true);
     }
@@ -10879,7 +11013,7 @@ void main() {
       const ctx = this.context();
       if (!preview || !ctx) return;
       Preview.selected = preview;
-      e.stopPropagation();
+      e.stopImmediatePropagation();
       e.preventDefault();
       const hit = pickCity(preview, e, ctx.hf, ctx.unitsPerMeter, ctx.waterLevel);
       if (!hit) return;
@@ -10887,7 +11021,18 @@ void main() {
       this.handler.down(hit, e);
     }
     move(e) {
-      if (this.disposed || !this.isActive()) return;
+      if (this.disposed) return;
+      if (!this.isActive()) {
+        if (this.dragging) {
+          this.dragging = false;
+          this.handler.cancel();
+        }
+        return;
+      }
+      if (this.dragging) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      }
       const preview = this.previewOf(e);
       const ctx = this.context();
       if (!ctx) return;
@@ -10903,15 +11048,19 @@ void main() {
       }
     }
     up(e) {
-      if (!this.dragging) return;
+      if (!this.dragging || e.button !== 0) return;
       this.dragging = false;
+      if (!this.isActive()) {
+        this.handler.cancel();
+        return;
+      }
       if (e.button === 0) e.stopPropagation();
       this.handler.up(e);
     }
     dispose() {
       this.disposed = true;
       document.removeEventListener("pointerdown", this.onDown, true);
-      document.removeEventListener("pointermove", this.onMove);
+      document.removeEventListener("pointermove", this.onMove, true);
       document.removeEventListener("pointerup", this.onUp, true);
       document.removeEventListener("keydown", this.onKey, true);
     }
@@ -11791,6 +11940,14 @@ void main() {
       this.roadTypeTool.tool.select();
       this.say(this.roadTypeTool.hint());
     }
+    roadElevation() {
+      if (!this.store.state) return;
+      try {
+        this.roadEditor.elevation(this.store.state);
+      } catch (error) {
+        this.say(error.message);
+      }
+    }
     setRoadType(path, value) {
       setPath(this.roadType, path, value);
       this.changed.emit();
@@ -12044,6 +12201,16 @@ void main() {
   var BASE = PANEL_CSS.split("#panel_roadscape_panel").join("#panel_citybuilder_panel");
   var CITY_PANEL_CSS = BASE + `
 #panel_citybuilder_panel .rs_panel{padding:8px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;min-height:0}
+#panel_citybuilder_panel button{height:auto;min-height:28px;min-width:0;white-space:normal;line-height:1.25;padding:5px 8px;text-align:center;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box}
+#panel_citybuilder_panel .cb_tabs button:not(.cb_on){background:var(--color-back);color:var(--color-text);border:1px solid var(--color-border)}
+#panel_citybuilder_panel button::before{inset:0}
+#panel_citybuilder_panel .rs_status{max-height:2.5em;overflow:hidden;line-height:1.25}
+#panel_citybuilder_panel .cb_tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;position:sticky;top:0;z-index:1;background:var(--color-back);padding:4px 0}
+#panel_citybuilder_panel button.cb_on{background:var(--color-accent);color:var(--color-accent_text)}
+#panel_citybuilder_panel .rs_field{grid-template-columns:minmax(0,1fr) minmax(70px,100px)}
+#panel_citybuilder_panel .rs_field>span{overflow-wrap:anywhere}
+#panel_citybuilder_panel .rs_row button{flex:1 1 110px}
+#panel_citybuilder_panel .cb_zone{justify-content:flex-start}
 #panel_citybuilder_panel .cb_modes{display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:4px}
 #panel_citybuilder_panel .cb_modes button.cb_on,#panel_citybuilder_panel .cb_zone.cb_on{outline:2px solid var(--color-accent);outline-offset:-2px}
 #panel_citybuilder_panel .cb_zones{display:grid;grid-template-columns:repeat(2,1fr);gap:4px}
@@ -12128,7 +12295,7 @@ void main() {
     { id: "polygon", label: "Polygon" }
   ];
   var TEMPLATE = `<div class="rs_panel">
-	<p class="rs_status" role="status">{{status}}</p>
+	<p class="rs_status" role="status" :title="status">{{status}}</p>
 	<p v-if="snap.busy" class="cb_busy">{{snap.busy}}\u2026</p>
 
 	<rs-section v-if="!snap.hasCity" title="New city">
@@ -12143,6 +12310,9 @@ void main() {
 	</rs-section>
 
 	<template v-if="snap.hasCity">
+        <nav class="cb_tabs" aria-label="City workspace">
+            <button v-for="t in tabs" :key="t.id" :class="{cb_on: tab === t.id}" :aria-pressed="tab === t.id" @click="tab = t.id">{{t.label}}</button>
+        </nav>
 		<div class="cb_stats" v-if="snap.stats">
 			<div v-if="snap.settings.features.buildings"><b>{{snap.stats.buildings}}</b><small>buildings</small></div>
 			<div v-if="snap.settings.features.buildings"><b>{{snap.stats.lots}}</b><small>lots</small></div>
@@ -12151,7 +12321,7 @@ void main() {
 			<div><b>{{snap.composeMs}} ms</b><small>build time</small></div>
 		</div>
 
-		<rs-section title="Project">
+		<rs-section v-show="tab === 'project'" title="Project">
 			<rs-select label="Project type" :value="snap.settings.kind" :options="kinds" @input="ctl.setKind($event)"></rs-select>
 			<p class="rs_hint">{{kindHint(snap.settings.kind)}} The type only picks defaults; every option below stays editable.</p>
 			<rs-toggle label="Generate buildings" :value="snap.settings.features.buildings" @input="ctl.setSetting('features.buildings', $event)"></rs-toggle>
@@ -12163,7 +12333,7 @@ void main() {
 			<p class="rs_hint">Water is never exported. The manifest records the water level so your engine can place its own.</p>
 		</rs-section>
 
-		<rs-section title="Roads & layout">
+		<rs-section v-show="tab === 'roads'" title="Roads & layout">
 			<div class="rs_row"><button class="rs_primary" :disabled="!!snap.busy || !snap.hasRoadscape" @click="ctl.generateLayout()">Generate editable layout\u2026</button></div>
 			<div class="rs_row">
 				<button class="rs_primary" :disabled="!snap.hasRoadscape" @click="ctl.drawRoads()" title="Opens the Roadscape Draw Road tool">Draw roads</button>
@@ -12171,19 +12341,23 @@ void main() {
 			</div>
 			<p class="rs_hint" v-if="!snap.hasRoadscape">Load the Roadscape plugin to draw roads.</p>
 			<p class="rs_hint">{{snap.roadCount}} road segment{{snap.roadCount === 1 ? '' : 's'}} found.</p>
-			<p class="rs_hint"><b>Roundabout</b>: click a junction in the viewport.</p>
+			<div class="rs_row"><button @click="ctl.roadElevation()" title="Select a connected road chain, then set endpoint heights and vertical easing">Ramp / elevation\u2026</button></div>
+            <details class="rs_section"><summary>Roundabouts</summary><div class="rs_body">
+            <p class="rs_hint"><b>Roundabout</b>: click a junction in the viewport.</p>
 			<rs-number label="Radius" suffix="m" :value="snap.roundabout.radius" :min="8" :max="120" :step="1" @input="ctl.setRoundabout('radius', $event)"></rs-number>
 			<rs-select label="Traffic drives on" :value="snap.roundabout.hand" :options="hands" @input="ctl.setRoundabout('hand', $event)"></rs-select>
 			<rs-select label="Ring profile" :value="snap.roundabout.profile" :options="profileOptions(snap.profiles, 'Automatic')" @input="ctl.setRoundabout('profile', $event)"></rs-select>
 			<div class="rs_row"><button :class="{cb_on: snap.activeTool === 'roundabout'}" @click="ctl.pickRoundabout()">Roundabout tool</button></div>
-			<p class="rs_hint"><b>Road type</b>: paint where a road becomes a bridge, tunnel, open span or another profile. Roads are cut at the edges of the painted area.</p>
+			</div></details>
+            <p class="rs_hint"><b>Road type</b>: paint where a road becomes a bridge, tunnel, open span or another profile. Roads are cut at the edges of the painted area.</p>
 			<rs-select label="Structure" :value="snap.roadType.structure" :options="structureOptions(snap.structures)" @input="ctl.setRoadType('structure', $event)"></rs-select>
 			<rs-select label="Road profile" :value="snap.roadType.profile" :options="profileOptions(snap.profiles, 'Keep each road\u2019s own')" @input="ctl.setRoadType('profile', $event)"></rs-select>
 			<div class="cb_modes">
 				<button v-for="m in paintModes" :key="m.id" :class="{cb_on: snap.activeTool === 'roadtype' && snap.roadType.mode === m.id}" @click="ctl.pickRoadType(m.id)">{{m.label}}</button>
 			</div>
 			<rs-number v-if="snap.roadType.mode === 'brush'" label="Brush size" suffix="m" :value="snap.roadType.radius" :min="2" :max="200" :step="1" @input="ctl.setRoadType('radius', $event)"></rs-number>
-			<rs-toggle label="Terrain follows roads" :value="snap.settings.conform.roads" @input="ctl.setSetting('conform.roads', $event)"></rs-toggle>
+			<details class="rs_section"><summary>Terrain fitting & automatic bridges</summary><div class="rs_body">
+            <rs-toggle label="Terrain follows roads" :value="snap.settings.conform.roads" @input="ctl.setSetting('conform.roads', $event)"></rs-toggle>
 			<rs-number label="Ground tolerance" suffix="m" :value="snap.settings.conform.groundTolerance" :min="0" :max="60" :step="1" @input="ctl.setSetting('conform.groundTolerance', $event)"></rs-number>
 			<p class="rs_hint">Gap height threshold for automatic bridges. Water crossings are detected separately. Explicit Ground, Bridge, Tunnel and Open span segments keep their chosen behavior.</p>
 			<rs-toggle label="Automatic bridges over water / gaps" :value="snap.settings.conform.autoBridges" @input="ctl.setSetting('conform.autoBridges', $event)"></rs-toggle>
@@ -12191,9 +12365,10 @@ void main() {
 			<rs-number label="Road shoulder blend" suffix="m" :value="snap.settings.conform.roadBlend" :min="0" :max="80" :step="1" @input="ctl.setSetting('conform.roadBlend', $event)"></rs-number>
 			<p class="rs_hint">Roadscape segment settings override automation. Use Open span / jump for unsupported sections. Drape is optional and changes control-point heights; avoid it on authored ramps.</p>
 			<rs-number label="Embankment" suffix="m per m" :value="snap.settings.conform.embankment" :min="0.5" :max="8" :step="0.1" @input="ctl.setSetting('conform.embankment', $event)"></rs-number>
+            </div></details>
 		</rs-section>
 
-		<rs-section title="Landscape">
+		<rs-section v-show="tab === 'terrain'" title="Landscape">
 			<div class="cb_modes">
 				<button v-for="m in landscapeModes" :key="m.id" :title="m.hint" :class="{cb_on: snap.activeTool === 'landscape' && snap.landscape.mode === m.id}" @click="ctl.pickLandscape(m.id)">{{m.label}}</button>
 			</div>
@@ -12229,7 +12404,7 @@ void main() {
 			<rs-number label="Water level" suffix="m" :value="snap.settings.waterLevel" :min="-50" :max="200" :step="0.5" @input="ctl.setSetting('waterLevel', $event)"></rs-number>
 		</rs-section>
 
-		<rs-section title="Water preview" :open="false">
+		<rs-section v-show="tab === 'terrain'" title="Water preview" :open="false">
 			<p class="rs_hint">Only for looking at the scene. Water is not exported; your engine renders its own with the same parameters.</p>
 			<rs-toggle label="Show water" :value="snap.settings.water.show" @input="ctl.setSetting('water.show', $event)"></rs-toggle>
 			<rs-toggle label="Animate" :value="snap.settings.water.animate" @input="ctl.setSetting('water.animate', $event)"></rs-toggle>
@@ -12246,7 +12421,7 @@ void main() {
 			<rs-number label="Shore fade" suffix="m" :value="snap.settings.water.shoreFadeDistance" :min="0" :max="10" :step="0.1" @input="ctl.setSetting('water.shoreFadeDistance', $event)"></rs-number>
 		</rs-section>
 
-		<rs-section title="Districts">
+		<rs-section v-show="tab === 'districts'" title="Districts">
 			<div class="cb_zones">
 				<button v-for="d in districts" :key="d.id" class="cb_zone" :class="{cb_on: snap.district.id === d.id && snap.district.mode !== 'erase'}" :title="d.label" @click="ctl.pickDistrictType(d.id)"><i :style="{background: d.color}"></i><span>{{d.label}}</span></button>
 			</div>
@@ -12265,7 +12440,7 @@ void main() {
 			<rs-toggle label="Show lots" :value="snap.display.lots" @input="ctl.setDisplay('lots', $event)"></rs-toggle>
 		</rs-section>
 
-		<rs-section v-if="snap.settings.features.buildings || snap.settings.features.trees" title="Growth">
+		<rs-section v-if="snap.settings.features.buildings || snap.settings.features.trees" v-show="tab === 'districts'" title="Growth">
 			<rs-number label="Development" :value="snap.settings.development" :min="0" :max="1" :step="0.05" @input="ctl.setSetting('development', $event)"></rs-number>
 			<p class="rs_hint">Raise it to watch zoned lots fill up and grow taller. Buildings never move; they only appear and rise.</p>
 			<rs-number label="Look variants" :value="snap.settings.variants" :min="1" :max="8" :step="1" @input="ctl.setSetting('variants', $event)"></rs-number>
@@ -12277,7 +12452,7 @@ void main() {
 			<rs-toggle label="Show trees" :value="snap.display.trees" @input="ctl.setDisplay('trees', $event)"></rs-toggle>
 		</rs-section>
 
-		<rs-section title="Game ready">
+		<rs-section v-show="tab === 'export'" title="Game ready">
 			<rs-toggle label="Bake facades" :value="snap.settings.gameReady.bakeFacades" @input="ctl.setSetting('gameReady.bakeFacades', $event)"></rs-toggle>
 			<p class="rs_hint">Baked walls become one quad each on a shared atlas. Off keeps one quad per window bay.</p>
 			<rs-toggle label="Levels of detail" :value="snap.settings.gameReady.lods" @input="ctl.setSetting('gameReady.lods', $event)"></rs-toggle>
@@ -12307,7 +12482,7 @@ void main() {
 			</div>
 		</rs-section>
 
-		<rs-section title="City" :open="false">
+		<rs-section v-show="tab === 'project'" title="City" :open="false">
 			<rs-number label="Units per metre" :value="snap.settings.unitsPerMeter" :min="0.0625" :max="64" :step="0.0625" @input="ctl.setSetting('unitsPerMeter', $event)"></rs-number>
 			<p class="rs_hint">Map is {{snap.extent}} m across. Raise units per metre if your roads were drawn in Blockbench pixels (16 per block).</p>
 			<div class="rs_row"><button @click="ctl.remove()">Remove city from project</button></div>
@@ -12321,6 +12496,8 @@ void main() {
         snap: ctl.snapshot(),
         status: ctl.status,
         ctl,
+        tab: "roads",
+        tabs: [{ id: "roads", label: "Roads" }, { id: "terrain", label: "Terrain" }, { id: "districts", label: "Districts" }, { id: "export", label: "Export" }, { id: "project", label: "Project" }],
         create: { size: 129, cellSize: 6, preset: "rolling", seed: 1, kind: "city", island: false },
         regen: { preset: "rolling", island: false },
         landscapeModes: LANDSCAPE_MODES,
@@ -12419,7 +12596,7 @@ void main() {
           ctl.changed.on(update);
           update();
         });
-        style = Blockbench.addCSS(parts.css + BRUSH_DOCK_CSS);
+        style = Blockbench.addCSS(parts.css + BRUSH_DOCK_CSS, "theme-override");
         panel = new Panel("citybuilder_panel", {
           name: "City Builder",
           icon: "location_city",

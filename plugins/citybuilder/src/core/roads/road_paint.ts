@@ -23,6 +23,8 @@ export interface RoadPaintOptions {
 	minPiece: number;
 	/** Spacing of the test points along each road, metres. */
 	sample: number;
+    /** Original automatic classification for unpainted pieces when cutting a road. */
+    resolveStructure?: (segment: RoadSegment, curve: RoadCurve) => Structure;
 }
 
 export const DEFAULT_ROAD_PAINT: Pick<RoadPaintOptions, 'minPiece' | 'sample'> = { minPiece: 4, sample: 1.5 };
@@ -132,12 +134,14 @@ export function paintRoadType(network: RoadNetwork, region: RegionTest, change: 
 			}
 			continue;
 		}
-		// Work from the far end so earlier cut distances stay valid on the remaining head piece.
+		if (!differs(segment, change)) continue;
+        if (segment.structure === 'auto' && options.resolveStructure) segment.structure = options.resolveStructure(segment, curve);
+        // Work from the far end so earlier cut distances stay valid on the remaining head piece.
 		let head: RoadSegment = segment;
 		let headLength: number = curve.length;
 		for (let i: number = spans.length - 1; i >= 0; i--) {
 			const span: Span = spans[i];
-			if (!differs(head, change)) break;
+			// The source differed before its automatic classification was frozen.
 			let piece: RoadSegment = head;
 			if (span.to < headLength - 1e-6) {
 				const cut = splitSegmentAt(network, head.key, span.to, ids());

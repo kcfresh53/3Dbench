@@ -42,6 +42,7 @@ export interface StructureJob {
 	from: number;
 	to: number;
 	structure: ResolvedStructure;
+    segmentKey?: string;
 }
 
 export function emitStructure(job: StructureJob): void {
@@ -60,16 +61,24 @@ function emitBridge(job: StructureJob): void {
 	emitBand(set, ctx.library, ribbon, { part: 'Bridge deck', tile, lat0: left, y0: -thickness, lat1: right, y1: -thickness }, DOWN);
 	emitRiser(set, ctx.library, ribbon, 'Bridge deck', tile, left, -thickness, 0, -1);
 	emitRiser(set, ctx.library, ribbon, 'Bridge deck', tile, right, -thickness, 0, 1);
-	const spacing: number = settings.structures.pierSpacing * unit;
-	const count: number = Math.max(1, Math.round((job.to - job.from) / spacing));
+	const spacing: number = Math.max(2, settings.structures.pierSpacing || 14) * unit;
+	const count: number = Math.max(1, Math.ceil((job.to - job.from) / spacing));
 	const lanes: number[] = right - left > 12 * unit ? [left * 0.5, right * 0.5] : [(left + right) / 2];
 	for (let i: number = 0; i < count; i++) {
-		const frame: CurveFrame = job.curve.frameAt(job.from + ((i + 0.5) * (job.to - job.from)) / count);
-		for (const lateral of lanes) {
-			const centre=offsetPoint(frame,lateral,0);
-			const ground=ctx.terrain?.groundAt(centre[0],centre[2]) ?? settings.groundY;
-			if(Number.isFinite(ground))emitPier(set,ctx,frame,lateral,ground,thickness,unit,column);
-		}
+        const station = job.from + ((i + 0.5) * (job.to - job.from)) / count;
+        for (const lateral of lanes) {
+            // Search a bounded neighbourhood; omit a pier when the road below needs the space.
+            for (const shift of [0, -0.2, 0.2, -0.4, 0.4]) {
+                const along = station + shift * (job.to-job.from)/count;
+                const frame = job.curve.frameAt(along);
+                const centre = offsetPoint(frame,lateral,0);
+                const ground = ctx.terrain?.groundAt(centre[0],centre[2]) ?? settings.groundY;
+                if (!Number.isFinite(ground) || frame.position[1]-thickness-ground < 0.5*unit) continue;
+                if (ctx.supports && !ctx.supports.allows(job.segmentKey ?? '', centre, ground, frame.position[1]-thickness, 0.6*unit)) continue;
+                emitPier(set,ctx,frame,lateral,ground,thickness,unit,column);
+                break;
+            }
+        }
 	}
 }
 

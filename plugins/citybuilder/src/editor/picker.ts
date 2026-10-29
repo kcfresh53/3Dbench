@@ -61,7 +61,7 @@ export class CanvasInput {
 			}
 		};
 		document.addEventListener('pointerdown', this.onDown, true);
-		document.addEventListener('pointermove', this.onMove);
+		document.addEventListener('pointermove', this.onMove, true);
 		document.addEventListener('pointerup', this.onUp, true);
 		document.addEventListener('keydown', this.onKey, true);
 	}
@@ -76,7 +76,7 @@ export class CanvasInput {
 		const ctx = this.context();
 		if (!preview || !ctx) return;
 		Preview.selected = preview;
-		e.stopPropagation();
+		e.stopImmediatePropagation();
 		e.preventDefault();
 		const hit: CityHit | null = pickCity(preview, e, ctx.hf, ctx.unitsPerMeter, ctx.waterLevel);
 		if (!hit) return;
@@ -85,7 +85,12 @@ export class CanvasInput {
 	}
 
 	private move(e: PointerEvent): void {
-		if (this.disposed || !this.isActive()) return;
+		if (this.disposed) return;
+        if (!this.isActive()) {
+            if (this.dragging) { this.dragging = false; this.handler.cancel(); }
+            return;
+        }
+        if (this.dragging) { e.stopImmediatePropagation(); e.preventDefault(); }
 		const preview: Preview | undefined = this.previewOf(e);
 		const ctx = this.context();
 		if (!ctx) return;
@@ -102,8 +107,9 @@ export class CanvasInput {
 	}
 
 	private up(e: PointerEvent): void {
-		if (!this.dragging) return;
-		this.dragging = false;
+		if (!this.dragging || e.button !== 0) return;
+        this.dragging = false;
+        if (!this.isActive()) { this.handler.cancel(); return; }
 		if (e.button === 0) e.stopPropagation();
 		this.handler.up(e);
 	}
@@ -111,7 +117,7 @@ export class CanvasInput {
 	dispose(): void {
 		this.disposed = true;
 		document.removeEventListener('pointerdown', this.onDown, true);
-		document.removeEventListener('pointermove', this.onMove);
+		document.removeEventListener('pointermove', this.onMove, true);
 		document.removeEventListener('pointerup', this.onUp, true);
 		document.removeEventListener('keydown', this.onKey, true);
 	}
