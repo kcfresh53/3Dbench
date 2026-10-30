@@ -1,6 +1,8 @@
+import type { CityState } from '../core/city/state';
 import type { LayoutOptions } from '../core/city/layout';
 import { layoutDialog, applyLayout } from './layout_action';
 import { addTreesToPackage } from './tree_export';
+import { addRoadsToPackage } from './road_export';
 import type { CityStats } from '../core/city/stats';
 import type { ProjectKind } from '../core/city/settings';
 import type { CitySettings } from '../core/city/settings';
@@ -108,7 +110,7 @@ export class CityController {
 	private readonly eventHandles: Array<{ delete(): void }> = [];
 
 	constructor() {
-		this.store.bridge.connect(()=>this.store.state,()=>this.store.editRevision);
+		this.store.bridge.connect(()=>this.store.state,()=>`${this.store.editRevision}:${this.store.planRevision}`,()=>this.store.plan?.terrain.heights);
 		const status = (message: string): void => this.say(message);
 		const refresh = (): void => this.changed.emit();
 		this.landscapeTool = new LandscapeTool(this.store, this.display, this.landscape, status, refresh);
@@ -119,7 +121,7 @@ export class CityController {
 		this.unsubscribe.push(
 			this.store.changed.on((kind): void => {
 				if (kind === 'display') this.display.updateWater();
-				if (kind === 'edited' || kind === 'loaded' || kind === 'cleared') Blockbench.dispatchEvent('citybuilder_terrain_changed', {});
+				if (kind === 'edited' || kind === 'loaded' || kind === 'cleared' || kind === 'composed') Blockbench.dispatchEvent('citybuilder_terrain_changed', {});
 				if (kind === 'composed' || kind === 'loaded' || kind === 'cleared') this.display.sync();
 				this.changed.emit();
 			}),
@@ -197,10 +199,11 @@ export class CityController {
 		if (this.store.state) { this.say('Create the skyline starter in a new city project.'); return; }
 		if (!this.hasRoadscape) { this.say('Load Roadscape before creating the skyline starter.'); return; }
 		await this.create({ size: 513, cellSize: 6, preset: 'river_city', seed, kind: 'city' });
-		if (!this.store.state) return;
-		this.store.state.settings.development = 1;
-		this.store.state.settings.maxTrees = 30000;
-		this.store.state.settings.surface.snowLine = 150;
+		const state=this.store.state as CityState|null;
+		if (!state) return;
+		state.settings.development = 1;
+		state.settings.maxTrees = 30000;
+		state.settings.surface.snowLine = 150;
 		await this.generateLayout({ kind: 'organic', seed, blockSize: 88, centers: 3, hierarchy: true,
 			terrainFollow: .3, wiggle: .25, maxSlope: .35, mainProfile: 'avenue', coverage: .39,
 			rotation: 12, profile: 'street', elevation: .2, zone: true, district: 6, zoneDepth: 38, zonePattern: 'skyline' });
@@ -422,8 +425,11 @@ export class CityController {
 			const state = this.store.state;
 			const plan = this.store.plan;
 			if (!state || !plan) throw new Error('Create a city first.');
+			const owner=Project,revision=this.store.editRevision;
 			const pkg = buildGamePackage(plan, state);
 			await addTreesToPackage(pkg, state.settings.export.trees ? plan.trees : []);
+			await addRoadsToPackage(pkg,this.store);
+			if(Project!==owner||this.store.state!==state||this.store.editRevision!==revision)throw new Error('The city changed while preparing the export. Try again.');
 			this.report = pkg.report;
 			this.say(`Export would hold ${this.report.prefabs} building meshes on ${this.report.atlasPages} × ${this.report.atlasSize}px atlas pages.`);
 		});
@@ -439,8 +445,11 @@ export class CityController {
 				this.say('Export cancelled.');
 				return;
 			}
+			const owner=Project,revision=this.store.editRevision;
 			const pkg = buildGamePackage(plan, state);
 			await addTreesToPackage(pkg, state.settings.export.trees ? plan.trees : []);
+			await addRoadsToPackage(pkg,this.store);
+			if(Project!==owner||this.store.state!==state||this.store.editRevision!==revision)throw new Error('The city changed while preparing the export. Try again.');
 			const written: number = await writePackage(directory, pkg.files);
 			this.report = pkg.report;
 			this.say(`Exported ${written} files to ${directory}. city.json describes what to place.`);

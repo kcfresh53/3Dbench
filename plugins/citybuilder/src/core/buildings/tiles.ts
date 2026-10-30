@@ -34,6 +34,8 @@ export const TILE_KINDS = [
 	'helipad',
 	'glass_tower',
 	'glass_room',
+	'facade_a',
+	'facade_b',
 ] as const;
 export type TileKind = (typeof TILE_KINDS)[number];
 

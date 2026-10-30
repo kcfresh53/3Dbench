@@ -9,11 +9,12 @@ import { mergeRoadSets, roadSetFromNetwork } from '../core/roads/corridor';
 import type { RoadSet } from '../core/roads/corridor';
 import type { CityState } from '../core/city/state';
 import type { Vec3 } from '../core/types';
+import type { Heightfield } from '../core/terrain/heightfield';
 
 /** Reads every Roadscape network in the open project and expresses it in city metres. */
 export class RoadBridge {
 	private provider: TerrainProvider | null = null;
-	connect(getState:()=>CityState|null, revision:()=>number):void {
+	connect(getState:()=>CityState|null, revision:()=>number|string, getSurface?:()=>Heightfield|undefined):void {
 		this.provider=(mesh)=>{
 			const state=getState(); if(!state)return undefined;
 			mesh.mesh.updateWorldMatrix(true,false);
@@ -23,7 +24,11 @@ export class RoadBridge {
 			return {revision:`${Project.uuid}:${revision()}:${matrix.elements.join(',')}`,groundAt:(x,z)=>{
 				const p=toCity([x,0,z]);const h=ground(p[0],p[2]);
 				return new THREE.Vector3(p[0]*unit,h*unit,p[2]*unit).applyMatrix4(inverse).y;
-			},autoStructure:points=>terrainStructure(points.map(toCity),ground,{
+			},surfaceAt:state.settings.conform.roads && getSurface?((x,z)=>{
+				const p=toCity([x,0,z]), surface=getSurface();
+				const h=surface?.containsWorld(p[0],p[2])?surface.sample(p[0],p[2]):NaN;
+				return new THREE.Vector3(p[0]*unit,h*unit,p[2]*unit).applyMatrix4(inverse).y;
+			}):undefined,autoStructure:points=>terrainStructure(points.map(toCity),ground,{
 				waterLevel:state.settings.waterLevel,gapHeight:state.settings.conform.groundTolerance,
 				minSpan:state.settings.conform.bridgeSpan,autoBridges:state.settings.conform.autoBridges})};
 		};

@@ -168,6 +168,8 @@
 		"test:citybuilder": "node scripts/test_citybuilder.mjs",
 		"test:citybuilder-skyline": "npm run build:citybuilder && npm run build-electron && electron tests/citybuilder_skyline.cjs",
 		"test:citybuilder-scene": "npm run build:citybuilder && npm run build-electron && electron tests/citybuilder_scene.cjs",
+		"test:citybuilder-water": "npm run build:citybuilder && npm run build-electron && electron tests/citybuilder_water.cjs",
+		"test:citybuilder-surfaces": "npm run build:citybuilder && npm run build:roadscape && npm run build-electron && electron tests/citybuilder_surfaces.cjs",
 		"test:trees": "node scripts/test_procedural_trees.mjs",
 		"test:trees-scene": "npm run build-electron && electron tests/procedural_trees_scene.cjs",
 		"test:trees-visual": "npm run build-electron && electron tests/procedural_trees_visual.cjs"

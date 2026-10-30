@@ -7,7 +7,7 @@ import { classifyNode, resolveProfileData, segmentCurve } from './network';
 import type { PartSet } from './part_set';
 import { resolveProfile } from './profile_resolve';
 import type { ResolvedLining, ResolvedProfile, ResolvedSide, ResolvedStrip } from './profile_resolve';
-import { UP, fullUvs, stripPartName } from './surface';
+import { UP, fullUvs, stripPartName, emitGroundContactStrip, GROUND_CONTACT_WIDTH } from './surface';
 import { surfaceTile, tileSizeMeters } from './strip_library';
 import type { RoadLibrary } from './library_types';
 import { ROAD_ATLAS, propSource, tileUv } from './library_types';
@@ -221,14 +221,15 @@ function groundAt(plan: JunctionPlan, arm: Arm, xz: Vec2): number {
 }
 
 /** Builds every ring chain of one corner: `rings[k]` runs from arm A's mouth to arm B's mouth. */
-function cornerRings(plan: JunctionPlan, a: Arm, b: Arm, gap: number, layers: number, segments: number): RingPoint[][] {
+function cornerRings(plan: JunctionPlan, a: Arm, b: Arm, gap: number, layers: number, segments: number, growOuter: number = 0): RingPoint[][] {
 	const rings: RingPoint[][] = [];
 	const frameA: CurveFrame = frameFor(a, a.setback);
 	const frameB: CurveFrame = frameFor(b, b.setback);
 	for (let k: number = 0; k < layers; k++) {
-		const eA: number = edgeAt(a.near, k);
-		const eB: number = edgeAt(b.far, k);
-		const r: number = layerRadius(plan.cornerRadius, a.near, b.far, a.near, b.far, k);
+		const grow: number = k===layers-1 ? growOuter : 0;
+		const eA: number = edgeAt(a.near, k)+grow;
+		const eB: number = edgeAt(b.far, k)+grow;
+		const r: number = Math.max(plan.cornerRadius*.02,layerRadius(plan.cornerRadius, a.near, b.far, a.near, b.far, k)-grow);
 		const corner: Corner = makeCorner(plan.centre, a, eA, b, eB, gap, r, segments);
 		const start: Vec3 = offsetPoint(frameA, a.near.sign * eA, 0);
 		const end: Vec3 = offsetPoint(frameB, b.far.sign * eB, 0);
@@ -280,7 +281,7 @@ function unitOf(plan: JunctionPlan): number {
 }
 
 /** Emits asphalt, curb rings and risers of a junction patch. */
-export function emitJunctionPatch(set: PartSet, ctx: GenerationContext, plan: JunctionPlan, segments: number): void {
+export function emitJunctionPatch(set: PartSet, ctx: GenerationContext, plan: JunctionPlan, segments: number, groundArms: ReadonlySet<string> = new Set()): void {
 	const arms: Arm[] = plan.arms;
 	const asphalt: string = surfaceTile(arms[0].profile.carriageway.surface, plan.weather);
 	const road: MeshPart = set.part('Road surface', ROAD_ATLAS);
@@ -314,7 +315,18 @@ export function emitJunctionPatch(set: PartSet, ctx: GenerationContext, plan: Ju
 		const tri: Vec3[] = [centre, p, q];
 		set.polygon(road, tri, planarUvs(ctx.library, asphalt, tri, unit), UP);
 	}
-	for (const chain of chains) emitCornerLayers(set, ctx, plan, chain.a, chain.b, chain.rings, chain.layers);
+	for (const chain of chains) {
+		emitCornerLayers(set, ctx, plan, chain.a, chain.b, chain.rings, chain.layers);
+		if(!ctx.terrain?.surfaceAt||!groundArms.has(chain.a.segment.key)||!groundArms.has(chain.b.segment.key))continue;
+		// Reuse the actual outer sidewalk ring and its offset fillet, so the contact joins
+		// the segment mouths exactly and continues around rounded corners and dead ends.
+		const grown=plan.cap?capRings(plan,chain.a,chain.layers,segments*2,GROUND_CONTACT_WIDTH*unit):
+			cornerRings(plan,chain.a,chain.b,gapBetween(chain.a,chain.b),chain.layers,segments,GROUND_CONTACT_WIDTH*unit);
+		const inner=chain.rings[chain.layers-1],outer=grown[chain.layers-1];
+		emitGroundContactStrip(set,ctx.library,inner.map((p,i)=>pointOf(p,lerp(
+			topAt(chain.a.near,chain.layers-1),topAt(plan.cap?chain.a.far:chain.b.far,chain.layers-1),i/(inner.length-1)))),
+			outer.map(p=>pointOf(p,0)),ctx.terrain.surfaceAt,unit,plan.weather);
+	}
 	for (const arm of arms) emitMedianEnd(set, ctx, arm, plan.weather);
 }
 
@@ -339,13 +351,14 @@ function emitMedianEnd(set: PartSet, ctx: GenerationContext, arm: Arm, weather: 
 	);
 }
 
-function capRings(plan: JunctionPlan, arm: Arm, layers: number, segments: number): RingPoint[][] {
+function capRings(plan: JunctionPlan, arm: Arm, layers: number, segments: number, growOuter: number = 0): RingPoint[][] {
 	const rings: RingPoint[][] = [];
 	const frame: CurveFrame = frameFor(arm, 0);
 	const base: number = frame.position[1];
 	for (let k: number = 0; k < layers; k++) {
-		const eR: number = edgeAt(arm.near, k);
-		const eL: number = edgeAt(arm.far, k);
+		const grow: number = k===layers-1 ? growOuter : 0;
+		const eR: number = edgeAt(arm.near, k)+grow;
+		const eL: number = edgeAt(arm.far, k)+grow;
 		const back: number = (eR + eL) / 2;
 		const chain: RingPoint[] = [];
 		for (let i: number = 0; i <= segments; i++) {

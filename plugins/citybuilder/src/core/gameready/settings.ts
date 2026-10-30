@@ -21,10 +21,10 @@ export interface GameReadySettings {
 
 export const DEFAULT_GAME_READY: GameReadySettings = {
 	preserveTextureDetail: true,
-	atlasSize: 2048,
-	texelsPerMeter: 32,
+	atlasSize: 4096,
+	texelsPerMeter: 64,
 	pbr: true,
-	gutter: 2,
+	gutter: 4,
 	bakeFacades: true,
 	lods: true,
 	collision: 'boxes',

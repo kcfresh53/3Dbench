@@ -14,3 +14,4 @@ import './towers.test';
 import './skyline.test';
 import './facade_detail.test';
 import './highway.test';
+import './pbr.test';

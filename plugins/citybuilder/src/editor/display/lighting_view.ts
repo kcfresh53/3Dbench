@@ -6,7 +6,7 @@ export class LightingView implements View {
 	readonly root = new THREE.Object3D();
 	private skyChosen: boolean = false;
 	private sun: THREE.DirectionalLight | null = null;
-	private renderers = new Map<THREE.WebGLRenderer, { enabled: boolean; type: THREE.ShadowMapType; auto: boolean }>();
+	private renderers = new Map<THREE.WebGLRenderer, { enabled: boolean; type: THREE.ShadowMapType; auto: boolean; encoding:THREE.TextureEncoding; toneMapping:THREE.ToneMapping; exposure:number }>();
 
 	rebuild(ctx: ViewContext): void {
 		this.clear();
@@ -33,7 +33,8 @@ export class LightingView implements View {
 		if (typeof Preview !== 'undefined') for (const preview of Preview.all) {
 			const renderer = (preview as unknown as { renderer: THREE.WebGLRenderer }).renderer;
 			if (!renderer) continue;
-			if (!this.renderers.has(renderer)) this.renderers.set(renderer, { enabled: renderer.shadowMap.enabled, type: renderer.shadowMap.type, auto: renderer.shadowMap.autoUpdate });
+			if (!this.renderers.has(renderer)) this.renderers.set(renderer, { enabled: renderer.shadowMap.enabled, type: renderer.shadowMap.type, auto: renderer.shadowMap.autoUpdate, encoding:renderer.outputEncoding, toneMapping:renderer.toneMapping, exposure:renderer.toneMappingExposure });
+			renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.9;
 			renderer.shadowMap.enabled = true;
 			renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 			// A city does not move: render the shadow when the city changes instead of every frame.
@@ -45,6 +46,9 @@ export class LightingView implements View {
 	setEnabled(enabled: boolean): void {
 		this.root.visible = enabled;
 		for (const [renderer, previous] of this.renderers) {
+			renderer.outputEncoding=enabled?THREE.sRGBEncoding:previous.encoding;
+			renderer.toneMapping=enabled?THREE.ACESFilmicToneMapping:previous.toneMapping;
+			renderer.toneMappingExposure=enabled?.9:previous.exposure;
 			renderer.shadowMap.enabled = enabled ? true : previous.enabled;
 			renderer.shadowMap.type = enabled ? THREE.PCFSoftShadowMap : previous.type;
 			renderer.shadowMap.autoUpdate = enabled ? false : previous.auto;
@@ -53,7 +57,7 @@ export class LightingView implements View {
 	}
 
 	private clear(): void {
-		this.sun?.shadow.map?.dispose();
+		(this.sun?.shadow.map as THREE.WebGLRenderTarget | null)?.dispose();
 		this.sun = null;
 		disposeTree(this.root);
 	}
@@ -62,6 +66,7 @@ export class LightingView implements View {
 		this.clear();
 		this.skyChosen = false;
 		for (const [renderer, previous] of this.renderers) {
+			renderer.outputEncoding=previous.encoding;renderer.toneMapping=previous.toneMapping;renderer.toneMappingExposure=previous.exposure;
 			renderer.shadowMap.enabled = previous.enabled;
 			renderer.shadowMap.type = previous.type;
 			renderer.shadowMap.autoUpdate = previous.auto;

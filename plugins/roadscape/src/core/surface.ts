@@ -119,6 +119,39 @@ export function emitSide(set: PartSet, library: RoadLibrary, ribbon: Ribbon, sid
 	}
 }
 
+export const GROUND_CONTACT_WIDTH: number = 1.2;
+
+/** Connect matching boundary chains to the final terrain; shared by road ribbons and junction rings. */
+export function emitGroundContactStrip(set:PartSet,library:RoadLibrary,inner:Vec3[],outer:Vec3[],surfaceAt:(x:number,z:number)=>number,unit:number,weather:NetworkSettings['weather']):void {
+	const tile=surfaceTile('trail',weather), part=set.part('Ground road contact',ROAD_ATLAS);
+	let distance=0;
+	for(let i=0;i+1<inner.length;i++) {
+		const length=Math.hypot(inner[i+1][0]-inner[i][0],inner[i+1][2]-inner[i][2]);
+		const span=Math.max(length,Math.hypot(outer[i+1][0]-outer[i][0],outer[i+1][2]-outer[i][2]));
+		const steps=Math.max(1,Math.ceil(span/(2.5*unit)));
+		const at=(chain:Vec3[],t:number):Vec3=>chain[i].map((v,k)=>v+(chain[i+1][k]-v)*t) as Vec3;
+		for(let j=0;j<steps;j++) {
+			const a=at(inner,j/steps),b=at(inner,(j+1)/steps),oa=at(outer,j/steps),ob=at(outer,(j+1)/steps);
+			a[1]-=.005*unit;b[1]-=.005*unit;
+			oa[1]=surfaceAt(oa[0],oa[2])+.005*unit;ob[1]=surfaceAt(ob[0],ob[2])+.005*unit;
+			const next=distance+length/steps;
+			if(Number.isFinite(oa[1])&&Number.isFinite(ob[1]))set.polygon(part,[a,oa,ob,b],
+				tiledUvs(library,tile,tileSizeMeters(tile)*unit,GROUND_CONTACT_WIDTH*unit,distance,next),UP);
+			distance=next;
+		}
+	}
+}
+
+/** Short, continuously sampled shoulders seal the visible edge against the final graded terrain. */
+export function emitGroundContact(set:PartSet,library:RoadLibrary,ribbon:Ribbon,profile:ResolvedProfile,surfaceAt:(x:number,z:number)=>number,weather:NetworkSettings['weather']):void {
+	for(const side of [profile.left,profile.right]) {
+		const top=side.tops[side.tops.length-1], width=GROUND_CONTACT_WIDTH*profile.unit;
+		emitGroundContactStrip(set,library,
+			ribbon.frames.map(f=>offsetPoint(f,side.outer*side.sign,top)),
+			ribbon.frames.map(f=>offsetPoint(f,(side.outer+width)*side.sign,0)),surfaceAt,profile.unit,weather);
+	}
+}
+
 function emitStrip(set: PartSet, library: RoadLibrary, ribbon: Ribbon, strip: ResolvedStrip, sign: number): void {
 	const name: string = stripPartName(strip.element.type);
 	const lat0: number = strip.inner * sign;

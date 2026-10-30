@@ -8,6 +8,7 @@ import { disposeTree } from './gl';
 import { applyWaterSettings, createWaterUniforms, WATER_FRAGMENT, WATER_VERTEX } from './water_shader';
 import type { WaterTextures, WaterUniforms } from './water_shader';
 import type { View, ViewContext } from './view';
+import { CITY_RENDER_ORDER } from './render_order';
 
 /** Frames per second of the animated preview. */
 const ANIMATION_FPS: number = 30;
@@ -109,7 +110,7 @@ export class WaterView implements View {
 			this.mesh = new THREE.Mesh(geometry, this.material as THREE.ShaderMaterial);
 			(this.mesh as unknown as { no_export: boolean }).no_export = true;
 			this.mesh.frustumCulled = false;
-			this.mesh.renderOrder = 1;
+			this.mesh.renderOrder = CITY_RENDER_ORDER.water;
 			this.root.add(this.mesh);
 		}
 		(this.mesh as THREE.Mesh).position.y = level;

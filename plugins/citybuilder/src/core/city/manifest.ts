@@ -6,6 +6,7 @@ import { exportRoads } from '../roads/export';
 import type { ManifestJunction, ManifestRoad } from '../roads/export';
 import type { CityPlan, PlacedBuilding } from './compose';
 import type { CitySettings } from './settings';
+import type { TerrainLayers } from '../terrain/layers';
 
 export interface ManifestPrefab {
 	id: string;
@@ -26,7 +27,11 @@ export interface CityManifest {
 	version: 1;
 	units: 'metres';
 	up: 'y';
-	terrain: { cols: number; rows: number; cellSize: number; origin: [number, number]; heightmap: string; albedo: string; chunks: string[]; chunkAlbedos?: string[] };
+	terrain: { cols: number; rows: number; cellSize: number; origin: [number, number]; heightmap: string; albedo: string; chunks: string[]; chunkAlbedos?: string[]; chunkNormals?: string[]; chunkOrms?: string[]; layers?:TerrainLayers };
+	materials?: Array<{id:string;source:string;license:string;width:number;height:number;metres:number[];albedoMeanLinear:number[];albedo:string;normal?:string;orm?:string}>;
+	foundations?: string;
+	/** Road meshes already transformed to world metres; place once at identity. */
+	roadMeshes?: string[];
 	waterLevel: number;
 	prefabs: ManifestPrefab[];
 	buildings: Array<{ prefab: string; position: number[]; yaw: number; scale?: number[]; district: number; lot: string }>;

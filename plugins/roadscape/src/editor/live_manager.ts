@@ -274,7 +274,7 @@ export class LiveRoads {
 			result = generateNetwork(this.networkOf(mesh), this.context(mesh), this.states.get(mesh)?.cache ?? null);
 		}
 		if (owner !== Project || !Mesh.all.includes(mesh) || before !== this.signature(mesh, '')) throw new Error('The road changed while baking. Try again.');
-		bakeRoad(result, library, (key: string) => this.trees.atlas(key), mesh);
+		await bakeRoad(result, library, (key: string) => this.trees.atlas(key), mesh);
 	}
 
 	dispose(): void {

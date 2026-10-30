@@ -1,0 +1,310 @@
+{
+  "grass": {
+    "asset": "Grass004",
+    "source": "https://ambientcg.com/view?id=Grass004",
+    "license": "CC0-1.0",
+    "width": 4096,
+    "height": 4096,
+    "metres": [
+      1.4,
+      1.4
+    ],
+    "archiveSha256": "8b32b61b592b5b60558f76eedfc9adcb1787963dce2e679bdb9ee324c9d0e422",
+    "maps": {
+      "albedo": "Grass004_albedo.jpg",
+      "normal": "Grass004_normal.jpg",
+      "orm": "Grass004_orm.jpg"
+    },
+    "albedoMeanLinear": [
+      0.12871746,
+      0.16311225,
+      0.0357083
+    ]
+  },
+  "sand": {
+    "asset": "Ground054",
+    "source": "https://ambientcg.com/view?id=Ground054",
+    "license": "CC0-1.0",
+    "width": 4096,
+    "height": 4096,
+    "metres": [
+      3.5,
+      3.5
+    ],
+    "archiveSha256": "13b6964cc9afb04e577f18204fd4656c2786e0197cadf34552e1ef9b177a67e6",
+    "maps": {
+      "albedo": "Ground054_albedo.jpg",
+      "normal": "Ground054_normal.jpg",
+      "orm": "Ground054_orm.jpg"
+    },
+    "albedoMeanLinear": [
+      0.33338642,
+      0.25929103,
+      0.1564118
+    ]
+  },
+  "dirt": {
+    "asset": "Ground048",
+    "source": "https://ambientcg.com/view?id=Ground048",
+    "license": "CC0-1.0",
+    "width": 4096,
+    "height": 4096,
+    "metres": [
+      1.4,
+      1.4
+    ],
+    "archiveSha256": "105e17306ecf778790161cab4e72366e2502259b9d7108ecc91ccec1fc0d674f",
+    "maps": {
+      "albedo": "Ground048_albedo.jpg",
+      "normal": "Ground048_normal.jpg",
+      "orm": "Ground048_orm.jpg"
+    },
+    "albedoMeanLinear": [
+      0.10316143,
+      0.05665513,
+      0.03907685
+    ]
+  },
+  "rock": {
+    "asset": "Rock037",
+    "source": "https://ambientcg.com/view?id=Rock037",
+    "license": "CC0-1.0",
+    "width": 4096,
+    "height": 4096,
+    "metres": [
+      4,
+      4
+    ],
+    "archiveSha256": "ab4ec081d57139239664d3d50cfed0fdd0b90693974f9479bd35648f0c5281ce",
+    "maps": {
+      "albedo": "Rock037_albedo.jpg",
+      "normal": "Rock037_normal.jpg",
+      "orm": "Rock037_orm.jpg"
+    },
+    "albedoMeanLinear": [
+      0.02144383,
+      0.02420005,
+      0.02129078
+    ]
+  },
+  "forest": {
+    "asset": "Ground037",
+    "source": "https://ambientcg.com/view?id=Ground037",
+    "license": "CC0-1.0",
+    "width": 4096,
+    "height": 4096,
+    "metres": [
+      2,
+      2
+    ],
+    "archiveSha256": "6f989706e2b3a354b0675ef0c5f6d80be92ab12b8d5a5e2fe6fb69816eb58dbc",
+    "maps": {
+      "albedo": "Ground037_albedo.jpg",
+      "normal": "Ground037_normal.jpg",
+      "orm": "Ground037_orm.jpg"
+    },
+    "albedoMeanLinear": [
+      0.33087195,
+      0.30604545,
+      0.11189833
+    ]
+  },
+  "gravel": {
+    "asset": "Gravel033",
+    "source": "https://ambientcg.com/view?id=Gravel033",
+    "license": "CC0-1.0",
+    "width": 4096,
+    "height": 4096,
+    "metres": [
+      2,
+      2
+    ],
+    "archiveSha256": "786dc043bad8dd5f689a63e7ca4387d1ac1c1e343763d635d5aa9683bb0ced51",
+    "maps": {
+      "albedo": "Gravel033_albedo.jpg",
+      "normal": "Gravel033_normal.jpg",
+      "orm": "Gravel033_orm.jpg"
+    },
+    "albedoMeanLinear": [
+      0.25318268,
+      0.23988938,
+      0.19199834
+    ]
+  },
+  "snow": {
+    "asset": "Snow001",
+    "source": "https://ambientcg.com/view?id=Snow001",
+    "license": "CC0-1.0",
+    "width": 4096,
+    "height": 4096,
+    "metres": [
+      4,
+      4
+    ],
+    "archiveSha256": "a61ae5b2210c31bb4206b0d339c9ea921493292cf44af7e1021930c12627fc11",
+    "maps": {
+      "albedo": "Snow001_albedo.jpg",
+      "normal": "Snow001_normal.jpg",
+      "orm": "Snow001_orm.jpg"
+    },
+    "albedoMeanLinear": [
+      0.73869856,
+      0.81501018,
+      0.88588115
+    ]
+  },
+  "asphalt": {
+    "asset": "Asphalt012",
+    "source": "https://ambientcg.com/view?id=Asphalt012",
+    "license": "CC0-1.0",
+    "width": 4096,
+    "height": 4096,
+    "metres": [
+      8,
+      8
+    ],
+    "archiveSha256": "1d3816deefee4df5e1d63be8e3c1e144f9d7be380d1dfe23ed5a005f11b82638",
+    "maps": {
+      "albedo": "Asphalt012_albedo.jpg",
+      "normal": "Asphalt012_normal.jpg",
+      "orm": "Asphalt012_orm.jpg"
+    },
+    "albedoMeanLinear": [
+      0.06192216,
+      0.05889124,
+      0.05848583
+    ]
+  },
+  "paved": {
+    "asset": "PavingStones128",
+    "source": "https://ambientcg.com/view?id=PavingStones128",
+    "license": "CC0-1.0",
+    "width": 4096,
+    "height": 4096,
+    "metres": [
+      3.5,
+      3.5
+    ],
+    "archiveSha256": "e99c716eca1d507d6cd6abaf3d6a3fea8993ea79043a1a21f18ab51777a0b692",
+    "maps": {
+      "albedo": "PavingStones128_albedo.jpg",
+      "normal": "PavingStones128_normal.jpg",
+      "orm": "PavingStones128_orm.jpg"
+    },
+    "albedoMeanLinear": [
+      0.36181268,
+      0.33772606,
+      0.27796778
+    ]
+  },
+  "brick": {
+    "asset": "Bricks085",
+    "source": "https://ambientcg.com/view?id=Bricks085",
+    "license": "CC0-1.0",
+    "width": 4096,
+    "height": 2048,
+    "metres": [
+      2.4,
+      1.2
+    ],
+    "archiveSha256": "df909726225dbdd4012da1f3038c94aee1df9356337a2e11d415cd1cd18b0828",
+    "maps": {
+      "albedo": "Bricks085_albedo.jpg",
+      "normal": "Bricks085_normal.jpg",
+      "orm": "Bricks085_orm.jpg"
+    },
+    "albedoMeanLinear": [
+      0.31118435,
+      0.19966976,
+      0.14452278
+    ]
+  },
+  "plaster": {
+    "asset": "Plaster003",
+    "source": "https://ambientcg.com/view?id=Plaster003",
+    "license": "CC0-1.0",
+    "width": 4096,
+    "height": 4096,
+    "metres": [
+      3,
+      3
+    ],
+    "archiveSha256": "9a550f9bd10c2c666001df55d4d2ae83d7ea24c22343c7f0a3fcd5bbd3f48666",
+    "maps": {
+      "albedo": "Plaster003_albedo.jpg",
+      "normal": "Plaster003_normal.jpg",
+      "orm": "Plaster003_orm.jpg"
+    },
+    "albedoMeanLinear": [
+      0.68760151,
+      0.6628351,
+      0.63906551
+    ]
+  },
+  "facade_a": {
+    "asset": "Facade018A",
+    "source": "https://ambientcg.com/view?id=Facade018A",
+    "license": "CC0-1.0",
+    "width": 4096,
+    "height": 4096,
+    "metres": [
+      13,
+      13
+    ],
+    "archiveSha256": "eab0a0a683b5eadbd2fb1c749d2c7f8941e7663348b8cf7d91dd39c849a34c5c",
+    "maps": {
+      "albedo": "Facade018A_albedo.jpg",
+      "normal": "Facade018A_normal.jpg",
+      "orm": "Facade018A_orm.jpg"
+    },
+    "albedoMeanLinear": [
+      0.1859093,
+      0.15594552,
+      0.14779794
+    ]
+  },
+  "facade_b": {
+    "asset": "Facade015",
+    "source": "https://ambientcg.com/view?id=Facade015",
+    "license": "CC0-1.0",
+    "width": 4096,
+    "height": 4096,
+    "metres": [
+      12,
+      12
+    ],
+    "archiveSha256": "4ec9ae59f026591ae85254f9c4489ee6d803e68321f95d4d44eac6682b37a852",
+    "maps": {
+      "albedo": "Facade015_albedo.jpg",
+      "normal": "Facade015_normal.jpg",
+      "orm": "Facade015_orm.jpg"
+    },
+    "albedoMeanLinear": [
+      0.24567807,
+      0.23801449,
+      0.23033784
+    ]
+  },
+  "concrete": {
+    "asset": "Concrete032",
+    "source": "https://ambientcg.com/view?id=Concrete032",
+    "license": "CC0-1.0",
+    "width": 4096,
+    "height": 4096,
+    "metres": [
+      2,
+      2
+    ],
+    "archiveSha256": "ba699d43f112d01cd8d26c80a912f61545dbed1c9fce74c200fb372d05069c6b",
+    "maps": {
+      "albedo": "Concrete032_albedo.jpg",
+      "normal": "Concrete032_normal.jpg",
+      "orm": "Concrete032_orm.jpg"
+    },
+    "albedoMeanLinear": [
+      0.08230385,
+      0.07464495,
+      0.05652272
+    ]
+  }
+}

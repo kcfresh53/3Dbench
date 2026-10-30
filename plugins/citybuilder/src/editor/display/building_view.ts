@@ -1,3 +1,5 @@
+import { foundationMesh } from '../../core/buildings/foundations';
+import { materialPlate } from '../../texture/ambientcg';
 import type { PlacedBuilding } from '../../core/city/compose';
 import { modularMesh } from '../../core/buildings/mesh';
 import type { Prefab } from '../../core/buildings/prefabs';
@@ -16,6 +18,7 @@ const TRIANGLE_BUDGET: number = 1_200_000;
 export class BuildingView implements View {
 	readonly root: THREE.Object3D = new THREE.Object3D();
 	private material: THREE.MeshStandardMaterial | null = null;
+	private foundationTextures: THREE.Texture[] = [];
 	private envHandles: Array<{ delete(): void }> = [];
 
 	rebuild(ctx: ViewContext): void {
@@ -68,6 +71,20 @@ export class BuildingView implements View {
 			instanced.frustumCulled = false;
 			this.root.add(instanced);
 		}
+  const foundation=foundationMesh(plan.buildings,plan.terrain.heights);
+  if(foundation.faces.length) {
+   const maps = (['albedo','normal','orm'] as const).map(channel=>{
+    const p=materialPlate('plaster',channel), texture=new THREE.DataTexture(p.data,p.w,p.h,THREE.RGBFormat);
+    texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.flipY=false;texture.generateMipmaps=true;
+    texture.minFilter=THREE.LinearMipmapLinearFilter;texture.magFilter=THREE.LinearFilter;texture.anisotropy=16;
+    if(channel==='albedo')texture.encoding=THREE.sRGBEncoding;
+    texture.needsUpdate=true;this.foundationTextures.push(texture);return texture;
+   });
+   const geometry=propGeometry({positions:foundation.positions,faces:foundation.faces.map(f=>({...f,material:''}))},(_,uv)=>uv);
+   geometry.setAttribute('uv2',geometry.getAttribute('uv'));
+   const mesh=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({map:maps[0],normalMap:maps[1],roughnessMap:maps[2],aoMap:maps[2],roughness:1,metalness:0}));
+   mesh.castShadow=true;mesh.receiveShadow=true;this.root.add(mesh);
+  }
 	}
 
 	/**
@@ -77,7 +94,7 @@ export class BuildingView implements View {
 	private createMaterial(atlas: TileAtlas): THREE.MeshStandardMaterial {
 		const renderer = typeof Preview !== 'undefined' ? (Preview.selected as unknown as { renderer?: THREE.WebGLRenderer } | undefined)?.renderer : undefined;
 		const anisotropy: number = Math.min(8, renderer?.capabilities.getMaxAnisotropy() ?? 4);
-		const srgb: boolean = renderer?.outputEncoding === THREE.sRGBEncoding;
+		const srgb: boolean = true;
 		const orm: THREE.DataTexture = mappedTexture(atlas.maps.orm, { srgb: false, anisotropy });
 		const material: THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial({
 			map: mappedTexture(atlas.maps.albedo, { srgb, anisotropy }),
@@ -126,6 +143,7 @@ export class BuildingView implements View {
 		}
 		for (const handle of this.envHandles) handle.delete();
 		this.envHandles = [];
+		for(const texture of this.foundationTextures)texture.dispose();this.foundationTextures=[];
 		disposeTree(this.root);
 		this.material = null;
 	}

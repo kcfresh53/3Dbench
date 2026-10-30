@@ -1,9 +1,12 @@
 import type { PackageFile } from '../core/gameready/package';
 import type { Raster } from '../core/raster';
+import { dataRasterPng } from '../core/raster_png';
 
 interface NodeFs {
 	mkdirSync(path: string, options: { recursive: boolean }): void;
 	writeFileSync(path: string, data: Uint8Array | string): void;
+	readFileSync(path: string): Uint8Array;
+	accessSync(path: string): void;
 }
 
 interface NodePath {
@@ -41,13 +44,16 @@ export async function writePackage(directory: string, files: PackageFile[]): Pro
 	if (typeof require !== 'function') throw new Error('Exporting to a folder needs the desktop app.');
 	const fs: NodeFs = require('node:fs') as NodeFs;
 	const path: NodePath = require('node:path') as NodePath;
+	// Validate the separate resource pack before writing any part of the destination package.
+	for (const file of files) if (file.source) fs.accessSync(file.source);
 	let written: number = 0;
 	for (const file of files) {
 		const target: string = path.join(directory, ...file.path.split('/'));
 		fs.mkdirSync(path.dirname(target), { recursive: true });
 		if (file.text !== undefined) fs.writeFileSync(target, file.text);
 		else if (file.bytes) fs.writeFileSync(target, file.bytes);
-		else if (file.raster) fs.writeFileSync(target, await rasterToPng(file.raster));
+		else if (file.source) fs.writeFileSync(target, fs.readFileSync(file.source));
+		else if (file.raster) fs.writeFileSync(target, file.dataTexture ? dataRasterPng(file.raster) : await rasterToPng(file.raster));
 		else continue;
 		written++;
 	}

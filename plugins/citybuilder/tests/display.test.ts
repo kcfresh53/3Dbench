@@ -41,14 +41,25 @@ test('terrain view builds patches that cover the map and follow live edits', () 
 	view.rebuild(ctx);
 	const hf = ctx.plan.terrain.heights;
 	assert.ok(view.root.children.length > 0);
-	assert.equal(countTriangles(view.root) / 3, (hf.cols - 1) * (hf.rows - 1) * 2, 'ground, shadow receiver and overlay share each triangle');
+	const geometries = new Set<THREE_NS.BufferGeometry>();
+	view.root.traverse(o=>{const mesh=o as THREE_NS.Mesh;if(mesh.geometry)geometries.add(mesh.geometry);});
+	assert.equal([...geometries].reduce((n,g)=>n+(g.index?.count??0)/3,0),(hf.cols-1)*(hf.rows-1)*2,'PBR layers share the terrain geometry');
+	assert.ok(countTriangles(view.root)>=(hf.cols-1)*(hf.rows-1)*2);
 	const first = view.root.children[0] as THREE_NS.Mesh;
+	const depth = view.root.getObjectByName('City terrain depth') as THREE_NS.Mesh;
+	assert.ok(depth?.visible, 'solid terrain contributes depth before transparent surfaces');
+	assert.equal(depth.geometry, first.geometry, 'terrain depth shares the live terrain geometry');
+	const depthMaterial = depth.material as THREE_NS.Material;
+	assert.equal(depthMaterial.transparent, false);
+	assert.equal(depthMaterial.colorWrite, false, 'depth pass leaves the PBR colours intact');
+	assert.equal(depthMaterial.depthWrite, true);
 	const before = (first.geometry.getAttribute('position') as THREE_NS.BufferAttribute).getY(5);
 	hf.heights.fill(50);
 	view.liveEdit(hf, { c0: 0, r0: 0, c1: hf.cols, r1: hf.rows });
 	const after = (first.geometry.getAttribute('position') as THREE_NS.BufferAttribute).getY(5);
 	assert.notEqual(before, after);
 	assert.equal(after, 50);
+	assert.equal(depth.geometry.getAttribute('position').getY(5), 50, 'occlusion follows sculpting');
 	view.showOverlay(true);
 	assert.ok(view.root.children.some((c) => c.visible));
 	view.dispose();
@@ -150,6 +161,14 @@ test('lot, water and cursor views build without errors', () => {
 	g.cancelAnimationFrame = (): void => {};
 	water.rebuild(ctx);
 	assert.equal(water.root.children.length, 1);
+	const terrain = new TerrainView();
+	terrain.rebuild(ctx);
+	const waterOrder = water.root.children[0].renderOrder;
+	const layers = terrain.root.children.filter(o => ((o as THREE_NS.Mesh).material as THREE_NS.Material).transparent);
+	assert.ok(layers.filter(o => o.visible).every(o => o.renderOrder < waterOrder), 'all PBR layers finish before water, including submerged terrain');
+	terrain.showOverlay(true);
+	const overlays = layers.filter(o => o.renderOrder > waterOrder);
+	assert.ok(overlays.length > 0 && overlays.every(o => o.visible), 'district editing remains visible over water');
 	assert.equal((water.root as unknown as { no_export: boolean }).no_export, true, 'the water sheet is never exported');
 	assert.equal((water.root.children[0] as unknown as { no_export: boolean }).no_export, true);
 	water.configure({ ...ctx.state.settings.water, show: false });
@@ -161,6 +180,7 @@ test('lot, water and cursor views build without errors', () => {
 	cursor.hide();
 	lots.dispose();
 	water.dispose();
+	terrain.dispose();
 	g.requestAnimationFrame = saved.raf;
 	g.cancelAnimationFrame = saved.caf;
 	cursor.dispose();
@@ -169,18 +189,23 @@ test('lot, water and cursor views build without errors', () => {
 test('daylight owns its sky and shadow resources and restores renderer preferences', async () => {
  const {LightingView}=await import('../src/editor/display/lighting_view');
  const previous=(globalThis as any).Preview;
- const renderer={shadowMap:{enabled:false,type:THREE_NS.BasicShadowMap}};
+ const renderer={shadowMap:{enabled:false,type:THREE_NS.BasicShadowMap},outputEncoding:THREE_NS.LinearEncoding,toneMapping:THREE_NS.NoToneMapping,toneMappingExposure:1.25};
  (globalThis as any).Preview={all:[{renderer}]};
  const view=new LightingView();
  try {
   view.rebuild(context());
   assert.equal(renderer.shadowMap.enabled,true);
+  assert.equal(renderer.outputEncoding,THREE_NS.sRGBEncoding);
+  assert.equal(renderer.toneMapping,THREE_NS.ACESFilmicToneMapping);
   assert.ok(view.root.children.some(o=>(o as THREE_NS.DirectionalLight).isDirectionalLight));
   view.setEnabled(false);assert.equal(renderer.shadowMap.enabled,false);
   view.setEnabled(true);assert.equal(renderer.shadowMap.enabled,true);
   view.dispose();
   assert.equal(renderer.shadowMap.enabled,false);
   assert.equal(renderer.shadowMap.type,THREE_NS.BasicShadowMap);
+  assert.equal(renderer.outputEncoding,THREE_NS.LinearEncoding);
+  assert.equal(renderer.toneMapping,THREE_NS.NoToneMapping);
+  assert.equal(renderer.toneMappingExposure,1.25);
   assert.equal(view.root.children.length,0);
  }finally{view.dispose();if(previous)(globalThis as any).Preview=previous;else delete (globalThis as any).Preview;}
 });

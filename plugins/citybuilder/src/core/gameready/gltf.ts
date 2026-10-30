@@ -10,6 +10,8 @@ export interface GlbMaterial {
 	/** Alpha cutout, for foliage cards. */
 	cutout?: number;
 	doubleSided?: boolean;
+	repeat?: boolean;
+	roughness?: number;
 }
 
 interface Buffers {
@@ -83,7 +85,7 @@ function encode(name: string, data: Buffers, material: GlbMaterial): Uint8Array 
 	new Uint32Array(bin, offset, data.indices.length).set(data.indices);
 
 	const images: Array<{ uri: string }> = [{ uri: material.baseColor }];
-	const pbr: Record<string, unknown> = { baseColorTexture: { index: 0 }, metallicFactor: 1, roughnessFactor: 1 };
+	const pbr: Record<string, unknown> = { baseColorTexture: { index: 0 }, metallicFactor: 1, roughnessFactor: material.roughness ?? 1 };
 	const mat: Record<string, unknown> = { name, pbrMetallicRoughness: pbr, doubleSided: material.doubleSided ?? false };
 	if (material.orm) {
 		images.push({ uri: material.orm });
@@ -109,7 +111,7 @@ function encode(name: string, data: Buffers, material: GlbMaterial): Uint8Array 
 		meshes: [{ name, primitives: [{ attributes: { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2 }, indices: 3, material: 0, mode: 4 }] }],
 		materials: [mat],
 		textures: images.map((_: { uri: string }, i: number): { source: number; sampler: number } => ({ source: i, sampler: 0 })),
-		samplers: [{ magFilter: 9729, minFilter: 9987, wrapS: 33071, wrapT: 33071 }],
+		samplers: [{ magFilter: 9729, minFilter: 9987, wrapS: material.repeat ? 10497 : 33071, wrapT: material.repeat ? 10497 : 33071 }],
 		images,
 		accessors: [
 			{ bufferView: 0, componentType: 5126, count: vertices, type: 'VEC3', min, max },

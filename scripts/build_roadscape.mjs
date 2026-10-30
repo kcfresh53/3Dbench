@@ -40,6 +40,7 @@ await build({
 	target: 'es2020',
 	outfile: 'plugins/roadscape.js',
 	legalComments: 'none',
+	external: ['node:fs'],
 	plugins: [withoutPhotos],
 	banner: {js: '// Roadscape v3 for 3D Bench. Standalone road-network plugin; GPL-3.0-or-later.\n// Source artwork: Baptiste Mollicone and SLX, Roadscape 4.13.10. Adapted 2026-10-28.\n// Load via File > Plugins > Load Plugin from File. License and scope: plugins/roadscape/README.md\n'},
 });

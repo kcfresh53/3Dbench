@@ -80,7 +80,7 @@ export class TreeView implements View {
 		const cullRadius: number = CHUNK_METRES * Math.SQRT1_2 + MAX_TREE_HEIGHT;
 		for (const [key, byCell] of groups) {
 			const asset: CityTreeAsset = assets.get(key) as CityTreeAsset;
-			const material: THREE.MeshBasicMaterial = new THREE.MeshBasicMaterial({ map: this.textureFor(key, asset), side: THREE.DoubleSide, alphaTest: 0.45 });
+			const material: THREE.MeshBasicMaterial = new THREE.MeshBasicMaterial({ map: this.textureFor(key, asset), side: THREE.DoubleSide, alphaTest: 0.45, toneMapped:false });
 			// One geometry per asset, shared by its cells. Its sphere covers a whole cell around the mesh origin.
 			const geometry: THREE.BufferGeometry = geometryForParts([asset.part]);
 			// Cell meshes sit at their cell centre, so one shared sphere around the origin covers any cell.
@@ -109,6 +109,7 @@ export class TreeView implements View {
 		let texture: THREE.Texture | undefined = this.textures.get(key);
 		if (!texture) {
 			texture = new THREE.TextureLoader().load(asset.dataUrl, (): void => redraw());
+			texture.encoding=THREE.sRGBEncoding;
 			texture.flipY = false;
 			texture.magFilter = THREE.LinearFilter;
 			texture.minFilter = THREE.LinearMipmapLinearFilter;

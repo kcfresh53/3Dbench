@@ -9,6 +9,8 @@ import type { MeshPart, PartFace, Vec3 } from '../core/types';
 import { abortCreate, addMesh, beginCreate, finishCreate, newGroup, newMaterialGroup, newTexture } from './mesh_builder';
 import type { Created } from './mesh_builder';
 import { Raster } from '../core/raster';
+import { foundationMesh } from '../core/buildings/foundations';
+import { materialPlate } from '../texture/ambientcg';
 import { rasterToDataUrl } from './files';
 import type { CityStore } from './store';
 
@@ -71,7 +73,13 @@ export async function bakeCity(store: CityStore): Promise<BakeResult> {
 		for (const piece of terrainBakePieces(plan,state.settings)) {
 			let terrainTexture=terrainTextures.get(piece.texture);
 			if (!terrainTexture) {
-				terrainTexture=newTexture(`city_terrain_${piece.texture}.png`,rasterToDataUrl(piece.raster),size,created);
+				const material=newMaterialGroup(`city_terrain_${piece.texture}`,created);
+				terrainTexture=newTexture(`city_terrain_${piece.texture}.png`,rasterToDataUrl(piece.raster),size,created,'color',material);
+				if(piece.normal)newTexture(`city_terrain_${piece.texture}_normal.png`,rasterToDataUrl(piece.normal),size,created,'normal',material);
+				if(piece.orm) {
+					newTexture(`city_terrain_${piece.texture}_roughness.png`,rasterToDataUrl(greyscale(piece.orm,1)),size,created,'roughness',material);
+					newTexture(`city_terrain_${piece.texture}_occlusion.png`,rasterToDataUrl(greyscale(piece.orm,0)),size,created,'occlusion',material);
+				}
 				terrainTextures.set(piece.texture,terrainTexture);
 			}
 			const patch=piece.patch;
@@ -87,6 +95,16 @@ export async function bakeCity(store: CityStore): Promise<BakeResult> {
 		}
 
 		const prefabs: Prefab[] = plan.prefabs.all();
+		const foundation=foundationMesh(plan.buildings,plan.terrain.heights);
+		if(foundation.faces.length) {
+			const p=materialPlate('plaster','albedo'), raster=new Raster(p.w,p.h);
+			for(let i=0;i<p.w*p.h;i++)raster.set(i%p.w,Math.floor(i/p.w),[p.data[i*3],p.data[i*3+1],p.data[i*3+2]]);
+			const texture=newTexture('city_foundations.png',rasterToDataUrl(raster),p.w,created);
+			(texture as unknown as {wrap_mode:string;updateMaterial():void}).wrap_mode='repeat';
+			(texture as unknown as {updateMaterial():void}).updateMaterial();
+			addMesh('foundations',foundation.positions.map((p):Vec3=>[p[0]*scale,p[1]*scale,p[2]*scale]),foundation.faces,texture,root,'flat',created.meshes);
+			triangles+=foundation.faces.length*2;
+		}
 		if (plan.buildings.length > 0) {
 			const g = state.settings.gameReady;
 			const inputs: BuildingInput[] = prefabs.map((p: Prefab, i: number): BuildingInput => ({ name: `b${i}`, runs: [], lods: [modularMesh(p.model, 0)] }));

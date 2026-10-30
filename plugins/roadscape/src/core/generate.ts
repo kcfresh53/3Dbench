@@ -8,7 +8,7 @@ import type { NetworkIndex } from './network';
 import { PartSet, mergeParts } from './part_set';
 import { resolveProfile } from './profile_resolve';
 import type { ResolvedProfile } from './profile_resolve';
-import { emitCarriageway, emitSide, makeRibbon } from './surface';
+import { emitCarriageway, emitSide, emitGroundContact, makeRibbon } from './surface';
 import type { Ribbon } from './surface';
 import { emitMarkings } from './markings';
 import { emitLinings } from './lining_emit';
@@ -125,10 +125,11 @@ function generateSegment(network: RoadNetwork, index: NetworkIndex, ctx: Generat
 	const profile: ResolvedProfile = resolveProfile(profileData, unit, settings.weather);
 	const set: PartSet = new PartSet();
 	const report: BuildReport = newReport();
-	const ribbon: Ribbon = makeRibbon(curve, from, to, unit, settings);
+	const ribbon: Ribbon = makeRibbon(curve, from, to, unit, settings, structure==='ground'&&ctx.terrain?.surfaceAt?2.5:10);
 	emitCarriageway(set, ctx.library, ribbon, profile, settings);
 	emitSide(set, ctx.library, ribbon, profile.left);
 	emitSide(set, ctx.library, ribbon, profile.right);
+	if(structure==='ground'&&ctx.terrain?.surfaceAt)emitGroundContact(set,ctx.library,ribbon,profile,ctx.terrain.surfaceAt,settings.weather);
 	emitMarkings(set, ctx.library, curve, from, to, profile, settings);
 	emitStructure({ set, ctx, settings, profile, curve, ribbon, from, to, structure, segmentKey: segment.key });
 	emitMedianBarrier({ set, ctx, profile, curve, from, to });
@@ -141,9 +142,9 @@ function generateSegment(network: RoadNetwork, index: NetworkIndex, ctx: Generat
 function junctionSignature(network: RoadNetwork, plan: JunctionPlan, ctx: GenerationContext, density: DensityMap): string {
 	const arms: string[] = plan.arms.map((arm: Arm): string => {
 		const data: RoadProfile = resolveProfileData(network, arm.segment.profile);
-		return `${curveKey(arm.curve)}|${round(arm.setback)}|${arm.atStart}|${JSON.stringify(data)}|${densityKey(data, density)}`;
+		return `${curveKey(arm.curve)}|${round(arm.setback)}|${arm.atStart}|${arm.segment.structure}|${JSON.stringify(data)}|${densityKey(data, density)}`;
 	});
-	return JSON.stringify([plan.nodeId, vecKey(plan.centre), round(plan.cornerRadius), plan.cap, arms, settingsKey(network.settings), ctx.trees.revision]);
+	return JSON.stringify([plan.nodeId, vecKey(plan.centre), round(plan.cornerRadius), plan.cap, arms, settingsKey(network.settings), ctx.trees.revision, ctx.terrain?.revision]);
 }
 
 function generateJunction(network: RoadNetwork, ctx: GenerationContext, plan: JunctionPlan, density: DensityMap, cache: GenerationCache | null): CachedChunk | null {
@@ -154,7 +155,8 @@ function generateJunction(network: RoadNetwork, ctx: GenerationContext, plan: Ju
 	const spent: Map<string, number> = new Map();
 	const segments: number = Math.max(1, network.settings.junction.cornerSegments);
 	if (plan.arms.length > 1 || plan.cap) {
-		emitJunctionPatch(set, ctx, plan, segments);
+		const groundArms=new Set(plan.arms.filter(arm=>resolveStructure(arm.segment,arm.profile.profile,arm.curve,network.settings,ctx.terrain)==='ground').map(arm=>arm.segment.key));
+		emitJunctionPatch(set, ctx, plan, segments, groundArms);
 		emitJunctionMarkings(set, ctx, network, plan);
 		emitJunctionProps(set, ctx, plan, segments, density, spent);
 	}

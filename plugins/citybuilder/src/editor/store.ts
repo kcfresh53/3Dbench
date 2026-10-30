@@ -39,6 +39,7 @@ export class CityStore {
 	private roadEvents: Array<{ delete(): void }> = [];
 	private flushTimer: number | null = null;
 	private composing: boolean = false;
+	private stateProjectId: string = '';
 
 	constructor() {
 		this.history = new CityHistory(
@@ -60,11 +61,14 @@ export class CityStore {
 
 	/** Reads the city saved in the current project, if any. */
 	load(): void {
+		// Reloading immediately after a brush or undo must not discard the debounced save.
+		if (this.flushTimer !== null && this.stateProjectId === Project?.uuid) this.flush();
 		this.cancelTimers();
 		this.plan = null;
 		this.roadSignature = '';
 		const raw: string = (typeof Project !== 'undefined' && Project ? (Project as unknown as Stored)[PROJECT_KEY] : '') ?? '';
 		this.state = raw ? deserializeCity(raw) : null;
+		this.stateProjectId = Project?.uuid ?? '';
 		this.changed.emit(this.state ? 'loaded' : 'cleared');
 		if (this.state) this.recomposeNow();
 	}
@@ -81,12 +85,13 @@ export class CityStore {
 			clearTimeout(this.flushTimer);
 			this.flushTimer = null;
 		}
-		if (!this.state || typeof Project === 'undefined' || !Project) return;
+		if (!this.state || typeof Project === 'undefined' || !Project || this.stateProjectId !== Project.uuid) return;
 		(Project as unknown as Stored)[PROJECT_KEY] = serializeCity(this.state);
 	}
 
 	create(partial: Partial<CitySettings>, preset: TerrainPreset): void {
 		this.state = new CityState(mergeSettings(partial));
+		this.stateProjectId = Project?.uuid ?? '';
 		generateTerrain(this.state.terrain, { preset, seed: this.state.settings.seed });
 		if (Project) Project.saved = false;
 		this.flush();

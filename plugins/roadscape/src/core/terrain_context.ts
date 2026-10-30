@@ -4,6 +4,8 @@ import type { ResolvedStructure } from './structures';
 export interface RoadTerrain {
 	revision: string;
 	groundAt(x:number,z:number): number;
+	/** Final graded surface, used only to seal ground-road edges. Natural ground remains the structure classifier. */
+	surfaceAt?(x:number,z:number): number;
 	autoStructure(points:Vec3[]): ResolvedStructure;
 }
 export interface TerrainRules { waterLevel:number; gapHeight:number; minSpan:number; autoBridges:boolean }

@@ -6,12 +6,14 @@ import type { Raster } from '../raster';
 import type { TerrainPatch } from './mesh';
 
 /** Independent padded chunk maps preserve local detail without a giant world atlas. */
-export function* terrainBakePieces(plan: CityPlan, settings: CitySettings): Generator<{name:string; patch:TerrainPatch; raster:Raster; texture:string}> {
+export function* terrainBakePieces(plan: CityPlan, settings: CitySettings): Generator<{name:string; patch:TerrainPatch; raster:Raster; orm?:Raster; normal?:Raster; texture:string}> {
 	const hf=plan.terrain.heights, size=settings.terrainTexture;
-	const input={hf,surfaces:plan.surfaces,roadWeight:plan.terrain.roadWeight,lotWeight:plan.terrain.lotWeight,
+	const input={hf,surfaces:plan.surfaces,roadWeight:plan.terrain.roadbedWeight,lotWeight:plan.terrain.lotWeight,
 		padColor:[136,146,118] as [number,number,number],waterLevel:settings.waterLevel,sun:settings.sun,size,seed:settings.seed};
 	const single=settings.terrainTextureMode==='single';
 	const shared=single?paintTerrain(input):null;
+	const sharedOrm=single && settings.gameReady.pbr?paintTerrain({...input,channel:'orm'}):undefined;
+	const sharedNormal=single && settings.gameReady.pbr?paintTerrain({...input,channel:'normal'}):undefined;
 	for(const r of patchRanges(hf,32)) {
 		const name=`chunk_${r.c0}_${r.r0}`;
 		const patch=buildPatch(hf,r.c0,r.r0,r.c1,r.r1);
@@ -22,6 +24,9 @@ export function* terrainBakePieces(plan: CityPlan, settings: CitySettings): Gene
 			patch.uvs[i]=(patch.positions[i/2*3]-region.x)/region.width;
 			patch.uvs[i+1]=(patch.positions[i/2*3+2]-region.z)/region.depth;
 		}
-		yield {name,patch,raster:shared??paintTerrain({...input,region}),texture:single?'albedo':`albedo_${r.c0}_${r.r0}`};
+		yield {name,patch,raster:shared??paintTerrain({...input,region}),
+			orm:settings.gameReady.pbr?(sharedOrm??paintTerrain({...input,region,channel:'orm'})):undefined,
+			normal:settings.gameReady.pbr?(sharedNormal??paintTerrain({...input,region,channel:'normal'})):undefined,
+			texture:single?'albedo':`albedo_${r.c0}_${r.r0}`};
 	}
 }

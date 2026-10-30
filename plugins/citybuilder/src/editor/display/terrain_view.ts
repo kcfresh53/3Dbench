@@ -1,3 +1,5 @@
+import { TerrainMaterials } from './terrain_materials';
+import { CITY_RENDER_ORDER } from './render_order';
 import { districtById, hexToRgb } from '../../core/district/library';
 import type { DistrictMap } from '../../core/district/map';
 import { Raster } from '../../core/raster';
@@ -21,7 +23,7 @@ const PAD_COLOR: [number, number, number] = [136, 146, 118];
 interface PatchMesh {
 	range: PatchRange;
 	ground: THREE.Mesh;
-	shadow: THREE.Mesh;
+	depth: THREE.Mesh;
 	overlay: THREE.Mesh;
 }
 
@@ -30,6 +32,7 @@ function geometryOf(patch: TerrainPatch): THREE.BufferGeometry {
 	g.setAttribute('position', new THREE.BufferAttribute(patch.positions, 3));
 	g.setAttribute('normal', new THREE.BufferAttribute(patch.normals, 3));
 	g.setAttribute('uv', new THREE.BufferAttribute(patch.uvs, 2));
+	g.setAttribute('uv2', g.getAttribute('uv'));
 	g.setIndex(new THREE.BufferAttribute(patch.indices, 1));
 	g.computeBoundingSphere();
 	return g;
@@ -39,12 +42,12 @@ function geometryOf(patch: TerrainPatch): THREE.BufferGeometry {
 export class TerrainView implements View {
 	readonly root: THREE.Object3D = new THREE.Object3D();
 	private patches: PatchMesh[] = [];
-	private groundMaterial: THREE.MeshBasicMaterial | null = null;
 	private overlayMaterial: THREE.MeshBasicMaterial | null = null;
 	private overlayTexture: THREE.DataTexture | null = null;
 	private overlayRaster: Raster | null = null;
 	private source: Heightfield | null = null;
 	private albedo: THREE.DataTexture | null = null;
+	private readonly layerMaterials = new TerrainMaterials();
 	private albedoShape: string = '';
 	private albedoSignature: string = '';
 	/** Told whenever the terrain texture changes, so the water can show it through its surface. */
@@ -61,7 +64,7 @@ export class TerrainView implements View {
 		const input: PaintInput = {
 			hf,
 			surfaces: ctx.plan.surfaces,
-			roadWeight: ctx.plan.terrain.roadWeight,
+			roadWeight: ctx.plan.terrain.roadbedWeight,
 			lotWeight: ctx.plan.terrain.lotWeight,
 			padColor: PAD_COLOR,
 			waterLevel: s.waterLevel,
@@ -74,22 +77,31 @@ export class TerrainView implements View {
 		const shape: string = `${hf.cols}x${hf.rows}x${hf.cellSize}`;
 		if (this.albedo === null || this.albedoShape !== shape || signature !== this.albedoSignature) {
 			// First view of this terrain: a small bake appears at once, the sharp one follows.
-			this.setAlbedo(mappedTexture(paintTerrain({ ...input, size: PREVIEW_TEXTURE }), { srgb: false, anisotropy: 8 }), shape, '');
+			this.setAlbedo(mappedTexture(paintTerrain({ ...input, size: PREVIEW_TEXTURE }), { srgb: true, anisotropy: 16 }), shape, '');
 		}
-		this.groundMaterial = new THREE.MeshBasicMaterial({ map: this.albedo });
+		const materials = this.layerMaterials.build(ctx);
+		// PBR surfaces blend in the transparent pass. Write the solid terrain's depth first so
+		// water and other transparent objects are still occluded by dry land, including shore edges.
+		const depthMaterial = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: true, depthTest: true });
 		this.overlayRaster = new Raster(hf.cellCols, hf.cellRows);
 		this.overlayTexture = rasterTexture(this.overlayRaster, true);
 		this.overlayMaterial = new THREE.MeshBasicMaterial({ map: this.overlayTexture, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
 		for (const range of patchRanges(hf, PATCH_CELLS)) {
 			const geometry: THREE.BufferGeometry = geometryOf(buildPatch(hf, range.c0, range.r0, range.c1, range.r1));
-			const ground: THREE.Mesh = new THREE.Mesh(geometry, this.groundMaterial);
+			const ground: THREE.Mesh = new THREE.Mesh(geometry, materials[0]);
+			ground.receiveShadow = true;
+			ground.renderOrder = CITY_RENDER_ORDER.terrain;
 			const overlay: THREE.Mesh = new THREE.Mesh(geometry, this.overlayMaterial);
 			overlay.visible = false;
-			overlay.renderOrder = 2;
-			const shadow = new THREE.Mesh(geometry, new THREE.ShadowMaterial({ opacity: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
-			shadow.receiveShadow = true;
-			this.root.add(ground, shadow, overlay);
-			this.patches.push({ range, ground, shadow, overlay });
+			overlay.renderOrder = CITY_RENDER_ORDER.districts;
+			const depth = new THREE.Mesh(geometry, depthMaterial);
+			depth.name = 'City terrain depth';
+			this.root.add(ground, depth, overlay);
+			materials.slice(1).forEach((material,i)=>{
+				const layer=new THREE.Mesh(geometry,material);layer.receiveShadow=true;layer.renderOrder=CITY_RENDER_ORDER.terrain+i+1;
+				this.root.add(layer);
+			});
+			this.patches.push({ range, ground, depth, overlay });
 		}
 		this.setDistricts(ctx.state.districts);
 		if (signature !== this.albedoSignature) this.bake(input, shape, signature);
@@ -112,11 +124,8 @@ export class TerrainView implements View {
 				this.bakeTimer = setTimeout(step, 0);
 				return;
 			}
-			this.setAlbedo(mappedTexture(painter.raster, { srgb: false, anisotropy: 8 }), shape, signature);
-			if (this.groundMaterial) {
-				this.groundMaterial.map = this.albedo;
-				this.groundMaterial.needsUpdate = true;
-			}
+			this.setAlbedo(mappedTexture(painter.raster, { srgb: true, anisotropy: 16 }), shape, signature);
+
 			redraw();
 		};
 		this.bakeTimer = setTimeout(step, 0);
@@ -175,7 +184,6 @@ export class TerrainView implements View {
 		this.overlayTexture?.dispose();
 		disposeTree(this.root);
 		this.patches = [];
-		this.groundMaterial = null;
 		this.overlayMaterial = null;
 		this.overlayTexture = null;
 		this.overlayRaster = null;
@@ -192,6 +200,7 @@ export class TerrainView implements View {
 		this.clear();
 		this.albedo?.dispose();
 		this.albedo = null;
+		this.layerMaterials.dispose();
 		this.albedoSignature = '';
 	}
 }

@@ -1,3 +1,6 @@
+import { pbrRoadParts } from '../core/pbr_materials';
+import { materialPreviewSource } from '../../../citybuilder/src/texture/material_resources';
+import type { MaterialId } from '../../../citybuilder/src/texture/material_resources';
 import type { MeshPart } from '../core/types';
 import type { RoadLibrary } from '../core/library_types';
 import { ROAD_ATLAS } from '../core/library_types';
@@ -22,6 +25,7 @@ export function geometryForParts(parts: MeshPart[]): THREE.BufferGeometry {
 	const geometry: THREE.BufferGeometry = new THREE.BufferGeometry();
 	geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
 	geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+	geometry.setAttribute('uv2',geometry.getAttribute('uv'));
 	geometry.computeVertexNormals();
 	geometry.computeBoundingSphere();
 	return geometry;
@@ -29,24 +33,39 @@ export function geometryForParts(parts: MeshPart[]): THREE.BufferGeometry {
 
 /** Shares one texture and material per atlas across every live road. */
 export class MaterialPool {
-	private readonly materials: Map<string, THREE.MeshBasicMaterial> = new Map();
+	private readonly materials: Map<string, THREE.MeshBasicMaterial | THREE.MeshStandardMaterial> = new Map();
 	private readonly textures: Map<string, THREE.Texture> = new Map();
 
 	constructor(
-		private readonly library: RoadLibrary,
+		readonly library: RoadLibrary,
 		private readonly lookup: (key: string) => TreeAtlas | undefined,
 		private readonly onLoaded: () => void,
 	) {}
 
-	material(atlas: string): THREE.MeshBasicMaterial | null {
-		const existing: THREE.MeshBasicMaterial | undefined = this.materials.get(atlas);
+	material(atlas: string): THREE.MeshBasicMaterial | THREE.MeshStandardMaterial | null {
+		const existing: THREE.MeshBasicMaterial | THREE.MeshStandardMaterial | undefined = this.materials.get(atlas);
 		if (existing) return existing;
+  if(atlas.startsWith('pbr:')) {
+   const id=atlas.slice(4).replace('_wet','') as MaterialId;
+   const load=(channel:'albedo'|'normal'|'orm'):THREE.Texture=>{
+    const texture=new THREE.TextureLoader().load(materialPreviewSource(id,channel),this.onLoaded);
+    texture.flipY=false;texture.wrapS=texture.wrapT=THREE.RepeatWrapping;
+    texture.magFilter=THREE.LinearFilter;texture.minFilter=THREE.LinearMipmapLinearFilter;texture.anisotropy=16;
+    if(channel==='albedo')texture.encoding=THREE.sRGBEncoding;
+    this.textures.set(`${atlas}:${channel}`,texture);return texture;
+   };
+   const orm=load('orm');
+   const material=new THREE.MeshStandardMaterial({map:load('albedo'),normalMap:load('normal'),roughnessMap:orm,metalnessMap:orm,aoMap:orm,
+    roughness:atlas.endsWith('_wet')?.3:1,metalness:1,side:THREE.DoubleSide});
+   this.materials.set(atlas,material);return material;
+  }
 		const url: string | undefined = atlas === ROAD_ATLAS ? this.library.atlas : this.lookup(atlas)?.dataUrl;
 		if (!url) return null;
 		const texture: THREE.Texture = new THREE.TextureLoader().load(url, (): void => this.onLoaded());
 		texture.flipY = false;
 		texture.magFilter = atlas === ROAD_ATLAS ? THREE.LinearFilter : THREE.NearestFilter;
-		const material: THREE.MeshBasicMaterial = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, alphaTest: 0.5 });
+		texture.encoding=THREE.sRGBEncoding;
+		const material: THREE.MeshBasicMaterial = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, alphaTest: 0.5, toneMapped:false });
 		this.textures.set(atlas, texture);
 		this.materials.set(atlas, material);
 		return material;
@@ -65,17 +84,18 @@ export function makeRoadBody(parts: MeshPart[], pool: MaterialPool): THREE.Group
 	group.name = LIVE_BODY_NAME;
 	(group as unknown as { no_export: boolean }).no_export = true;
 	const byAtlas: Map<string, MeshPart[]> = new Map();
-	for (const part of parts) {
+	for (const part of pbrRoadParts(parts,pool.library)) {
 		const list: MeshPart[] = byAtlas.get(part.atlas) ?? [];
 		list.push(part);
 		byAtlas.set(part.atlas, list);
 	}
 	for (const [atlas, list] of byAtlas) {
-		const material: THREE.MeshBasicMaterial | null = pool.material(atlas);
+		const material = pool.material(atlas);
 		if (!material) continue;
 		const object: THREE.Mesh = new THREE.Mesh(geometryForParts(list), material);
 		(object as unknown as { no_export: boolean }).no_export = true;
 		object.name = `${LIVE_BODY_NAME} (${atlas})`;
+		object.receiveShadow=true;
 		group.add(object);
 	}
 	return group;

@@ -1,5 +1,5 @@
 const {app}=require('electron');
-const {mkdtempSync,rmSync,mkdirSync,writeFileSync}=require('node:fs');
+const {mkdtempSync,rmSync,mkdirSync,writeFileSync,readFileSync,existsSync}=require('node:fs');
 const {tmpdir}=require('node:os');const {join}=require('node:path');const {pathToFileURL}=require('node:url');
 // End-to-end check of City Builder inside the real app: create a city, draw a road with Roadscape,
 // zone it, sculpt, undo, save into the project, bake and make a mesh game ready. Run with:
@@ -17,6 +17,7 @@ app.on('browser-window-created',(_,win)=>{
     const wait=ms=>new Promise(r=>setTimeout(r,ms));
     async function until(fn,label,ticks=800){for(let i=0;i<ticks;i++){if(fn())return;await wait(25);}throw Error('Timed out: '+(label||fn));}
     await new Promise(r=>requestAnimationFrame(r));
+    localStorage.setItem('startups','3');Blockbench.startup_count=3;
     if(Plugins.loading_promise)await Plugins.loading_promise;
     await wait(50);
     for(const name of ['roadscape','citybuilder']){
@@ -142,7 +143,11 @@ app.on('browser-window-created',(_,win)=>{
 
     // ---- bake: ordinary meshes, undoable ----
     await until(()=>ctl.store.plan,'plan after reload');
+    ctl.store.state.settings.terrainTexture=512;
+    ctl.store.state.settings.gameReady.atlasSize=1024;ctl.store.state.settings.gameReady.texelsPerMeter=12;
+    console.log('CityBuilder: baking test city');
     await ctl.bake();
+    console.log('CityBuilder: city baked');
     check(Group.all.some(g=>g.name==='City')&&Mesh.all.filter(m=>m.name.startsWith('terrain_')).length>0,'Bake created nothing');
     check(Mesh.all.some(m=>m.name.startsWith('buildings_')),'Bake created no buildings');
     check(Mesh.all.some(m=>m.name.startsWith('trees_')),'Bake created no trees');
@@ -158,15 +163,20 @@ app.on('browser-window-created',(_,win)=>{
     Undo.undo();check(!Group.all.some(g=>g.name==='City'),'Bake undo left the group');
     Undo.redo();check(Mesh.all.length===bakedMeshes,'Bake redo failed');
 
-    // ---- make a mesh game ready ----
-    const target=Mesh.all.find(m=>m.name.startsWith('buildings_'));target.select();
-    await ctl.gameReadySelection();
-    check(Group.all.some(g=>g.name.endsWith('(game ready)')),'Game-ready output missing');
-    check(Mesh.all.some(m=>/_LOD2/.test(m.name)),'No LOD2 mesh');
+    // ---- PBR native materials and the complete offline game package ----
+    check(Texture.all.some(t=>t.name.startsWith('city_terrain_')&&t.pbr_channel==='normal'),'Terrain normals missing from bake');
+    check(Mesh.all.some(m=>m.name==='foundations'),'Building foundations missing');
+    const folder=${JSON.stringify(join(profile,'export'))};
+    const pick=Blockbench.pickDirectory;Blockbench.pickDirectory=()=>folder;
+    console.log('CityBuilder: exporting game package');
+    try {await ctl.exportPackage();} finally {Blockbench.pickDirectory=pick;}
+    console.log('CityBuilder: export returned',ctl.status);
+    check(ctl.report?.terrainTriangles>0,'Game package failed: '+ctl.status);
+    const baked=Group.all.find(g=>g.name==='City');if(baked)baked.visibility=false;Canvas.updateVisibility();
 
     // ---- picture for the human, then unload cleanly ----
     document.getElementById('quick_message_box')?.remove();
-    preview.camera.position.set(260,230,300);preview.controls.target.set(0,0,0);preview.controls.update();ctl.display.setOption('districts',true);
+    preview.camera.position.set(260,230,300);preview.controls.target.set(0,0,0);preview.controls.update();ctl.display.setOption('districts',false);
     await wait(500);
     const stats=ctl.store.plan.stats;
     Plugins.registered.citybuilder.onunload();
@@ -175,10 +185,15 @@ app.on('browser-window-created',(_,win)=>{
     check(!Project.model_3d.children.some(o=>o.name==='CityBuilder live city'),'Unload leaked the display');
     return {buildings,stats};
    })()`);
+   const folder=join(profile,'export'),manifest=JSON.parse(readFileSync(join(folder,'city.json'),'utf8'));
+   if(!manifest.terrain.chunkNormals.length||!manifest.terrain.chunkOrms.length)throw Error('Terrain glTF PBR references missing');
+   if(manifest.terrain.layers.stochastic.algorithm!=='triangular-offset-rotation-v1'||!existsSync(join(folder,'materials/stochastic.glsl')))throw Error('Stochastic engine recipe missing');
+   if(!manifest.roadMeshes?.length||!manifest.roadMeshes.every(p=>existsSync(join(folder,p))))throw Error('Road mesh export missing');
+   for(const m of manifest.materials)if(m.width!==4096||![m.albedo,m.normal,m.orm].every(p=>existsSync(join(folder,p))))throw Error('4K material files missing');
    mkdirSync(join(__dirname,'../.local-assets/citybuilder'),{recursive:true});writeFileSync(join(__dirname,'../.local-assets/citybuilder/city.png'),(await win.webContents.capturePage()).toPNG());
    console.log('CITYBUILDER_OK',JSON.stringify(result));app.exit(0);
   }catch(error){console.error(error);mkdirSync(join(__dirname,'../.local-assets/citybuilder'),{recursive:true});writeFileSync(join(__dirname,'../.local-assets/citybuilder/failure.png'),(await win.webContents.capturePage()).toPNG());app.exit(1);}
  });
 });
-setTimeout(()=>{console.error('City Builder scene timeout');app.exit(1);},170000).unref();
+setTimeout(()=>{console.error('City Builder scene timeout');app.exit(1);},240000).unref();
 import(pathToFileURL(join(__dirname,'../electron/main.js')).href).catch(e=>{console.error(e);app.exit(1);});

@@ -65,7 +65,7 @@ export interface CitySettings {
 	conform: ConformSettings;
 	surface: SurfaceRules;
 	gameReady: GameReadySettings;
-	/** Direction towards the sun, used for baked terrain shading. */
+	/** Direction towards the sun for live PBR lighting. */
 	sun: Vec3;
 	/** Size of the baked terrain albedo in pixels. */
 	terrainTextureMode: 'chunks' | 'single';

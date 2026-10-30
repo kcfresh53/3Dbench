@@ -1,3 +1,5 @@
+import { sampleMaterial } from './ambientcg';
+import type { MaterialId } from './ambientcg';
 import type { Palette, TileKind } from '../core/buildings/tiles';
 import { fbm, hash2 } from '../core/math';
 import type { Rgb } from '../core/raster';
@@ -43,38 +45,12 @@ const mul = (c: Rgb, f: number): Rgb => [Math.min(255, c[0] * f), Math.min(255, 
 const mix = (a: Rgb, b: Rgb, t: number): Rgb => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 const FABRICS: Rgb[] = [[206, 196, 176], [168, 174, 184], [128, 110, 100], [222, 218, 208]];
 const ALUMINIUM: Rgb = [176, 180, 184];
-const MORTAR: Rgb = [176, 170, 160];
 
 function rect(c: TileCtx, x: number, y: number, x0: number, y0: number, x1: number, y1: number, grow: number = 0): number {
 	return coverage(boxDistance(x, y, x0, y0, x1, y1) - grow, c.pixel);
 }
 
 const tmp: Float64Array = new Float64Array(4);
-const means: Map<string, number> = new Map<string, number>();
-
-/** Average of the first channels of a map, used to keep a tinted material at the palette's brightness. */
-function meanOf(id: 'concrete_base' | 'brick_maps'): number {
-	let m: number | undefined = means.get(id);
-	if (m === undefined) {
-		const p: Plate = plate(id);
-		let sum: number = 0;
-		const n: number = p.w * p.h;
-		for (let i: number = 0; i < n; i++) sum += id === 'brick_maps' ? p.data[i * p.c] : (p.data[i * p.c] + p.data[i * p.c + 1] + p.data[i * p.c + 2]) / 3;
-		m = sum / n;
-		means.set(id, m);
-	}
-	return m;
-}
-
-/** Tilts the surface by a stored tangent-space normal map. */
-function normalFrom(t: Texel, p: Plate, u: number, v: number, strength: number): void {
-	sampleInto(p, u, v, true, tmp);
-	const nx: number = (tmp[0] - 127.5) / 127.5;
-	const ny: number = (tmp[1] - 127.5) / 127.5;
-	const nz: number = Math.sqrt(Math.max(0.25, 1 - nx * nx - ny * ny));
-	t.slopeX = (nx / nz) * strength;
-	t.slopeY = (ny / nz) * strength;
-}
 
 /** Weathering: streaks that run down the wall, from the shipped grunge map. */
 function weather(c: TileCtx, t: Texel, x: number, y: number, amount: number): void {
@@ -86,16 +62,19 @@ function weather(c: TileCtx, t: Texel, x: number, y: number, amount: number): vo
 }
 
 /** Rendered concrete or plaster: a photographic concrete map tinted to the palette's wall colour. */
+function photographic(t: Texel, id: MaterialId, x: number, y: number, tint: Rgb = [255,255,255], pixel: number = 0): void {
+ sampleMaterial(id, 'albedo', x, y, tmp, pixel);
+ resetTexel(t, [tmp[0]*tint[0]/255,tmp[1]*tint[1]/255,tmp[2]*tint[2]/255], .9, 0);
+ sampleMaterial(id, 'orm', x, y, tmp, pixel);
+ t.ao=tmp[0]/255; t.roughness=tmp[1]/255; t.metallic=tmp[2]/255;
+ sampleMaterial(id, 'normal', x, y, tmp, pixel);
+ const nz=Math.max(.2, tmp[2]/127.5-1);
+ t.slopeX=(tmp[0]/127.5-1)/nz; t.slopeY=(tmp[1]/127.5-1)/nz;
+}
+
 function plaster(c: TileCtx, t: Texel, x: number, y: number, base: Rgb): void {
-	const u: number = x / 3 + c.seed * 0.173;
-	const v: number = y / 3 + c.seed * 0.071;
-	sampleInto(plate('concrete_base'), u, v, true, tmp);
-	const luminance: number = (tmp[0] + tmp[1] + tmp[2]) / 3;
-	const f: number = Math.min(1.5, Math.max(0.55, 1 + (luminance / meanOf('concrete_base') - 1) * 0.6));
-	sampleInto(plate('concrete_rough'), u, v, true, tmp);
-	resetTexel(t, mul(base, f), 0.5 + (tmp[0] / 255) * 0.45, 0);
-	normalFrom(t, plate('concrete_normal'), u, v, 0.7);
-	weather(c, t, x, y, 0.12);
+ photographic(t, 'plaster', x+c.seed*.173, y+c.seed*.071, base, c.pixel);
+ weather(c,t,x,y,.08);
 }
 
 /** Slightly darker line along the bottom of a storey where the render meets the next floor. */
@@ -255,19 +234,8 @@ function windowUnit(c: TileCtx, t: Texel, x: number, y: number, w: WindowSpec): 
 
 /** Brickwork from the shipped brick maps: per-brick tone, mortar mask, grain, roughness and normals. */
 function brick(c: TileCtx, t: Texel, x: number, y: number): void {
-	const u: number = x / 3.4;
-	const v: number = y / 3.4;
-	sampleInto(plate('brick_maps'), u, v, true, tmp);
-	const tone: number = tmp[0] / 255;
-	const brickMask: number = Math.min(1, Math.max(0, (tmp[1] - 60) / 140));
-	const grain: number = tmp[2] / 255;
-	const body: Rgb = mul(c.p.wall, (0.72 + tone * 0.56) * (0.8 + grain * 0.3));
-	const color: Rgb = mix(MORTAR, body, brickMask);
-	sampleInto(plate('brick_rough'), u, v, true, tmp);
-	resetTexel(t, color, 0.55 + (tmp[0] / 255) * 0.4, 0);
-	normalFrom(t, plate('brick_normal'), u, v, 1.1);
-	occlude(t, (1 - brickMask) * 0.35);
-	weather(c, t, x, y, 0.1);
+ photographic(t,'brick',x,y,[255,255,255],c.pixel);
+ weather(c,t,x,y,.06);
 }
 
 function standingSeam(c: TileCtx, t: Texel, x: number, y: number, base: Rgb, metal: number): void {
@@ -280,6 +248,8 @@ function standingSeam(c: TileCtx, t: Texel, x: number, y: number, base: Rgb, met
 }
 
 const painters: Record<TileKind, TilePainter> = {
+	facade_a(c,t,x,y): void { photographic(t,'facade_a',x,y,[255,255,255],c.pixel); },
+	facade_b(c,t,x,y): void { photographic(t,'facade_b',x,y,[255,255,255],c.pixel); },
 	wall(c, t, x, y): void {
 		plaster(c, t, x, y, c.p.wall);
 		floorLine(c, t, y);

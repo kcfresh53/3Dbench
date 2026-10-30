@@ -49,8 +49,17 @@ app.on('browser-window-created',(_,win)=>{
     check(plan.buildings.some(b=>b.spec.archetype==='wind_turbine'),'Wind farm missing');
     window.skylineProject=Codecs.project.compile();
     window.skylineCapture=(()=>{
-     const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(1568,588);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+     const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(1568,588);renderer.outputEncoding=preview.renderer.outputEncoding;renderer.toneMapping=preview.renderer.toneMapping;renderer.toneMappingExposure=preview.renderer.toneMappingExposure;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
      const camera=new THREE.PerspectiveCamera(36,1568/588,1,20000);camera.position.set(450,300,650);camera.lookAt(0,40,-120);
+     renderer.render(Canvas.scene,camera);const image=renderer.domElement.toDataURL('image/png').split(',')[1];renderer.dispose();return image;
+    })();
+    window.closeTerrainCapture=(()=>{
+     const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(1280,720);
+     renderer.outputEncoding=preview.renderer.outputEncoding;renderer.toneMapping=preview.renderer.toneMapping;renderer.toneMappingExposure=preview.renderer.toneMappingExposure;
+     renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+     const b=plan.buildings.find(b=>b.spec.archetype==='house')||plan.buildings[0],hf=plan.terrain.heights;
+     const x=b.x+b.width/2+5,z=b.z+b.depth/2+6;
+     const camera=new THREE.PerspectiveCamera(52,1280/720,.1,12000);camera.position.set(x,hf.sample(x,z)+2.3,z);camera.lookAt(b.x,b.y+1.8,b.z);
      renderer.render(Canvas.scene,camera);const image=renderer.domElement.toDataURL('image/png').split(',')[1];renderer.dispose();return image;
     })();
     const signature=JSON.stringify(ctl.store.plan.buildings);
@@ -62,6 +71,7 @@ app.on('browser-window-created',(_,win)=>{
    const out=join(__dirname,'../.local-assets/citybuilder');mkdirSync(out,{recursive:true});
    writeFileSync(join(out,'river-skyline.bench'),await win.webContents.executeJavaScript('window.skylineProject'));
    writeFileSync(join(out,'skyline-reference-view.png'),Buffer.from(await win.webContents.executeJavaScript('window.skylineCapture'),'base64'));
+   writeFileSync(join(out,'close-terrain.png'),Buffer.from(await win.webContents.executeJavaScript('window.closeTerrainCapture'),'base64'));
    writeFileSync(join(out,'skyline.png'),(await win.webContents.capturePage()).toPNG());
    console.log('SKYLINE_OK',JSON.stringify(result));app.exit(0);
   }catch(error){console.error(error);app.exit(1);}

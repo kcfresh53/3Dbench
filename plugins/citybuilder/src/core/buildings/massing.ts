@@ -107,6 +107,7 @@ function pickTile(spec: BuildingSpec, c: TileContext): TileRef {
 		}
 		case 'apartment': {
 			if (ground && c.mainFront && c.bay === c.doorBay) return pick(spec, 'door');
+			if (!ground && !spec.balconies && spec.seed % 5 === 0) return pick(spec, spec.palette % 2 ? 'facade_a' : 'facade_b');
 			if (spec.balconies && c.front && !ground && c.bay % 2 === 1 && !edge) return pick(spec, 'balcony');
 			return pick(spec, c.rng.chance(0.12) ? 'window_wide' : 'window');
 		}

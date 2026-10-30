@@ -72,3 +72,8 @@ npm run test:roadscape-scene
 * To re-extract the artwork from the supplied Blender file see `scripts/import_roadscape.py`.
 
 Adapted for 3D Bench on 2026-10-28. GPL-3.0-or-later; the supplied license and attribution are in `legal/`.
+
+
+## ambientCG surface upgrade
+
+Roads, wet roads, gutters, verges and trails use separate ambientCG PBR sheets shared with City Builder. Keep `citybuilder/textures/pbr/` beside `roadscape.js`, even when only Roadscape is loaded. Gutters use Concrete032. Sidewalks and curbs retain their original Roadscape atlas textures. Preview uses filtered 1K mips; mesh baking retains the full 4K albedo/normal sheets and splits ORM into native occlusion, roughness and metallic channels. Props and lane-marking artwork retain the original atlas. See `citybuilder/ASSETS.md` for sources and licenses. Ground-road edges receive continuous terrain contact shoulders along curved segments, rounded junction corners and dead-end caps. Contact uses the same boundary curves as the sidewalk, samples the final graded surface at most every 2.5 metres, and rebuilds when the terrain changes; bridges, tunnels and open spans are excluded.
