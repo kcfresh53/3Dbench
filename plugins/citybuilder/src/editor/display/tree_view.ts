@@ -5,17 +5,6 @@ import type { CityTreeAsset } from '../tree_assets';
 import { disposeTree, redraw, refreshShadows } from './gl';
 import type { View, ViewContext } from './view';
 
-/**
- * Side of one culling cell for detailed tree models, metres. Each cell is its own instanced mesh, so
- * off-screen models cost nothing. Cutout cards are only a few triangles each; they stay in one mesh per
- * species because extra draw calls would cost more than culling saves.
- */
-const CHUNK_METRES: number = 96;
-/** Tallest tree at its largest scale, metres; pads the culling sphere. */
-const MAX_TREE_HEIGHT: number = 20;
-/** Cell id of the single uncullable mesh that holds a species' cutout cards. */
-const ALL_CELLS: string = 'all';
-
 /** Cheap fingerprint of a tree list, so edits that leave the trees alone do not rebuild them. */
 function treesSignature(trees: PlacedTree[]): string {
 	let hash: number = 2166136261;
@@ -36,9 +25,10 @@ function treesSignature(trees: PlacedTree[]): string {
 }
 
 /**
- * Trees as instanced meshes, one per species/variant/representation. Detailed models
- * stand near roads and two-card cutouts fill the distance (the scatter decides which). Models are split
- * into 96 m cells so the renderer can drop every one outside the camera's view.
+ * Trees as instanced meshes, exactly one per species/variant/representation group, so every group is a
+ * single draw call. Detailed models stand near roads and two-card cutouts fill the distance (the scatter
+ * decides which). Groups are not split into culling cells: one call for the whole group costs less than
+ * the per-cell calls it would save, so the mesh is always submitted.
  */
 export class TreeView implements View {
 	readonly root: THREE.Object3D = new THREE.Object3D();
@@ -66,42 +56,31 @@ export class TreeView implements View {
 	}
 
 	private build(trees: PlacedTree[], assets: Map<string, CityTreeAsset>): void {
-		const groups: Map<string, Map<string, PlacedTree[]>> = new Map<string, Map<string, PlacedTree[]>>();
+		const groups: Map<string, PlacedTree[]> = new Map<string, PlacedTree[]>();
 		for (const t of trees) {
 			const key: string = treeKey(t);
-			const cell: string = t.representation === 'model' ? `${Math.floor(t.x / CHUNK_METRES)}|${Math.floor(t.z / CHUNK_METRES)}` : ALL_CELLS;
-			const byCell: Map<string, PlacedTree[]> = groups.get(key) ?? new Map<string, PlacedTree[]>();
-			const list: PlacedTree[] = byCell.get(cell) ?? [];
+			const list: PlacedTree[] = groups.get(key) ?? [];
 			list.push(t);
-			byCell.set(cell, list);
-			groups.set(key, byCell);
+			groups.set(key, list);
 		}
 		const dummy: THREE.Object3D = new THREE.Object3D();
-		const cullRadius: number = CHUNK_METRES * Math.SQRT1_2 + MAX_TREE_HEIGHT;
-		for (const [key, byCell] of groups) {
+		for (const [key, list] of groups) {
 			const asset: CityTreeAsset = assets.get(key) as CityTreeAsset;
-			const material: THREE.MeshBasicMaterial = new THREE.MeshBasicMaterial({ map: this.textureFor(key, asset), side: THREE.DoubleSide, alphaTest: 0.45, toneMapped:false });
-			// One geometry per asset, shared by its cells. Its sphere covers a whole cell around the mesh origin.
+			const material: THREE.MeshBasicMaterial = new THREE.MeshBasicMaterial({ map: this.textureFor(key, asset), side: THREE.DoubleSide, alphaTest: 0.45, toneMapped: false });
 			const geometry: THREE.BufferGeometry = geometryForParts([asset.part]);
-			// Cell meshes sit at their cell centre, so one shared sphere around the origin covers any cell.
-			geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, MAX_TREE_HEIGHT / 2, 0), cullRadius);
-			for (const [cell, list] of byCell) {
-				const whole: boolean = cell === ALL_CELLS;
-				const [cx, cz] = whole ? [0, 0] : cell.split('|').map((n: string): number => (Number(n) + 0.5) * CHUNK_METRES);
-				const mesh: THREE.InstancedMesh = new THREE.InstancedMesh(geometry, material, list.length);
-				mesh.position.set(cx, 0, cz);
-				list.forEach((t: PlacedTree, i: number): void => {
-					dummy.position.set(t.x - cx, t.y, t.z - cz);
-					dummy.rotation.set(0, t.yaw, 0);
-					dummy.scale.setScalar(t.scale);
-					dummy.updateMatrix();
-					mesh.setMatrixAt(i, dummy.matrix);
-				});
-				mesh.castShadow = true;
-				mesh.instanceMatrix.needsUpdate = true;
-				mesh.frustumCulled = !whole;
-				this.root.add(mesh);
-			}
+			const mesh: THREE.InstancedMesh = new THREE.InstancedMesh(geometry, material, list.length);
+			list.forEach((t: PlacedTree, i: number): void => {
+				dummy.position.set(t.x, t.y, t.z);
+				dummy.rotation.set(0, t.yaw, 0);
+				dummy.scale.setScalar(t.scale);
+				dummy.updateMatrix();
+				mesh.setMatrixAt(i, dummy.matrix);
+			});
+			mesh.castShadow = true;
+			mesh.instanceMatrix.needsUpdate = true;
+			// A group spans the whole city, so its bounds would never cull; skip the per-frame test.
+			mesh.frustumCulled = false;
+			this.root.add(mesh);
 		}
 	}
 
